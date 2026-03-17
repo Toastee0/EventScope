@@ -12,7 +12,7 @@ EventScope auto-detects the CSV format from the header row.
 
 ### Format A — Hayabusa `csv-timeline`
 ```
-evtx_dump / hayabusa csv-timeline --RFC-3339 -f output.csv
+hayabusa csv-timeline --RFC-3339 -f output.csv
 ```
 Expected columns: `Timestamp, RuleTitle, Level, Computer, Channel, EventID, RecordID, Details, ExtraFieldInfo, RuleID`
 
@@ -24,52 +24,9 @@ Expected columns: `TimeCreated, EventId, Level, Provider, Channel, Computer, Map
 
 ---
 
-## Features
-
-### Multi-Session Loading
-Load multiple CSV files in the same browser session. Each file is tagged with a color-coded session label (`S1`, `S2`, ...). All analysis tabs work across the merged dataset simultaneously.
-
-Use **`+ Add Session`** in the session bar to load additional CSV files after the first.
-
-### Analysis Tabs
-
-| Tab | Description |
-|-----|-------------|
-| **Overview** | Summary cards, detection timeline, severity distribution, top Event IDs, top channels |
-| **Timeline** | Filtered timeline with burst detection and severity heatmap |
-| **Rules** | Rule/description table sorted by severity then count, with Event IDs and system coverage |
-| **Sequence** | Temporal cluster analysis — groups events by Event ID within a time window and classifies behavior as Scripted (<500ms), Fast (500ms–5s), or Human (>5s) |
-| **Frequency** | Event ID, Channel, and Computer distribution tables with Z-score outlier flagging |
-| **Anomalies** | Unified anomaly list: critical/high rules, statistical outlier EIDs, burst windows |
-| **Raw Data** | Filtered record table with click-through detail panel; shows Source File column for EvtxECmd data |
-| **Lateral Movement** | Cross-session account correlation (see below) |
-
-### Lateral Movement Analysis
-
-When two or more sessions are loaded, the **Lateral Movement** tab extracts user accounts from event Details fields (`TargetUserName`, `SubjectUserName`, `UserName`, `AccountName`, etc.) and builds:
-
-- **Account Movement Chains** — hop-by-hop visualization of which systems each account touched, in timestamp order. Cross-session hops are highlighted with `⇒` (amber). Logon types are labeled (Interactive, Network, RDP, NewCred, etc.).
-- **Cross-Session Accounts** — accounts observed in 2+ loaded sessions, ranked by event count. These are high-value lateral movement indicators.
-- **Account × Session Matrix** — top 30 accounts as rows, sessions as columns, showing event counts and system counts per cell.
-
-### Filters
-- Event ID (comma-separated list)
-- Rule / Description title (substring)
-- Severity level
-- Computer
-- Channel
-- Source File (EvtxECmd only)
-- Details field (substring)
-- Time range (start / end date)
-
-### EID Focus
-Click any Event ID link anywhere in the tool to open a dedicated drill-down view: timeline, rule associations, per-computer breakdown, and recent events.
-
----
-
 ## Usage
 
-1. Open `eventscope-hayabusa.html` in a modern browser (Chrome/Edge/Firefox)
+1. Open `eventscope-hayabusa.html` in a modern browser (Chrome, Edge, or Firefox)
 2. Drag and drop a Hayabusa or EvtxECmd CSV onto the drop zone, or click to browse
 3. Use **`+ Add Session`** in the top bar to load additional CSVs from other hosts or time ranges
 4. Navigate tabs to explore; use the filter bar to narrow results
@@ -78,7 +35,46 @@ No build step. No dependencies. No internet required after opening the file.
 
 ---
 
-## Sequence Analysis Presets
+## Analysis Tabs
+
+### Core Viewer
+
+| Tab | What it shows |
+|-----|---------------|
+| **Overview** | Summary cards, detection timeline, severity distribution, top Event IDs, top channels |
+| **Timeline** | Filtered timeline, severity stacked heatmap, 3σ burst detection |
+| **Rules** | Rule/description table sorted by severity × count — Event IDs, channels, system coverage |
+| **Sequence** | Temporal cluster analysis with Scripted / Fast / Human classification (see below) |
+| **Frequency** | EID, Channel, and Computer distribution with Z-score outlier flagging, and time-of-day profile |
+| **Anomalies** | Unified list: critical/high rules, frequency outliers, burst windows |
+| **Raw Data** | Full filtered record table — click any row to open the detail panel |
+| **Lateral Movement** | Account movement chains, cross-session correlation, account × session matrix |
+| **EID Focus** | Click any Event ID anywhere to drill into its dedicated timeline and event list |
+
+### Temporal Pattern Tabs
+
+| Tab | What it shows |
+|-----|---------------|
+| **Heatmap** | Hour × day activity grid. Color intensity = event density or severity weight. Click a cell to filter the timeline to that day. |
+| **Arrivals** | First-seen / last-seen tracker for Event IDs, rules, computers, or accounts. Items first appearing after the dataset midpoint are highlighted — new arrivals in an investigation are inherently more interesting. |
+| **Gaps** | Per-host silence detection. Flags time windows where a host went quiet beyond its statistical baseline (mean + Nσ). A domain controller going silent for 40 minutes mid-workday stands out immediately. |
+| **Periodic** | Periodicity detection per Event ID. Uses median inter-event interval and coefficient of variation to classify EIDs as Periodic or Irregular, and maps them to known periods (15min, 1h, 24h, etc.). Breaks in periodicity — a backup that stopped firing — are the real signal. |
+
+---
+
+## Sequence Analysis
+
+The Sequence tab groups matching Event IDs into temporal clusters and classifies each cluster's timing:
+
+| Band | Threshold | What lives here |
+|------|-----------|-----------------|
+| **Scripted** | < 500ms | OS internals, service accounts, kernel operations |
+| **Fast** | 500ms – 5s | The anomaly band — automated tooling with real-world network latency |
+| **Human** | > 5s | Someone at a keyboard making decisions |
+
+Legitimate OS operations are faster (sub-500ms, no network hops). Human activity is slower. Anything in the Fast band is automated-but-not-local — where attack tooling (Mimikatz, PsExec, WMI lateral movement) lands due to network round-trips, credential negotiation, and service startup.
+
+### Presets
 
 | Preset | Event IDs | Window |
 |--------|-----------|--------|
@@ -91,13 +87,54 @@ No build step. No dependencies. No internet required after opening the file.
 
 ---
 
+## Lateral Movement Analysis
+
+When two or more sessions are loaded:
+
+- **Account Movement Chains** — hop-by-hop view of which systems each account touched, in timestamp order. Cross-session hops are marked `⇒` (amber). Logon types labeled (Interactive, Network, RDP, NewCred, etc.).
+- **Cross-Session Accounts** — accounts seen in 2+ sessions, ranked by event count. High-value lateral movement indicators.
+- **Account × Session Matrix** — top 30 accounts as rows, sessions as columns, event counts and system counts per cell.
+
+Accounts are extracted from event Details fields: `TargetUserName`, `SubjectUserName`, `UserName`, `AccountName`, `RemoteUserName`.
+
+---
+
+## Copy to Clipboard
+
+Every data surface has a **Copy** button that exports to TSV (pastes directly into Excel) or CSV. A column configuration modal (accessible from any Copy button) lets you choose and reorder which fields are included. Configuration is saved to `localStorage` and persists across sessions.
+
+| Location | What gets copied |
+|----------|-----------------|
+| Detail panel | The currently-open event (header + 1 row) |
+| Raw Data table | All visible filtered rows (up to 2,000) |
+| Rules table | One row per unique rule |
+| Sequence clusters | All events in the cluster |
+
+---
+
+## Filters
+
+Active across all tabs:
+
+- Event ID (comma-separated)
+- Rule / Description (substring)
+- Severity level
+- Computer
+- Channel
+- Source File (EvtxECmd only)
+- Details field (substring)
+- Time range (start / end date)
+
+---
+
 ## Architecture
 
-Single self-contained HTML file. All logic is vanilla JavaScript with no external dependencies.
+Single self-contained HTML file (~1,150 lines). All logic is vanilla JavaScript with no external dependencies — no npm, no bundler, no CDN.
 
-- **CSV streaming parser** — reads files in 4 MB chunks, handles quoted fields and multi-line edge cases, streams arbitrarily large files without blocking the UI
-- **In-RAM store** — parsed rows stored as plain objects in `S.rows[]`, tagged with `sessionIdx` for multi-session correlation
-- **Canvas charts** — bar charts, stacked severity charts, and horizontal bar charts drawn directly via 2D Canvas API with HiDPI support
+- **Streaming parser** — reads files in 4 MB chunks, yields to the event loop between chunks, handles multi-GB exports without blocking the UI
+- **In-RAM store** — parsed rows as plain objects in `S.rows[]`, tagged with `sessionIdx` for multi-session correlation
+- **Canvas charts** — all charts drawn directly via Canvas 2D API with HiDPI (`devicePixelRatio`) support; force-directed network graph uses a Verlet-integrated spring/repulsion physics simulation for natural cluster layout
+- **Zero network access** — suitable for air-gapped forensic workstations; the file functions identically with no network interface
 - **Lateral graph** — pure in-memory adjacency built at render time from `S.rows`, no external graph library needed
 
 ---
