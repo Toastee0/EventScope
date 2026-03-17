@@ -122,10 +122,37 @@
   .detail-section-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text-dim);margin-bottom:8px}
   .detail-field{margin-bottom:4px}.detail-key{color:var(--accent);display:inline-block;min-width:140px}.detail-val{color:var(--text-bright)}
   .detail-payload-block{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:12px;white-space:pre-wrap;word-break:break-all;font-size:11px;line-height:1.6;max-height:400px;overflow-y:auto}
+
+  .session-bar{display:flex;align-items:center;gap:10px;padding:8px 32px;background:var(--surface2);border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .session-chips{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+  .session-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);font-family:var(--mono);font-size:11px;color:var(--text)}
+  .session-chip-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;display:inline-block}
+  .session-add-btn{font-family:var(--mono);font-size:11px;padding:5px 14px;border:1px dashed var(--border-bright);border-radius:6px;background:none;color:var(--text-dim);cursor:pointer;transition:all .15s;white-space:nowrap}.session-add-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .session-badge{display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;font-family:var(--mono);font-weight:700;color:#0a0c10;line-height:1.6}
+
+  .lat-chain{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:8px}
+  .lat-chain.cross{border-left:3px solid var(--warn)}
+  .lat-chain-hdr{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+  .lat-chain-name{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text-bright)}
+  .lat-hops{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+  .lat-hop{display:inline-flex;flex-direction:column;align-items:center;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);text-align:center;min-width:88px}
+  .lat-hop-comp{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text-bright);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lat-hop-meta{font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:2px;white-space:nowrap}
+  .lat-arrow{font-size:13px;color:var(--text-dim);padding:0 2px;user-select:none;flex-shrink:0}
+  .lat-arrow.xsess{color:var(--warn);font-size:15px}
+  .lat-matrix-wrap{overflow-x:auto}
+  .lat-matrix-table{border-collapse:collapse;font-family:var(--mono);font-size:11px}
+  .lat-matrix-table th,.lat-matrix-table td{padding:5px 10px;border:1px solid var(--border);white-space:nowrap}
+  .lat-matrix-table th{background:var(--surface2);color:var(--text-dim);font-weight:600;text-align:center}
+  .lat-matrix-table td.acct-col{text-align:left}
+  .lat-matrix-table td.hit{background:var(--accent-dim);color:var(--accent);text-align:center;cursor:default}
+  .lat-matrix-table td.empty{color:var(--border);text-align:center}
+  .lat-matrix-table tr.cross-acct td.acct-col{color:var(--warn);font-weight:600}
 </style>
 </head>
 <body>
 <div class="header"><div class="header-left"><div class="logo">EventScope <span>/ hayabusa analyzer</span></div></div><div class="header-stats" id="headerStats"></div></div>
+<div class="session-bar" id="sessionBar" style="display:none"><div class="session-chips" id="sessionChips"></div><button class="session-add-btn" id="sessionAddBtn">+ Add Session</button></div>
 
 <div class="dropzone-overlay" id="dropzoneOverlay">
   <div class="dropzone" id="dropzone">
@@ -136,6 +163,7 @@
   <div class="progress-container" id="progressContainer"><div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div><div class="progress-text" id="progressText">Preparing...</div></div>
 </div>
 <input type="file" id="fileInput" accept=".csv,.tsv,.txt" style="display:none">
+<input type="file" id="sessionFileInput" accept=".csv,.tsv,.txt" style="display:none">
 
 <div class="dashboard" id="dashboard">
   <div class="filter-bar">
@@ -152,7 +180,7 @@
   <div class="tabs">
     <div class="tab active" data-tab="overview">Overview</div><div class="tab" data-tab="timeline">Timeline</div><div class="tab" data-tab="rules">Rules</div>
     <div class="tab" data-tab="sequence">Sequence</div><div class="tab" data-tab="frequency">Frequency</div><div class="tab" data-tab="anomalies">Anomalies</div>
-    <div class="tab" data-tab="raw">Raw Data</div><div class="tab" data-tab="eidfocus" id="tabEidFocus" style="display:none">EID Focus</div>
+    <div class="tab" data-tab="raw">Raw Data</div><div class="tab" data-tab="lateral">Lateral Movement</div><div class="tab" data-tab="eidfocus" id="tabEidFocus" style="display:none">EID Focus</div>
   </div>
 
   <div class="panel active" id="panel-overview"><div class="card-grid" id="overviewCards"></div><div class="two-col"><div class="chart-box"><div class="chart-header"><span class="chart-title">Detection Timeline</span><div class="chart-controls"><button class="chart-btn active" data-bucket="auto" data-target="timelineAll">Auto</button><button class="chart-btn" data-bucket="hour" data-target="timelineAll">1h</button><button class="chart-btn" data-bucket="day" data-target="timelineAll">1d</button></div></div><canvas class="chart-canvas" id="canvasTimelineAll"></canvas></div><div class="chart-box"><div class="chart-header"><span class="chart-title">Severity Distribution</span></div><canvas class="chart-canvas" id="canvasSeverity"></canvas></div></div><div class="two-col"><div class="chart-box"><div class="chart-header"><span class="chart-title">Top 20 Event IDs</span></div><canvas class="chart-canvas" id="canvasTopEvents"></canvas></div><div class="chart-box"><div class="chart-header"><span class="chart-title">Events by Channel</span></div><canvas class="chart-canvas" id="canvasChannels"></canvas></div></div></div>
@@ -182,13 +210,32 @@
   <div class="panel" id="panel-raw"><div class="chart-box"><div class="chart-header"><span class="chart-title">Filtered Detections</span><span class="chart-title" id="rawCount" style="font-weight:400;color:var(--text-dim)"></span></div><div class="data-table-wrap" id="rawTableWrap" style="max-height:600px"></div></div></div>
 
   <div class="panel" id="panel-eidfocus"><div class="eid-focus-header"><span class="eid-focus-title" id="eidFocusTitle">EID —</span><button class="eid-focus-close" id="eidFocusClose">✕ Close</button><button class="seq-run-btn" id="eidFocusToSeq" style="font-size:11px;padding:4px 12px">→ Add to Sequence</button></div><div id="eidFocusContent"></div></div>
+
+  <div class="panel" id="panel-lateral">
+    <div id="latSessionLegend" style="margin-bottom:16px"></div>
+    <div class="two-col" style="margin-bottom:16px">
+      <div class="chart-box">
+        <div class="chart-header"><span class="chart-title">Account Movement Chains</span><div class="chart-controls"><input class="filter-input" id="latAccountFilter" placeholder="Filter account..." style="min-width:150px"><button class="chart-btn active" id="latRefreshBtn">Refresh</button></div></div>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;font-family:var(--mono)">Extracts accounts from event details. <span style="color:var(--warn)">⇒</span> = session boundary crossed.</p>
+        <div id="latChains"></div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-header"><span class="chart-title">Cross-Session Accounts</span></div>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;font-family:var(--mono)">Accounts observed in 2+ loaded sessions — high-value lateral movement indicators.</p>
+        <div id="latCrossSession"></div>
+      </div>
+    </div>
+    <div class="chart-box"><div class="chart-header"><span class="chart-title">Account × Session Matrix</span><span style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Top 30 accounts</span></div><div class="lat-matrix-wrap"><div id="latMatrix"></div></div></div>
+  </div>
 </div>
 
 <div class="detail-panel" id="detailPanel"><div class="detail-panel-header"><span class="detail-panel-title" id="detailPanelTitle">Event Detail</span><button class="detail-panel-close" id="detailPanelClose">✕</button></div><div class="detail-panel-body" id="detailPanelBody"></div></div>
 <div class="tooltip" id="tooltip"></div>
 
 <script>
-const S={rows:[],columns:[],colIndex:{},eventIdCounts:{},computerCounts:{},channelCounts:{},levelCounts:{critical:0,high:0,medium:0,low:0,informational:0},ruleTitleCounts:{},ruleIdMap:{},sourceCounts:{},timeMin:Infinity,timeMax:-Infinity,format:null,filters:{},filteredRows:null,bucketPref:{},focusEid:null,_seqClusters:null};
+const SESSION_COLORS=['#4af','#36d986','#f8a535','#a78bfa','#f472b6','#38bdf8','#fb923c','#f05545'];
+const S={rows:[],columns:[],colIndex:{},sessions:[],sessionCurrent:0,eventIdCounts:{},computerCounts:{},channelCounts:{},levelCounts:{critical:0,high:0,medium:0,low:0,informational:0},ruleTitleCounts:{},ruleIdMap:{},sourceCounts:{},timeMin:Infinity,timeMax:-Infinity,format:null,filters:{},filteredRows:null,bucketPref:{},focusEid:null,_seqClusters:null};
+const LT_NAMES={2:'Interactive',3:'Network',4:'Batch',5:'Service',7:'Unlock',8:'NetCleartext',9:'NewCred',10:'RDP',11:'CachedInteract'};
 const LW={critical:5,high:4,medium:3,low:2,informational:1};
 
 function parseCSVLine(l){const r=[];let c='',q=false;for(let i=0;i<l.length;i++){const ch=l[i];if(q){if(ch==='"'){if(i+1<l.length&&l[i+1]==='"'){c+='"';i++}else q=false}else c+=ch}else{if(ch==='"')q=true;else if(ch===','){r.push(c);c=''}else c+=ch}}r.push(c);return r}
@@ -197,11 +244,11 @@ function parseDet(d){if(!d)return{};const p={};for(const part of d.split('¦')){
 function normLvl(l){if(!l)return'informational';const s=l.trim().toLowerCase();if(s==='crit'||s==='critical'||s==='1')return'critical';if(s==='high'||s==='error'||s==='2')return'high';if(s==='med'||s==='medium'||s==='warning'||s==='warn'||s==='3')return'medium';if(s==='low'||s==='verbose'||s==='5')return'low';if(s==='info'||s==='information'||s==='0'||s==='4'||s==='logalways')return'informational';return'informational'}
 
 async function streamParse(file){const CS=4*1024*1024;let off=0,buf='',hp=false,rc=0,procFn=procRow;const pf=document.getElementById('progressFill'),pt=document.getElementById('progressText');document.getElementById('progressContainer').style.display='block';
-while(off<file.size){buf+=await file.slice(off,off+CS).text();off+=CS;let sf=0;while(true){const nl=buf.indexOf('\n',sf);if(nl===-1)break;const cand=buf.substring(0,nl);let qc=0;for(let i=0;i<cand.length;i++)if(cand[i]==='"')qc++;if(qc%2!==0){sf=nl+1;continue}const rec=cand.replace(/\r$/,'');buf=buf.substring(nl+1);sf=0;if(!rec.trim())continue;if(!hp){S.columns=parseCSVLine(rec);S.columns.forEach((c,i)=>S.colIndex[c.trim().replace(/^"/,'').replace(/"$/,'')]=i);hp=true;if('TimeCreated' in S.colIndex&&'EventId' in S.colIndex){S.format='evtxecmd';procFn=procRowEvtxECmd;}else{S.format='hayabusa';procFn=procRow;}continue}procFn(parseCSVLine(rec));rc++}const fmt=S.format==='evtxecmd'?'EvtxECmd':'Hayabusa';pf.style.width=Math.min(100,off/file.size*100)+'%';pt.textContent=`Parsed ${rc.toLocaleString()} records [${fmt}] (${Math.round(Math.min(100,off/file.size*100))}%)`;await new Promise(r=>setTimeout(r,0))}
+while(off<file.size){buf+=await file.slice(off,off+CS).text();off+=CS;let sf=0;while(true){const nl=buf.indexOf('\n',sf);if(nl===-1)break;const cand=buf.substring(0,nl);let qc=0;for(let i=0;i<cand.length;i++)if(cand[i]==='"')qc++;if(qc%2!==0){sf=nl+1;continue}const rec=cand.replace(/\r$/,'');buf=buf.substring(nl+1);sf=0;if(!rec.trim())continue;if(!hp){S.colIndex={};S.columns=parseCSVLine(rec);S.columns.forEach((c,i)=>S.colIndex[c.trim().replace(/^"/,'').replace(/"$/,'')]=i);hp=true;if('TimeCreated' in S.colIndex&&'EventId' in S.colIndex){S.format='evtxecmd';procFn=procRowEvtxECmd;}else{S.format='hayabusa';procFn=procRow;}continue}procFn(parseCSVLine(rec));rc++}const fmt=S.format==='evtxecmd'?'EvtxECmd':'Hayabusa';pf.style.width=Math.min(100,off/file.size*100)+'%';pt.textContent=`Parsed ${rc.toLocaleString()} records [${fmt}] (${Math.round(Math.min(100,off/file.size*100))}%)`;await new Promise(r=>setTimeout(r,0))}
 if(buf.trim()&&hp){procFn(parseCSVLine(buf.trim()));rc++}pf.style.width='100%';pt.textContent=`Complete: ${rc.toLocaleString()} records [${S.format==='evtxecmd'?'EvtxECmd':'Hayabusa'}]`;return rc}
 
 function procRow(f){const ci=S.colIndex,ts=parseTS(f[ci['Timestamp']]),rule=(f[ci['RuleTitle']]||'').trim(),lvl=normLvl(f[ci['Level']]),comp=(f[ci['Computer']]||'').trim(),chan=(f[ci['Channel']]||'').trim(),eid=(f[ci['EventID']]||'').trim(),rec=(f[ci['RecordID']]||'').trim(),det=(f[ci['Details']]||'').trim(),ext=(f[ci['ExtraFieldInfo']]||'').trim(),rid=(f[ci['RuleID']]||'').trim();
-S.rows.push({ts,rule,lvl,comp,chan,eid,rec,det,extra:ext,rid,src:''});S.eventIdCounts[eid]=(S.eventIdCounts[eid]||0)+1;if(comp)S.computerCounts[comp]=(S.computerCounts[comp]||0)+1;if(chan)S.channelCounts[chan]=(S.channelCounts[chan]||0)+1;S.levelCounts[lvl]=(S.levelCounts[lvl]||0)+1;
+S.rows.push({ts,rule,lvl,comp,chan,eid,rec,det,extra:ext,rid,src:'',sessionIdx:S.sessionCurrent||0});S.eventIdCounts[eid]=(S.eventIdCounts[eid]||0)+1;if(comp)S.computerCounts[comp]=(S.computerCounts[comp]||0)+1;if(chan)S.channelCounts[chan]=(S.channelCounts[chan]||0)+1;S.levelCounts[lvl]=(S.levelCounts[lvl]||0)+1;
 if(rule){S.ruleTitleCounts[rule]=(S.ruleTitleCounts[rule]||0)+1;if(!S.ruleIdMap[rule])S.ruleIdMap[rule]={ruleId:rid,level:lvl,count:0,channel:chan,eventIds:new Set()};S.ruleIdMap[rule].count++;if(eid)S.ruleIdMap[rule].eventIds.add(eid)}
 if(!isNaN(ts)){if(ts<S.timeMin)S.timeMin=ts;if(ts>S.timeMax)S.timeMax=ts}}
 
@@ -224,7 +271,7 @@ if(rh&&rh!=='-')parts.push('RemoteHost: '+rh);
 if(uid2&&uid2!=='-')parts.push('UserId: '+uid2);
 if(ei&&ei!=='-')parts.push('ExecutableInfo: '+ei);
 const det=parts.join('\u00a6'),ext=(f[ci['Payload']]||'').trim(),rid=provider;
-S.rows.push({ts,rule,lvl,comp,chan,eid,rec,det,extra:ext,rid,src});
+S.rows.push({ts,rule,lvl,comp,chan,eid,rec,det,extra:ext,rid,src,sessionIdx:S.sessionCurrent||0});
 S.eventIdCounts[eid]=(S.eventIdCounts[eid]||0)+1;
 if(comp)S.computerCounts[comp]=(S.computerCounts[comp]||0)+1;
 if(chan)S.channelCounts[chan]=(S.channelCounts[chan]||0)+1;
@@ -346,7 +393,106 @@ const isEvtx=S.format==='evtxecmd';
 const hdr=`<th>Timestamp</th><th>Level</th><th>EID</th><th>${isEvtx?'Description':'Rule Title'}</th><th>Computer</th><th>Channel</th><th>Record</th>${isEvtx?'<th>Source</th>':''}`;
 document.getElementById('rawTableWrap').innerHTML=`<table class="data-table"><thead><tr>${hdr}</tr></thead><tbody>${sh.map((r,i)=>{const srcCell=isEvtx?`<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis" title="${eH(r.src||'')}">${eH((r.src||'').split(/[/\\]/).pop())}</td>`:'';return`<tr style="cursor:pointer" onclick="openDP(${i})"><td>${!isNaN(r.ts)?fDMs(new Date(r.ts)):'N/A'}</td><td>${lB(r.lvl)}</td><td>${eL(r.eid)}</td><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis" title="${eH(r.rule)}">${eH(r.rule)}</td><td>${r.comp}</td><td>${r.chan.length>25?r.chan.substring(0,23)+'…':r.chan}</td><td>${r.rec}</td>${srcCell}</tr>`}).join('')}</tbody></table>`}
 
-function switchTab(t){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===t));document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+t));switch(t){case'overview':rOV();break;case'timeline':rTL();break;case'rules':rRU();break;case'frequency':rFR();break;case'anomalies':rAN();break;case'raw':rRW();break;case'eidfocus':renderEF();break}}
+// ── MULTI-SESSION & LATERAL MOVEMENT ──────────────────────────────────────────
+
+function renderSessionBar(){
+const bar=document.getElementById('sessionBar');
+document.getElementById('sessionChips').innerHTML=S.sessions.map(s=>`<span class="session-chip"><span class="session-chip-dot" style="background:${s.color}"></span><span title="${eH(s.label)}">${eH(s.label.length>30?s.label.substring(0,28)+'…':s.label)}</span><span style="color:var(--text-dim);margin-left:4px">(${s.count.toLocaleString()})</span></span>`).join('');
+bar.style.display='';}
+
+async function loadAdditionalSession(file){
+const idx=S.sessions.length;
+const label=file.name.replace(/\.[^.]+$/,'');
+const color=SESSION_COLORS[idx%SESSION_COLORS.length];
+const before=S.rows.length;
+S.sessionCurrent=idx;
+const c=await streamParse(file);
+if(!c)return;
+const newRows=S.rows.slice(before);
+const tMin=newRows.reduce((m,r)=>!isNaN(r.ts)?Math.min(m,r.ts):m,Infinity);
+const tMax=newRows.reduce((m,r)=>!isNaN(r.ts)?Math.max(m,r.ts):m,-Infinity);
+S.sessions.push({idx,label,color,format:S.format,count:newRows.length,timeMin:tMin,timeMax:tMax});
+if(tMin<S.timeMin)S.timeMin=tMin;if(tMax>S.timeMax)S.timeMax=tMax;
+S.filteredRows=null;renderSessionBar();popF();
+const at=document.querySelector('.tab.active');if(at)switchTab(at.dataset.tab);}
+
+const LAT_SKIP=new Set(['','system','local service','network service','-','anonymous logon','null','dwm-1','dwm-2','dwm-3','umfd-0','umfd-1','umfd-2','umfd-3','window manager','font driver host','iis apppool']);
+function extractAccounts(r){
+const p=parseDet(r.det),out=new Set();
+for(const k of['TargetUserName','SubjectUserName','AccountName','UserName','SamAccountName','RemoteUserName']){
+let v=(p[k]||'').trim();if(!v||v==='-')continue;
+if(v.includes('\\'))v=v.split('\\').pop();
+if(v.includes('@'))v=v.split('@')[0];
+v=v.trim();
+if(v.length>=2&&!v.endsWith('$')&&!LAT_SKIP.has(v.toLowerCase()))out.add(v);}
+return out;}
+
+function buildLateralGraph(){
+const accounts=new Map();
+for(const r of S.rows){
+for(const acct of extractAccounts(r)){
+if(!accounts.has(acct))accounts.set(acct,[]);
+const p=parseDet(r.det);
+const lt=p['LogonType']||p['Logon Type']||'';
+const srcIp=p['IpAddress']||p['IPAddress']||p['RemoteHost']||p['WorkstationName']||'';
+accounts.get(acct).push({ts:r.ts,comp:r.comp,eid:r.eid,sessionIdx:r.sessionIdx??0,logonType:lt,srcIp,lvl:r.lvl,rule:r.rule});}}
+for(const[,evts]of accounts)evts.sort((a,b)=>a.ts-b.ts);
+const crossSession=new Set(),multiComp=new Set();
+for(const[acct,evts]of accounts){
+const sess=new Set(evts.map(e=>e.sessionIdx)),comps=new Set(evts.map(e=>e.comp));
+if(sess.size>1)crossSession.add(acct);if(comps.size>1)multiComp.add(acct);}
+return{accounts,crossSession,multiComp};}
+
+function buildHops(evts){
+const hops=[];
+for(const e of evts){const last=hops[hops.length-1];
+if(last&&last.comp===e.comp&&last.sessionIdx===e.sessionIdx){last.count++;last.tsLast=e.ts;if(e.logonType&&!last.logonTypes.includes(e.logonType))last.logonTypes.push(e.logonType);}
+else hops.push({comp:e.comp,sessionIdx:e.sessionIdx,tsFirst:e.ts,tsLast:e.ts,count:1,logonTypes:e.logonType?[e.logonType]:[]});}
+return hops;}
+
+function renderLatMatrix(g,tops){
+if(!S.sessions.length)return;
+const el=document.getElementById('latMatrix');
+const hdr=`<tr><th style="text-align:left">Account</th>${S.sessions.map(s=>`<th><span class="session-badge" style="background:${s.color}">S${s.idx+1}</span> ${eH(s.label.length>18?s.label.substring(0,16)+'…':s.label)}</th>`).join('')}</tr>`;
+const rowsHtml=tops.map(([acct,evts])=>{
+const isCross=g.crossSession.has(acct);
+const cells=S.sessions.map(s=>{const se=evts.filter(e=>e.sessionIdx===s.idx);if(!se.length)return`<td class="empty">—</td>`;const comps=[...new Set(se.map(e=>e.comp))];return`<td class="hit" title="${eH(comps.join(', '))}">${se.length}<br><span style="font-size:9px;opacity:.7">${comps.length}sys</span></td>`;}).join('');
+return`<tr${isCross?' class="cross-acct"':''}><td class="acct-col">${eH(acct)}</td>${cells}</tr>`;}).join('');
+el.innerHTML=`<table class="lat-matrix-table"><thead>${hdr}</thead><tbody>${rowsHtml}</tbody></table>`;}
+
+function renderLateral(){
+const g=buildLateralGraph();
+const filterVal=(document.getElementById('latAccountFilter')||{}).value?.toLowerCase()||'';
+// Session legend
+const legEl=document.getElementById('latSessionLegend');
+if(S.sessions.length===0){legEl.innerHTML='<div class="anomaly-item info"><div class="anomaly-title">No sessions loaded yet.</div></div>';return;}
+legEl.innerHTML=`<div class="card-grid">${S.sessions.map(s=>`<div class="card" style="border-left:3px solid ${s.color}"><div class="card-label">Session ${s.idx+1}</div><div class="card-value" style="font-size:15px;color:${s.color};white-space:normal;word-break:break-all">${eH(s.label)}</div><div class="card-sub">${s.count.toLocaleString()} records &middot; ${s.format==='evtxecmd'?'EvtxECmd':'Hayabusa'}</div><div class="card-sub" style="font-size:10px">${s.timeMin<Infinity?fDF(new Date(s.timeMin))+'&nbsp;→':''} ${s.timeMax>-Infinity?fDF(new Date(s.timeMax)):''}</div></div>`).join('')}</div>`;
+// Sort: cross-session first, then multi-comp, then by event count
+const sorted=[...g.accounts.entries()].sort((a,b)=>{const ax=g.crossSession.has(a[0])?2:g.multiComp.has(a[0])?1:0,bx=g.crossSession.has(b[0])?2:g.multiComp.has(b[0])?1:0;return bx!==ax?bx-ax:b[1].length-a[1].length;});
+const filtered=filterVal?sorted.filter(([n])=>n.toLowerCase().includes(filterVal)):sorted;
+// Chains
+const chains=filtered.slice(0,120).map(([acct,evts])=>{
+const hops=buildHops(evts);const isCross=g.crossSession.has(acct),isMulti=g.multiComp.has(acct);
+const flags=(isCross?'<span class="badge badge-warn">CROSS-SESSION</span> ':isMulti?'<span class="badge badge-info">MULTI-HOST</span> ':'');
+const hopHtml=hops.map((h,i)=>{
+const sess=S.sessions[h.sessionIdx]||{color:'#6b7490',idx:0};
+const lt=h.logonTypes[0];const ltName=lt?(' · '+(LT_NAMES[+lt]||'T'+lt)):'';
+const prev=hops[i-1];const xsess=prev&&prev.sessionIdx!==h.sessionIdx;
+const arrow=i>0?`<span class="lat-arrow${xsess?' xsess':''}">${xsess?' ⇒ ':' → '}</span>`:'';
+return`${arrow}<div class="lat-hop"><span class="lat-hop-comp" title="${eH(h.comp)}">${eH(h.comp.length>14?h.comp.substring(0,12)+'…':h.comp)}</span><span class="session-badge" style="background:${sess.color}">S${sess.idx+1}</span><span class="lat-hop-meta">${h.count}evt${ltName}</span></div>`;}).join('');
+const comps=new Set(evts.map(e=>e.comp));
+return`<div class="lat-chain${isCross?' cross':''}"><div class="lat-chain-hdr"><span class="lat-chain-name">${eH(acct)}</span>${flags}<span style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">${evts.length} events &middot; ${comps.size} system${comps.size!==1?'s':''}</span></div><div class="lat-hops">${hopHtml}</div></div>`;}).join('');
+document.getElementById('latChains').innerHTML=chains||'<div class="anomaly-item info"><div class="anomaly-title">No accounts extracted from loaded data</div><div class="anomaly-detail" style="font-family:var(--mono);font-size:11px">Accounts are extracted from Details fields: TargetUserName, SubjectUserName, UserName, AccountName. Ensure events like 4624, 4648, 4625, 5140 are present.</div></div>';
+// Cross-session table
+if(g.crossSession.size>0){
+document.getElementById('latCrossSession').innerHTML=mFT(['Account','Sessions','Computers','Events'],[...g.crossSession].sort((a,b)=>g.accounts.get(b).length-g.accounts.get(a).length).map(acct=>{const evts=g.accounts.get(acct);const sess=[...new Set(evts.map(e=>e.sessionIdx))].map(i=>`<span class="session-badge" style="background:${(S.sessions[i]||{color:'#6b7490'}).color}">S${i+1}</span>`).join(' ');const comps=new Set(evts.map(e=>e.comp));return[eH(acct),sess,comps.size,evts.length];}));
+}else{document.getElementById('latCrossSession').innerHTML=`<div style="color:var(--text-dim);font-size:12px;padding:12px;font-family:var(--mono)">${S.sessions.length<2?'Use <strong>+ Add Session</strong> to load a second CSV. Accounts seen in both sessions will appear here.':'No accounts found spanning multiple sessions.'}</div>`;}
+// Matrix
+renderLatMatrix(g,sorted.slice(0,30));}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
+function switchTab(t){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===t));document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+t));switch(t){case'overview':rOV();break;case'timeline':rTL();break;case'rules':rRU();break;case'frequency':rFR();break;case'anomalies':rAN();break;case'raw':rRW();break;case'eidfocus':renderEF();break;case'lateral':renderLateral();break}}
 
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>switchTab(t.dataset.tab)));
 document.querySelectorAll('.chart-btn[data-bucket]').forEach(b=>{b.addEventListener('click',()=>{S.bucketPref[b.dataset.target]=b.dataset.bucket;b.parentElement.querySelectorAll('.chart-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');const at=document.querySelector('.tab.active');if(at)switchTab(at.dataset.tab)})});
@@ -367,10 +513,22 @@ function popF(){const cs=document.getElementById('filterComputer');cs.innerHTML=
 const ch=document.getElementById('filterChannel');ch.innerHTML='<option value="">All Channels</option>';Object.entries(S.channelCounts).sort((a,b)=>b[1]-a[1]).forEach(([c,n])=>{ch.innerHTML+=`<option value="${eH(c)}">${c.length>40?c.substring(0,38)+'…':c} (${n})</option>`});
 const sw=document.getElementById('filterSourceWrap'),sf=document.getElementById('filterSource');if(S.format==='evtxecmd'){sf.innerHTML='<option value="">All Sources</option>';Object.entries(S.sourceCounts).sort((a,b)=>b[1]-a[1]).forEach(([s,n])=>{const fn=s.split(/[/\\]/).pop();sf.innerHTML+=`<option value="${eH(s)}">${eH(fn)} (${n})</option>`});sw.style.display='';}else{sw.style.display='none';}}
 
-async function loadF(file){S.rows=[];S.eventIdCounts={};S.computerCounts={};S.channelCounts={};S.levelCounts={critical:0,high:0,medium:0,low:0,informational:0};S.ruleTitleCounts={};S.ruleIdMap={};S.sourceCounts={};S.timeMin=Infinity;S.timeMax=-Infinity;S.format=null;S.filteredRows=null;S.filters={};S.focusEid=null;
-const c=await streamParse(file);if(!c){document.getElementById('progressText').textContent='No detections. Check CSV format.';return}document.getElementById('dropzoneOverlay').style.display='none';document.getElementById('dashboard').style.display='block';popF();switchTab('overview')}
+async function loadF(file){S.rows=[];S.sessions=[];S.sessionCurrent=0;S.eventIdCounts={};S.computerCounts={};S.channelCounts={};S.levelCounts={critical:0,high:0,medium:0,low:0,informational:0};S.ruleTitleCounts={};S.ruleIdMap={};S.sourceCounts={};S.timeMin=Infinity;S.timeMax=-Infinity;S.format=null;S.filteredRows=null;S.filters={};S.focusEid=null;
+const c=await streamParse(file);if(!c){document.getElementById('progressText').textContent='No detections. Check CSV format.';return}
+S.sessions.push({idx:0,label:file.name.replace(/\.[^.]+$/,''),color:SESSION_COLORS[0],format:S.format,count:S.rows.length,timeMin:S.timeMin,timeMax:S.timeMax});
+document.getElementById('dropzoneOverlay').style.display='none';document.getElementById('dashboard').style.display='block';renderSessionBar();popF();switchTab('overview')}
 
 let rt;window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{const at=document.querySelector('.tab.active');if(at&&S.rows.length)switchTab(at.dataset.tab)},200)});
+
+// Session add button
+const sfi=document.getElementById('sessionFileInput');
+document.getElementById('sessionAddBtn').addEventListener('click',()=>sfi.click());
+sfi.addEventListener('change',()=>{if(sfi.files.length){loadAdditionalSession(sfi.files[0]);sfi.value='';} });
+
+// Lateral movement filters
+document.getElementById('latAccountFilter').addEventListener('input',deb(()=>{if(document.querySelector('.tab.active')?.dataset.tab==='lateral')renderLateral()},400));
+document.getElementById('latRefreshBtn').addEventListener('click',renderLateral);
+
 </script>
 </body>
 </html>
