@@ -148,6 +148,22 @@
   .lat-matrix-table td.hit{background:var(--accent-dim);color:var(--accent);text-align:center;cursor:default}
   .lat-matrix-table td.empty{color:var(--border);text-align:center}
   .lat-matrix-table tr.cross-acct td.acct-col{color:var(--warn);font-weight:600}
+
+  /* ── COPY / COLUMN CONFIG ─────────────────────────────────────────────── */
+  .copy-toast{position:fixed;bottom:32px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--surface3);border:1px solid var(--border-bright);border-radius:8px;padding:10px 22px;font-family:var(--mono);font-size:13px;color:var(--success);opacity:0;transition:opacity .3s,transform .3s;z-index:2000;pointer-events:none;white-space:nowrap}.copy-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .copy-btn{font-family:var(--mono);font-size:10px;padding:3px 9px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text-dim);cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0}.copy-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .col-cfg-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1500;align-items:center;justify-content:center}.col-cfg-overlay.open{display:flex}
+  .col-cfg-modal{background:var(--surface);border:1px solid var(--border-bright);border-radius:12px;padding:24px;width:520px;max-width:95vw;max-height:82vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .col-cfg-title{font-size:15px;font-weight:600;color:var(--text-bright);margin-bottom:4px}.col-cfg-sub{font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:16px}
+  .col-cfg-rows{margin-bottom:8px}
+  .col-cfg-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)}.col-cfg-row:last-child{border-bottom:none}
+  .col-cfg-check{accent-color:var(--accent);width:14px;height:14px;cursor:pointer;flex-shrink:0}
+  .col-cfg-lbl{flex:1;font-family:var(--mono);font-size:12px;color:var(--text);cursor:pointer}
+  .col-cfg-mv{font-size:11px;padding:1px 6px;border:1px solid var(--border);border-radius:3px;background:var(--surface2);color:var(--text-dim);cursor:pointer;line-height:1.4}.col-cfg-mv:hover{border-color:var(--accent);color:var(--accent)}
+  .col-cfg-footer{display:flex;gap:8px;margin-top:16px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+  .col-cfg-save{font-family:var(--mono);font-size:12px;padding:7px 18px;border:1px solid var(--accent);border-radius:4px;background:var(--accent-dim);color:var(--accent);cursor:pointer;font-weight:600}.col-cfg-save:hover{background:var(--accent);color:var(--bg)}
+  .col-cfg-cancel{font-family:var(--mono);font-size:12px;padding:7px 18px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text-dim);cursor:pointer}.col-cfg-cancel:hover{border-color:var(--danger);color:var(--danger)}
+  .delim-toggle{display:inline-flex;border:1px solid var(--border);border-radius:4px;overflow:hidden}.delim-btn{font-family:var(--mono);font-size:11px;padding:4px 10px;background:var(--surface2);color:var(--text-dim);cursor:pointer;border:none;outline:none}.delim-btn.active{background:var(--accent-dim);color:var(--accent)}
 </style>
 </head>
 <body>
@@ -178,16 +194,100 @@
     <button class="filter-reset" id="filterReset">Reset</button>
   </div>
   <div class="tabs">
-    <div class="tab active" data-tab="overview">Overview</div><div class="tab" data-tab="timeline">Timeline</div><div class="tab" data-tab="rules">Rules</div>
+    <div class="tab active" data-tab="overview">Overview</div><div class="tab" data-tab="timeline">Timeline</div><div class="tab" data-tab="heatmap">Heatmap</div><div class="tab" data-tab="arrivals">Arrivals</div><div class="tab" data-tab="gaps">Gaps</div><div class="tab" data-tab="periodic">Periodic</div><div class="tab" data-tab="rules">Rules</div>
     <div class="tab" data-tab="sequence">Sequence</div><div class="tab" data-tab="frequency">Frequency</div><div class="tab" data-tab="anomalies">Anomalies</div>
     <div class="tab" data-tab="raw">Raw Data</div><div class="tab" data-tab="lateral">Lateral Movement</div><div class="tab" data-tab="eidfocus" id="tabEidFocus" style="display:none">EID Focus</div>
   </div>
 
   <div class="panel active" id="panel-overview"><div class="card-grid" id="overviewCards"></div><div class="two-col"><div class="chart-box"><div class="chart-header"><span class="chart-title">Detection Timeline</span><div class="chart-controls"><button class="chart-btn active" data-bucket="auto" data-target="timelineAll">Auto</button><button class="chart-btn" data-bucket="hour" data-target="timelineAll">1h</button><button class="chart-btn" data-bucket="day" data-target="timelineAll">1d</button></div></div><canvas class="chart-canvas" id="canvasTimelineAll"></canvas></div><div class="chart-box"><div class="chart-header"><span class="chart-title">Severity Distribution</span></div><canvas class="chart-canvas" id="canvasSeverity"></canvas></div></div><div class="two-col"><div class="chart-box"><div class="chart-header"><span class="chart-title">Top 20 Event IDs</span></div><canvas class="chart-canvas" id="canvasTopEvents"></canvas></div><div class="chart-box"><div class="chart-header"><span class="chart-title">Events by Channel</span></div><canvas class="chart-canvas" id="canvasChannels"></canvas></div></div></div>
 
+  <div class="panel" id="panel-periodic">
+    <div class="chart-box">
+      <div class="chart-header">
+        <span class="chart-title">Periodicity Detection</span>
+        <div class="chart-controls">
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Min events:</label>
+          <input class="filter-input" id="periodicMinEvents" type="number" value="10" min="3" max="10000" style="width:65px">
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Max CV:</label>
+          <input class="filter-input" id="periodicMaxCV" type="number" value="0.4" min="0.05" max="2" step="0.05" style="width:65px">
+          <button class="seq-run-btn" id="periodicRunBtn">Analyze</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:12px">Detects EIDs with regular inter-event timing (scheduled tasks, heartbeats, backup cycles). CV (coefficient of variation = σ/median) below threshold = periodic. A <em>break</em> in periodicity is the real signal.</p>
+      <div id="periodicCards" class="card-grid" style="margin-bottom:16px"></div>
+      <div class="data-table-wrap" id="periodicTable" style="max-height:600px"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-gaps">
+    <div class="chart-box">
+      <div class="chart-header">
+        <span class="chart-title">Gap Analysis — Silence Periods Per Host</span>
+        <div class="chart-controls">
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Min gap (min):</label>
+          <input class="filter-input" id="gapMinutes" type="number" value="15" min="1" max="10080" style="width:70px">
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">&sigma; threshold:</label>
+          <input class="filter-input" id="gapSigma" type="number" value="3" min="1" max="10" step="0.5" style="width:60px">
+          <select class="filter-input" id="gapCompFilter" style="min-width:160px"><option value="">All Computers</option></select>
+          <button class="seq-run-btn" id="gapRunBtn">Analyze</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:12px">A gap exceeds the threshold when both the <em>absolute minimum</em> (min gap) AND the per-host statistical baseline (mean + σ) are exceeded. A DC going silent for 40 minutes mid-workday is significant regardless of cause.</p>
+      <div id="gapCards" class="card-grid" style="margin-bottom:16px"></div>
+      <div class="data-table-wrap" id="gapTable" style="max-height:600px"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-arrivals">
+    <div class="chart-box">
+      <div class="chart-header">
+        <span class="chart-title">First-Seen / Last-Seen Tracker</span>
+        <div class="chart-controls">
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Type:</label>
+          <select class="filter-input" id="arrivalsType" style="min-width:130px">
+            <option value="eid">Event IDs</option>
+            <option value="rule">Rules</option>
+            <option value="computer">Computers</option>
+            <option value="account">Accounts</option>
+          </select>
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Sort:</label>
+          <select class="filter-input" id="arrivalsSort" style="min-width:130px">
+            <option value="first">First Seen ▲</option>
+            <option value="last">Last Seen ▲</option>
+            <option value="count">Count ▼</option>
+          </select>
+          <button class="chart-btn active" id="arrivalsLateBtn" title="Show only items first appearing in second half of dataset">Late Only</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:12px">Items first appearing after the dataset midpoint are highlighted <span style="color:var(--warn)">orange</span> — these are inherently more interesting.</p>
+      <div id="arrivalsCards" class="card-grid" style="margin-bottom:16px"></div>
+      <div class="data-table-wrap" id="arrivalsTable" style="max-height:600px"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-heatmap">
+    <div class="chart-box">
+      <div class="chart-header">
+        <span class="chart-title">Activity Heatmap — Hour × Day</span>
+        <div class="chart-controls">
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Host:</label>
+          <select class="filter-input" id="hmComputerFilter" style="min-width:160px"><option value="">All Computers</option></select>
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Weight:</label>
+          <button class="chart-btn active" id="hmWtCount" data-wt="count">Count</button>
+          <button class="chart-btn" id="hmWtSev" data-wt="severity">Severity</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:12px">Click any cell to filter timeline to that hour · Severity-weighted: critical=5, high=4, medium=3, low=2, info=1</p>
+      <div style="overflow-x:auto">
+        <canvas id="canvasHeatmap" style="display:block;height:auto"></canvas>
+      </div>
+      <div id="hmStats" style="margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--text-dim)"></div>
+    </div>
+  </div>
+
   <div class="panel" id="panel-timeline"><div class="chart-box"><div class="chart-header"><span class="chart-title">Filtered Timeline</span><div class="chart-controls"><button class="chart-btn active" data-bucket="auto" data-target="timelineFiltered">Auto</button><button class="chart-btn" data-bucket="minute" data-target="timelineFiltered">1m</button><button class="chart-btn" data-bucket="hour" data-target="timelineFiltered">1h</button><button class="chart-btn" data-bucket="day" data-target="timelineFiltered">1d</button></div></div><canvas class="chart-canvas" id="canvasTimelineFiltered" style="height:300px"></canvas></div><div class="chart-box"><div class="chart-header"><span class="chart-title">Severity Heatmap</span></div><canvas class="chart-canvas" id="canvasSevTimeline" style="height:200px"></canvas></div><div class="chart-box"><div class="chart-header"><span class="chart-title">Burst Detection</span></div><div id="burstList"></div></div></div>
 
-  <div class="panel" id="panel-rules"><div class="chart-box"><div class="chart-header"><span class="chart-title">Rule Detections</span></div><div class="data-table-wrap" id="ruleTable" style="max-height:700px"></div></div></div>
+  <div class="panel" id="panel-rules"><div class="chart-box"><div class="chart-header"><span class="chart-title">Rule Detections</span><div style="margin-left:auto"><button class="copy-btn" onclick="copyTableRows('rules')" title="Copy visible rules">Copy Rows</button></div></div><div class="data-table-wrap" id="ruleTable" style="max-height:700px"></div></div></div>
 
   <div class="panel" id="panel-sequence"><div class="chart-box"><div class="chart-header"><span class="chart-title">Sequence Cluster Analysis</span></div>
     <p style="color:var(--text-dim);font-size:13px;margin-bottom:12px">Define Event IDs to find temporal clusters. Measures inter-event timing: <span style="color:var(--critical)">scripted (&lt;500ms)</span>, <span style="color:var(--warn)">fast (500ms–5s)</span>, <span style="color:var(--success)">human (&gt;5s)</span></p>
@@ -203,11 +303,13 @@
     <div id="seqSummary"></div><div id="seqResults"></div>
   </div></div>
 
-  <div class="panel" id="panel-frequency"><div class="two-col"><div class="chart-box"><div class="chart-header"><span class="chart-title">Event ID Distribution</span></div><div class="data-table-wrap" id="freqEventTable"></div></div><div class="chart-box"><div class="chart-header"><span class="chart-title">Channel Distribution</span></div><div class="data-table-wrap" id="freqChannelTable"></div></div></div><div class="chart-box"><div class="chart-header"><span class="chart-title">Computer Distribution</span></div><div class="data-table-wrap" id="freqComputerTable"></div></div></div>
+  <div class="panel" id="panel-frequency"><div class="two-col"><div class="chart-box"><div class="chart-header"><span class="chart-title">Event ID Distribution</span></div><div class="data-table-wrap" id="freqEventTable"></div></div><div class="chart-box"><div class="chart-header"><span class="chart-title">Channel Distribution</span></div><div class="data-table-wrap" id="freqChannelTable"></div></div></div><div class="chart-box"><div class="chart-header"><span class="chart-title">Computer Distribution</span></div><div class="data-table-wrap" id="freqComputerTable"></div></div>
+    <div class="chart-box"><div class="chart-header"><span class="chart-title">Time-of-Day Profile (UTC Hours)</span><div class="chart-controls"><select class="filter-input" id="todComputer" style="min-width:180px"><option value="">All Computers</option></select></div></div><p style="font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:12px">Event frequency by UTC hour. <span style="color:var(--warn)">Orange</span> bars = Z-score &gt; 2 outside the host&apos;s peak window (potential off-hours activity).</p><canvas class="chart-canvas" id="canvasTOD" style="height:220px"></canvas><div id="todAfterHours" style="margin-top:12px"></div></div>
+  </div>
 
   <div class="panel" id="panel-anomalies"><div class="card-grid" id="anomalyCards"></div><div id="anomalyList"></div></div>
 
-  <div class="panel" id="panel-raw"><div class="chart-box"><div class="chart-header"><span class="chart-title">Filtered Detections</span><span class="chart-title" id="rawCount" style="font-weight:400;color:var(--text-dim)"></span></div><div class="data-table-wrap" id="rawTableWrap" style="max-height:600px"></div></div></div>
+  <div class="panel" id="panel-raw"><div class="chart-box"><div class="chart-header"><span class="chart-title">Filtered Detections</span><span class="chart-title" id="rawCount" style="font-weight:400;color:var(--text-dim)"></span><div style="display:flex;gap:6px;margin-left:auto"><button class="copy-btn" onclick="copyTableRows('raw')" title="Copy visible rows">Copy Rows</button><button class="copy-btn" onclick="openColCfg()" title="Configure columns">Columns ⋯</button></div></div><div class="data-table-wrap" id="rawTableWrap" style="max-height:600px"></div></div></div>
 
   <div class="panel" id="panel-eidfocus"><div class="eid-focus-header"><span class="eid-focus-title" id="eidFocusTitle">EID —</span><button class="eid-focus-close" id="eidFocusClose">✕ Close</button><button class="seq-run-btn" id="eidFocusToSeq" style="font-size:11px;padding:4px 12px">→ Add to Sequence</button></div><div id="eidFocusContent"></div></div>
 
@@ -229,8 +331,31 @@
   </div>
 </div>
 
-<div class="detail-panel" id="detailPanel"><div class="detail-panel-header"><span class="detail-panel-title" id="detailPanelTitle">Event Detail</span><button class="detail-panel-close" id="detailPanelClose">✕</button></div><div class="detail-panel-body" id="detailPanelBody"></div></div>
+<div class="detail-panel" id="detailPanel"><div class="detail-panel-header"><span class="detail-panel-title" id="detailPanelTitle">Event Detail</span><div style="display:flex;gap:6px"><button class="copy-btn" id="detailCopyBtn" title="Copy this event as CSV/TSV">Copy</button><button class="detail-panel-close" id="detailPanelClose">✕</button></div></div><div class="detail-panel-body" id="detailPanelBody"></div></div>
 <div class="tooltip" id="tooltip"></div>
+<div class="copy-toast" id="copyToast"></div>
+
+<!-- Column Config Modal -->
+<div class="col-cfg-overlay" id="colCfgOverlay">
+  <div class="col-cfg-modal">
+    <div class="col-cfg-title">Copy Column Configuration</div>
+    <div class="col-cfg-sub">Choose and order the columns included when copying events. Saved automatically.</div>
+    <div class="col-cfg-rows" id="colCfgRows"></div>
+    <div class="col-cfg-footer">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Delimiter:</span>
+        <div class="delim-toggle" id="delimToggle">
+          <button class="delim-btn active" data-delim="tab">TSV (Excel)</button>
+          <button class="delim-btn" data-delim="comma">CSV</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="col-cfg-cancel" id="colCfgCancel">Cancel</button>
+        <button class="col-cfg-save" id="colCfgSave">Save &amp; Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
 const SESSION_COLORS=['#4af','#36d986','#f8a535','#a78bfa','#f472b6','#38bdf8','#fb923c','#f05545'];
@@ -319,8 +444,142 @@ function eH(s){return s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/
 function eL(eid){return`<a class="eid-link" onclick="focusEid('${eH(eid)}')">${eH(eid)}</a>`}
 function mFT(h,r){return`<table class="data-table"><thead><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${r.map(x=>`<tr>${x.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`}
 
+// ── COPY / COLUMN CONFIG ──────────────────────────────────────────────────────
+
+const COPY_COLS_DEF=[
+  {key:'ts',      label:'Timestamp',      on:true,  fmt:r=>!isNaN(r.ts)?fDMs(new Date(r.ts)):''},
+  {key:'lvl',     label:'Level',          on:true,  fmt:r=>r.lvl},
+  {key:'eid',     label:'Event ID',       on:true,  fmt:r=>r.eid},
+  {key:'rule',    label:'Rule / Description', on:true, fmt:r=>r.rule},
+  {key:'comp',    label:'Computer',       on:true,  fmt:r=>r.comp},
+  {key:'chan',    label:'Channel',        on:false, fmt:r=>r.chan},
+  {key:'rec',     label:'Record ID',      on:false, fmt:r=>r.rec},
+  {key:'det',     label:'Details',        on:true,  fmt:r=>r.det},
+  {key:'extra',   label:'Extra / Payload',on:false, fmt:r=>r.extra},
+  {key:'rid',     label:'Rule ID / Provider',on:false,fmt:r=>r.rid},
+  {key:'src',     label:'Source File',    on:false, fmt:r=>r.src},
+];
+
+let _copyCfg=null; // {cols:[{key,label,on}], delim:'tab'|'comma'}
+
+function loadCopyCfg(){
+  if(_copyCfg)return _copyCfg;
+  try{const s=localStorage.getItem('eventscope_copy_cfg');if(s){_copyCfg=JSON.parse(s);return _copyCfg;}}catch(e){}
+  _copyCfg={cols:COPY_COLS_DEF.map(c=>({key:c.key,label:c.label,on:c.on})),delim:'tab'};
+  return _copyCfg;
+}
+
+function saveCopyCfg(){
+  try{localStorage.setItem('eventscope_copy_cfg',JSON.stringify(_copyCfg));}catch(e){}
+}
+
+function fmtCell(key,r){
+  const def=COPY_COLS_DEF.find(d=>d.key===key);
+  return def?def.fmt(r):'';
+}
+
+function esc_csv(v,delim){
+  const s=String(v??'');
+  if(delim===','&&(s.includes(',')||s.includes('"')||s.includes('\n')))return '"'+s.replace(/"/g,'""')+'"';
+  return s;
+}
+
+function rowsToText(rows){
+  const cfg=loadCopyCfg();
+  const active=cfg.cols.filter(c=>c.on);
+  if(!active.length)return '';
+  const d=cfg.delim==='comma'?',':'\t';
+  const lines=[active.map(c=>c.label).join(d)];
+  for(const r of rows)lines.push(active.map(c=>esc_csv(fmtCell(c.key,r),d)).join(d));
+  return lines.join('\r\n');
+}
+
+function showToast(msg){
+  const el=document.getElementById('copyToast');
+  el.textContent=msg;el.classList.add('show');
+  clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),2200);
+}
+
+function copyRows(rows){
+  if(!rows||!rows.length){showToast('No rows to copy');return;}
+  const text=rowsToText(rows);
+  navigator.clipboard.writeText(text).then(()=>showToast(`Copied ${rows.length} row${rows.length!==1?'s':''}`)).catch(()=>showToast('Clipboard write failed'));
+}
+
+// Copy the currently-open event from detail panel
+let _detailRowIndex=null;
+function copyDetailEvent(){
+  if(_detailRowIndex==null)return;
+  const r=getFR()[_detailRowIndex];
+  if(r)copyRows([r]);
+}
+
+// Copy rows from a named table context
+function copyTableRows(ctx){
+  if(ctx==='raw'){copyRows(getFR().slice(0,2000));return;}
+  if(ctx==='rules'){
+    // Build a flat row per rule from ruleIdMap
+    const rows=getFR(),ra={};
+    rows.forEach(r=>{if(!r.rule)return;if(!ra[r.rule])ra[r.rule]={ts:r.ts,lvl:r.lvl,eid:r.eid,rule:r.rule,comp:r.comp,chan:r.chan,rec:'',det:'',extra:'',rid:r.rid,src:''};});
+    copyRows(Object.values(ra));return;
+  }
+}
+
+// Copy a sequence cluster
+function copyCluster(ci){
+  const c=S._seqClusters?.[ci];
+  if(!c)return;
+  copyRows(c.events);
+}
+
+// ── COLUMN CONFIG MODAL ────────────────────────────────────────────────────────
+
+function openColCfg(){
+  const cfg=loadCopyCfg();
+  const container=document.getElementById('colCfgRows');
+  function render(){
+    container.innerHTML=cfg.cols.map((c,i)=>`
+    <div class="col-cfg-row" data-idx="${i}">
+      <input class="col-cfg-check" type="checkbox" id="cc${i}" ${c.on?'checked':''} onchange="loadCopyCfg().cols[${i}].on=this.checked">
+      <label class="col-cfg-lbl" for="cc${i}">${c.label}</label>
+      <button class="col-cfg-mv" onclick="moveCfgCol(${i},-1)" ${i===0?'disabled':''}>&#9650;</button>
+      <button class="col-cfg-mv" onclick="moveCfgCol(${i},1)" ${i===cfg.cols.length-1?'disabled':''}>&#9660;</button>
+    </div>`).join('');
+  }
+  render();
+  window._cfgRender=render;
+  // Delimiter buttons
+  document.querySelectorAll('.delim-btn').forEach(b=>{
+    b.classList.toggle('active',b.dataset.delim===cfg.delim);
+    b.onclick=()=>{cfg.delim=b.dataset.delim;document.querySelectorAll('.delim-btn').forEach(x=>x.classList.toggle('active',x.dataset.delim===cfg.delim));};
+  });
+  document.getElementById('colCfgOverlay').classList.add('open');
+}
+
+function moveCfgCol(i,dir){
+  const cfg=loadCopyCfg(),j=i+dir;
+  if(j<0||j>=cfg.cols.length)return;
+  [cfg.cols[i],cfg.cols[j]]=[cfg.cols[j],cfg.cols[i]];
+  if(window._cfgRender)window._cfgRender();
+}
+
+document.getElementById('colCfgSave').addEventListener('click',()=>{
+  saveCopyCfg();document.getElementById('colCfgOverlay').classList.remove('open');
+});
+document.getElementById('colCfgCancel').addEventListener('click',()=>{
+  _copyCfg=null;loadCopyCfg(); // reload saved
+  document.getElementById('colCfgOverlay').classList.remove('open');
+});
+document.getElementById('colCfgOverlay').addEventListener('click',e=>{
+  if(e.target===document.getElementById('colCfgOverlay')){
+    _copyCfg=null;loadCopyCfg();
+    document.getElementById('colCfgOverlay').classList.remove('open');
+  }
+});
+document.getElementById('detailCopyBtn').addEventListener('click',copyDetailEvent);
+
 // DETAIL PANEL
-function openDP(i){const r=getFR()[i];if(!r)return;const dp=document.getElementById('detailPanel'),body=document.getElementById('detailPanelBody');const isEvtx=S.format==='evtxecmd';document.getElementById('detailPanelTitle').textContent=`EID ${r.eid} — ${r.rule||'No rule'}`;
+function openDP(i){_detailRowIndex=i;const r=getFR()[i];if(!r)return;const dp=document.getElementById('detailPanel'),body=document.getElementById('detailPanelBody');const isEvtx=S.format==='evtxecmd';document.getElementById('detailPanelTitle').textContent=`EID ${r.eid} — ${r.rule||'No rule'}`;
 const p=parseDet(r.det),pl=Object.entries(p).map(([k,v])=>`<span class="detail-key">${eH(k)}</span>: <span class="detail-val">${eH(v)}</span>`).join('\n');
 const srcField=isEvtx&&r.src?`<div class="detail-field"><span class="detail-key">Source File</span>: <span class="detail-val" style="word-break:break-all;white-space:normal">${eH(r.src)}</span></div>`:'';
 const ruleSection=`<div class="detail-section"><div class="detail-section-title">${isEvtx?'Event Description':'Rule'}</div><div class="detail-field"><span class="detail-key">${isEvtx?'Description':'Rule Title'}</span>: <span class="detail-val">${eH(r.rule)}</span></div><div class="detail-field"><span class="detail-key">${isEvtx?'Provider':'Rule ID'}</span>: <span class="detail-val">${eH(r.rid)}</span></div></div>`;
@@ -353,10 +612,309 @@ const sc=cd.filter(c=>c.behavior==='scripted').length,fc=cd.filter(c=>c.behavior
 document.getElementById('seqSummary').innerHTML=`<div class="card-grid" style="margin-bottom:16px"><div class="card"><div class="card-label">Clusters</div><div class="card-value">${clusters.length}</div><div class="card-sub">${rows.length} events in ${ws}s window</div></div><div class="card" style="border-left:3px solid var(--critical)"><div class="card-label">Scripted (&lt;500ms)</div><div class="card-value" style="color:var(--critical)">${sc}</div></div><div class="card" style="border-left:3px solid var(--warn)"><div class="card-label">Fast (500ms–5s)</div><div class="card-value" style="color:var(--warn)">${fc}</div></div><div class="card" style="border-left:3px solid var(--success)"><div class="card-label">Human (&gt;5s)</div><div class="card-value" style="color:var(--success)">${hc}</div></div><div class="card"><div class="card-label">Mean Inter-Event</div><div class="card-value" style="font-size:18px">${fDelta(as.mean)}</div><div class="card-sub">σ = ${fDelta(as.std)}</div></div></div>`;
 
 cd.sort((a,b)=>a.events[0].ts-b.events[0].ts);
-document.getElementById('seqResults').innerHTML=cd.slice(0,200).map((c,ci)=>`<div class="seq-cluster ${c.behavior}"><div class="seq-cluster-header"><div>${c.behavior==='scripted'?'<span class="badge badge-critical">SCRIPTED</span>':c.behavior==='fast'?'<span class="badge badge-warn">FAST</span>':'<span class="badge badge-ok">HUMAN</span>'} ${c.events.length} events, ${c.uniqueEids} unique EIDs</div><div class="seq-cluster-timing" style="color:${lC(c.behavior==='scripted'?'critical':c.behavior==='fast'?'medium':'informational')}">avg ${fDelta(c.avgDelta)} span ${fDelta(c.totalSpan)}</div></div>${c.events.map((ev,i)=>`<div class="seq-event-line" onclick="openSD(${ci},${i})"><span class="seq-delta">${i>0?'+'+fDelta(c.deltas[i-1]):'—'}</span><span class="seq-ts">${fDMs(new Date(ev.ts))}</span><span class="seq-eid-tag">EID ${ev.eid}</span><span class="seq-rule">${eH(ev.rule)}</span></div>`).join('')}</div>`).join('');
+document.getElementById('seqResults').innerHTML=cd.slice(0,200).map((c,ci)=>`<div class="seq-cluster ${c.behavior}"><div class="seq-cluster-header"><div>${c.behavior==='scripted'?'<span class="badge badge-critical">SCRIPTED</span>':c.behavior==='fast'?'<span class="badge badge-warn">FAST</span>':'<span class="badge badge-ok">HUMAN</span>'} ${c.events.length} events, ${c.uniqueEids} unique EIDs</div><div style="display:flex;align-items:center;gap:8px"><div class="seq-cluster-timing" style="color:${lC(c.behavior==='scripted'?'critical':c.behavior==='fast'?'medium':'informational')}">avg ${fDelta(c.avgDelta)} span ${fDelta(c.totalSpan)}</div><button class="copy-btn" onclick="copyCluster(${ci})">Copy</button></div></div>${c.events.map((ev,i)=>`<div class="seq-event-line" onclick="openSD(${ci},${i})"><span class="seq-delta">${i>0?'+'+fDelta(c.deltas[i-1]):'—'}</span><span class="seq-ts">${fDMs(new Date(ev.ts))}</span><span class="seq-eid-tag">EID ${ev.eid}</span><span class="seq-rule">${eH(ev.rule)}</span></div>`).join('')}</div>`).join('');
 S._seqClusters=cd}
 
 function openSD(ci,ei){const c=S._seqClusters?.[ci];if(!c)return;const ev=c.events[ei];if(!ev)return;const ri=getFR().indexOf(ev);if(ri>=0)openDP(ri)}
+
+// ── HEATMAP ───────────────────────────────────────────────────────────────────
+
+let _hmWt='count'; // 'count' | 'severity'
+const HM_SEV_W={critical:5,high:4,medium:3,low:2,informational:1};
+const HM_GRAD=[
+  [0,   [26,30,40,0]],
+  [0.01,[68,170,255,0.15]],
+  [0.08,[68,170,255,0.5]],
+  [0.25,[68,170,255,0.85]],
+  [0.5, [248,165,53,0.85]],
+  [0.8, [240,85,69,0.9]],
+  [1.0, [255,42,109,1]],
+];
+function hmColor(v,mx){
+  if(mx===0||v===0)return'rgba(26,30,40,1)';
+  const t=Math.min(1,v/mx);
+  let lo=HM_GRAD[0],hi=HM_GRAD[HM_GRAD.length-1];
+  for(let i=0;i<HM_GRAD.length-1;i++){if(t>=HM_GRAD[i][0]&&t<=HM_GRAD[i+1][0]){lo=HM_GRAD[i];hi=HM_GRAD[i+1];break}}
+  const r2=(hi[0]-lo[0])===0?0:(t-lo[0])/(hi[0]-lo[0]);
+  const [r1a,g1a,b1a,a1a]=lo[1],[r2a,g2a,b2a,a2a]=hi[1];
+  const ri=Math.round(r1a+(r2a-r1a)*r2),gi=Math.round(g1a+(g2a-g1a)*r2),bi=Math.round(b1a+(b2a-b1a)*r2),ai=(a1a+(a2a-a1a)*r2).toFixed(2);
+  return`rgba(${ri},${gi},${bi},${ai})`;
+}
+
+function popHMFilter(){
+  const sel=document.getElementById('hmComputerFilter');if(!sel)return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">All Computers</option>';
+  Object.keys(S.computerCounts).sort().forEach(c=>sel.innerHTML+=`<option value="${eH(c)}"${c===cur?' selected':''}>${eH(c)}</option>`);
+}
+
+function rHM(){
+  popHMFilter();
+  _renderHeatmap();
+}
+
+function _renderHeatmap(){
+  const compFilter=document.getElementById('hmComputerFilter')?.value||'';
+  let rows=getFR().filter(r=>!isNaN(r.ts));
+  if(compFilter)rows=rows.filter(r=>r.comp===compFilter);
+  if(!rows.length){document.getElementById('hmStats').textContent='No data for this filter.';return;}
+
+  const dayMap=new Map(),dayWeight=new Map();
+  for(const r of rows){
+    const d=new Date(r.ts);
+    const dk=d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+    const h=d.getUTCHours();
+    if(!dayMap.has(dk)){dayMap.set(dk,new Float64Array(24));dayWeight.set(dk,new Float64Array(24));}
+    dayMap.get(dk)[h]++;dayWeight.get(dk)[h]+=(HM_SEV_W[r.lvl]||1);
+  }
+  const days=[...dayMap.keys()].sort();
+  const useWeight=_hmWt==='severity',dataMap=useWeight?dayWeight:dayMap;
+  let mx=0;for(const arr of dataMap.values())for(const v of arr)if(v>mx)mx=v;
+
+  const CELL_W=Math.max(16,Math.floor((window.innerWidth-300)/24)),CELL_H=22;
+  const PAD_L=90,PAD_T=32,PAD_B=16,PAD_R=16;
+  const cvs=document.getElementById('canvasHeatmap');
+  const dpr=window.devicePixelRatio||1;
+  const cw=PAD_L+24*CELL_W+PAD_R,ch=PAD_T+days.length*CELL_H+PAD_B;
+  cvs.width=cw*dpr;cvs.height=ch*dpr;cvs.style.width=cw+'px';cvs.style.height=ch+'px';
+  const ctx=cvs.getContext('2d');ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,cw,ch);
+  ctx.fillStyle='#6b7490';ctx.font='10px JetBrains Mono,monospace';ctx.textAlign='center';
+  for(let h=0;h<24;h++)ctx.fillText(String(h).padStart(2,'0'),PAD_L+h*CELL_W+CELL_W/2,PAD_T-8);
+  days.forEach((dk,di)=>{
+    const arr=dataMap.get(dk);
+    ctx.fillStyle='#6b7490';ctx.font='11px JetBrains Mono,monospace';ctx.textAlign='right';
+    ctx.fillText(dk.slice(5),PAD_L-6,PAD_T+di*CELL_H+CELL_H/2+4);
+    for(let h=0;h<24;h++){const v=arr[h];ctx.fillStyle=hmColor(v,mx);ctx.fillRect(PAD_L+h*CELL_W+1,PAD_T+di*CELL_H+1,CELL_W-2,CELL_H-2);}
+  });
+
+  const peak=days.map(dk=>{const a=dataMap.get(dk);let s=0;for(const v of a)s+=v;return{dk,sum:s}}).sort((a,b)=>b.sum-a.sum)[0];
+  document.getElementById('hmStats').innerHTML=`<strong>Days:</strong> ${days.length} &nbsp; <strong>Peak day (UTC):</strong> ${peak?peak.dk+' ('+peak.sum.toFixed(useWeight?1:0)+(_hmWt==='severity'?' wt':' evt')+')':''} &nbsp; <strong>Max/cell:</strong> ${mx.toFixed(useWeight?1:0)}`;
+
+  cvs.onclick=e=>{
+    const rect=cvs.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;
+    const col=Math.floor((x-PAD_L)/CELL_W),row=Math.floor((y-PAD_T)/CELL_H);
+    if(col<0||col>23||row<0||row>=days.length)return;
+    const dk=days[row];
+    document.getElementById('filterTimeStart').value=dk;document.getElementById('filterTimeEnd').value=dk;
+    S.filters.timeStart=dk;S.filters.timeEnd=dk;invF();
+    showToast(`Filtered to ${dk} — switching to Timeline`);
+    switchTab('timeline');
+  };
+  cvs.onmousemove=e=>{
+    const rect=cvs.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;
+    const col=Math.floor((x-PAD_L)/CELL_W),row=Math.floor((y-PAD_T)/CELL_H);
+    if(col<0||col>23||row<0||row>=days.length){hT();return;}
+    const dk=days[row],cnt=dayMap.get(dk)?.[col]||0,wt=dayWeight.get(dk)?.[col]||0;
+    sT(e.clientX,e.clientY,`<strong>${dk}</strong> ${String(col).padStart(2,'0')}:00 UTC<br>Events: <strong style="color:var(--accent)">${cnt}</strong><br>Sev-weight: <strong style="color:var(--warn)">${wt.toFixed(1)}</strong>`);
+  };
+  cvs.onmouseleave=hT;
+}
+
+// ── PERIODICITY DETECTION ───────────────────────────────────────────────────────────────────
+
+// Known periodic periods to check (ms)
+const PERIODIC_REFS=[
+  {label:'15min',ms:15*60000},{label:'30min',ms:30*60000},{label:'1h',ms:3600000},
+  {label:'2h',ms:7200000},{label:'4h',ms:4*3600000},{label:'6h',ms:6*3600000},
+  {label:'8h',ms:8*3600000},{label:'12h',ms:12*3600000},{label:'24h',ms:86400000},
+];
+
+function classifyPeriod(medianMs){
+  let best=null,bestDiff=Infinity;
+  for(const ref of PERIODIC_REFS){
+    const diff=Math.abs(medianMs-ref.ms)/ref.ms;
+    if(diff<0.15&&diff<bestDiff){best=ref;bestDiff=diff;}
+  }
+  return best?best.label:null;
+}
+
+function rPeriodic(){
+  const minEv=parseInt(document.getElementById('periodicMinEvents')?.value)||10;
+  const maxCV=parseFloat(document.getElementById('periodicMaxCV')?.value)||0.4;
+  const rows=getFR().filter(r=>!isNaN(r.ts));
+
+  // Group by EID
+  const byEid=new Map();
+  for(const r of rows){if(!byEid.has(r.eid))byEid.set(r.eid,[]);byEid.get(r.eid).push(r.ts);}
+
+  const results=[];
+  for(const [eid,ts] of byEid){
+    if(ts.length<minEv)continue;
+    ts.sort((a,b)=>a-b);
+    const intervals=[];
+    for(let i=1;i<ts.length;i++)intervals.push(ts[i]-ts[i-1]);
+    const st=cStats(intervals);
+    if(st.median===0)continue;
+    const cv=st.std/st.median;
+    const label=classifyPeriod(st.median);
+    results.push({eid,count:ts.length,median:st.median,std:st.std,cv,periodic:cv<=maxCV,periodLabel:label,first:ts[0],last:ts[ts.length-1]});
+  }
+  results.sort((a,b)=>a.cv-b.cv);
+
+  const periodicCount=results.filter(r=>r.periodic).length;
+  document.getElementById('periodicCards').innerHTML=`
+    <div class="card"><div class="card-label">EIDs Analyzed</div><div class="card-value">${results.length.toLocaleString()}</div></div>
+    <div class="card" style="border-left:3px solid var(--success)"><div class="card-label">Periodic (CV ≤ ${maxCV})</div><div class="card-value" style="color:var(--success)">${periodicCount}</div></div>
+    <div class="card"><div class="card-label">Irregular</div><div class="card-value">${(results.length-periodicCount).toLocaleString()}</div></div>
+  `;
+
+  if(!results.length){document.getElementById('periodicTable').innerHTML='<div style="padding:20px;color:var(--text-dim);font-family:var(--mono)">No EIDs with enough events to analyze.</div>';return;}
+
+  document.getElementById('periodicTable').innerHTML=`<table class="data-table"><thead><tr><th>Event ID</th><th>Count</th><th>Median Interval</th><th>Std Dev</th><th>CV</th><th>Matches</th><th>Classification</th></tr></thead><tbody>${
+    results.slice(0,200).map(r=>`<tr>
+      <td>${eL(r.eid)}</td>
+      <td>${r.count.toLocaleString()}</td>
+      <td style="font-family:var(--mono);font-size:11px">${fDelta(r.median)}</td>
+      <td style="font-family:var(--mono);font-size:11px">${fDelta(r.std)}</td>
+      <td style="font-family:var(--mono);font-size:12px;color:${r.periodic?'var(--success)':'var(--text-dim)'}">${r.cv.toFixed(3)}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--accent)">${r.periodLabel||'—'}</td>
+      <td>${r.periodic?'<span class="badge badge-ok">PERIODIC</span>':'<span class="badge">IRREGULAR</span>'}</td>
+    </tr>`
+  ).join('')}</tbody></table>`;
+}
+
+// ── GAP ANALYSIS ────────────────────────────────────────────────────────────────────────
+
+let _gapResults=[];
+
+function popGapCompFilter(){
+  const sel=document.getElementById('gapCompFilter');if(!sel)return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">All Computers</option>';
+  Object.keys(S.computerCounts).sort().forEach(c=>{sel.innerHTML+=`<option value="${eH(c)}"${c===cur?' selected':''}>${eH(c)}</option>`;});
+}
+
+function runGapAnalysis(){
+  const minMs=(parseFloat(document.getElementById('gapMinutes')?.value)||15)*60000;
+  const sigTh=parseFloat(document.getElementById('gapSigma')?.value)||3;
+  const compFilt=document.getElementById('gapCompFilter')?.value||'';
+  let rows=getFR().filter(r=>!isNaN(r.ts));
+  if(compFilt)rows=rows.filter(r=>r.comp===compFilt);
+
+  // Group by computer
+  const byComp=new Map();
+  for(const r of rows){
+    if(!byComp.has(r.comp))byComp.set(r.comp,[]);
+    byComp.get(r.comp).push(r);
+  }
+
+  const gaps=[];
+  for(const [comp,crows] of byComp){
+    const sorted=[...crows].sort((a,b)=>a.ts-b.ts);
+    const ts=sorted.map(r=>r.ts);
+    if(ts.length<4)continue;
+    const intervals=[];
+    for(let i=1;i<ts.length;i++)intervals.push(ts[i]-ts[i-1]);
+    const st=cStats(intervals);
+    const statTh=st.mean+sigTh*st.std;
+    for(let i=1;i<ts.length;i++){
+      const gap=ts[i]-ts[i-1];
+      if(gap>=minMs&&gap>=statTh){
+        const before=sorted[i-1],after=sorted[i];
+        gaps.push({comp,start:ts[i-1],end:ts[i],duration:gap,
+          zscore:st.std>0?(gap-st.mean)/st.std:0,
+          baseline:st.mean,baselineStr:fDelta(st.mean),
+          beforeRule:before.rule,beforeEid:before.eid,
+          afterRule:after.rule,afterEid:after.eid});
+      }
+    }
+  }
+  gaps.sort((a,b)=>b.duration-a.duration);
+  _gapResults=gaps;
+  renderGapResults(gaps);
+}
+
+function renderGapResults(gaps){
+  const longest=gaps[0];
+  document.getElementById('gapCards').innerHTML=`
+    <div class="card" style="border-left:3px solid var(--warn)"><div class="card-label">Gaps Found</div><div class="card-value" style="color:var(--warn)">${gaps.length.toLocaleString()}</div></div>
+    <div class="card"><div class="card-label">Hosts Analyzed</div><div class="card-value">${new Set(gaps.map(g=>g.comp)).size}</div></div>
+    <div class="card" style="border-left:3px solid var(--danger)"><div class="card-label">Longest Gap</div><div class="card-value" style="font-size:16px">${longest?fDelta(longest.duration):'N/A'}</div><div class="card-sub">${longest?longest.comp:''}</div></div>
+    <div class="card"><div class="card-label">Most Gaps</div><div class="card-value" style="font-size:16px">${(()=>{const c={};gaps.forEach(g=>c[g.comp]=(c[g.comp]||0)+1);const top=Object.entries(c).sort((a,b)=>b[1]-a[1])[0];return top?top[1]:'N/A'})()}</div><div class="card-sub">${(()=>{const c={};gaps.forEach(g=>c[g.comp]=(c[g.comp]||0)+1);const top=Object.entries(c).sort((a,b)=>b[1]-a[1])[0];return top?top[0]:''})()|''}</div></div>
+  `;
+
+  if(!gaps.length){document.getElementById('gapTable').innerHTML='<div style="padding:20px;color:var(--text-dim);font-family:var(--mono)">No gaps found with current thresholds. Try reducing the minimum gap duration.</div>';return;}
+
+  document.getElementById('gapTable').innerHTML=`<table class="data-table"><thead><tr><th>Computer</th><th>Gap Start</th><th>Gap End</th><th>Duration</th><th>Z-Score</th><th>Baseline</th><th>Before (EID / Rule)</th><th>After (EID / Rule)</th></tr></thead><tbody>${
+    gaps.slice(0,300).map(g=>`<tr><td>${eH(g.comp)}</td><td style="font-family:var(--mono);font-size:11px">${fDMs(new Date(g.start))}</td><td style="font-family:var(--mono);font-size:11px">${fDMs(new Date(g.end))}</td><td style="color:${g.zscore>6?'var(--danger)':g.zscore>3?'var(--warn)':'var(--text-bright)'}">${fDelta(g.duration)}</td><td style="font-family:var(--mono);font-size:12px">${g.zscore.toFixed(1)}σ</td><td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${g.baselineStr}</td><td style="font-family:var(--mono);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis" title="${eH(g.beforeRule)}">${eL(g.beforeEid)} ${eH(g.beforeRule.substring(0,40))}${g.beforeRule.length>40?'…':''}</td><td style="font-family:var(--mono);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis" title="${eH(g.afterRule)}">${eL(g.afterEid)} ${eH(g.afterRule.substring(0,40))}${g.afterRule.length>40?'…':''}</td></tr>`
+  ).join('')}</tbody></table>`;
+}
+
+function rGaps(){
+  popGapCompFilter();
+  runGapAnalysis();
+}
+
+// ── ARRIVALS (FIRST/LAST SEEN) ───────────────────────────────────────────────────
+
+function rArrivals(){
+  const rows=getFR().filter(r=>!isNaN(r.ts));
+  if(!rows.length){document.getElementById('arrivalsTable').innerHTML='<div style="padding:20px;color:var(--text-dim);font-family:var(--mono)">No data.</div>';return;}
+  const allTs=rows.map(r=>r.ts);
+  const dsMin=Math.min(...allTs),dsMax=Math.max(...allTs),dsMid=(dsMin+dsMax)/2;
+  const type=document.getElementById('arrivalsType')?.value||'eid';
+  const sort=document.getElementById('arrivalsSort')?.value||'first';
+  const lateOnly=document.getElementById('arrivalsLateBtn')?.classList.contains('active');
+
+  // Build first/last/count map
+  const map=new Map(); // key -> {first,last,count}
+  for(const r of rows){
+    let keys=[];
+    if(type==='eid')keys=[r.eid||''];
+    else if(type==='rule')keys=[r.rule||''];
+    else if(type==='computer')keys=[r.comp||''];
+    else if(type==='account')keys=[...extractAccounts(r)];
+    for(const k of keys){
+      if(!k)continue;
+      const e=map.get(k)||{first:Infinity,last:-Infinity,count:0};
+      if(r.ts<e.first)e.first=r.ts;
+      if(r.ts>e.last)e.last=r.ts;
+      e.count++;map.set(k,e);
+    }
+  }
+
+  let entries=[...map.entries()].filter(([k])=>k);
+  if(lateOnly)entries=entries.filter(([,e])=>e.first>dsMid);
+  if(sort==='first')entries.sort((a,b)=>a[1].first-b[1].first);
+  else if(sort==='last')entries.sort((a,b)=>a[1].last-b[1].last);
+  else entries.sort((a,b)=>b[1].count-a[1].count);
+
+  const lateCount=entries.filter(([,e])=>e.first>dsMid).length;
+  const dsSpan=dsMax-dsMin||1;
+
+  // Summary cards
+  document.getElementById('arrivalsCards').innerHTML=`
+    <div class="card"><div class="card-label">Unique ${type==='eid'?'Event IDs':type==='rule'?'Rules':type==='computer'?'Computers':'Accounts'}</div><div class="card-value">${map.size.toLocaleString()}</div></div>
+    <div class="card" style="border-left:3px solid var(--warn)"><div class="card-label">Late Arrivals</div><div class="card-value" style="color:var(--warn)">${lateCount.toLocaleString()}</div><div class="card-sub">First seen after dataset midpoint</div></div>
+    <div class="card"><div class="card-label">Dataset Midpoint</div><div class="card-value" style="font-size:13px">${fDF(new Date(dsMid))}</div></div>
+  `;
+
+  // Position bar helper
+  function posBar(ts){
+    const pct=Math.round(((ts-dsMin)/dsSpan)*100);
+    const isLate=ts>dsMid;
+    return `<div style="width:80px;height:6px;border-radius:3px;background:var(--surface3);display:inline-block;vertical-align:middle;position:relative"><div style="position:absolute;left:0;top:0;height:100%;width:${pct}%;border-radius:3px;background:${isLate?'var(--warn)':'var(--accent)'}"></div></div>`;
+  }
+
+  const rows2=entries.slice(0,500);
+  const isLinkable=type==='eid'||type==='rule';
+  const rows_html=rows2.map(([k,e])=>{
+    const isLate=e.first>dsMid;
+    const span=e.last-e.first;
+    const kDisp=type==='eid'?eL(k):eH(k);
+    return `<tr${isLate?' style="color:var(--warn)"':''}>
+      <td style="font-family:var(--mono);font-size:12px;max-width:300px;overflow:hidden;text-overflow:ellipsis">${kDisp}</td>
+      <td style="font-family:var(--mono);font-size:11px">${fDMs(new Date(e.first))}</td>
+      <td style="font-family:var(--mono);font-size:11px">${fDMs(new Date(e.last))}</td>
+      <td style="font-family:var(--mono);font-size:12px">${e.count.toLocaleString()}</td>
+      <td style="font-family:var(--mono);font-size:11px">${span>0?fDelta(span):'—'}</td>
+      <td>${posBar(e.first)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('arrivalsTable').innerHTML=`<table class="data-table"><thead><tr><th>${type==='eid'?'Event ID':type==='rule'?'Rule':type==='computer'?'Computer':'Account'}</th><th>First Seen</th><th>Last Seen</th><th>Count</th><th>Span</th><th>Position in Dataset</th></tr></thead><tbody>${rows_html}</tbody></table>`;
+}
 
 // RENDERS
 function rOV(){const rows=getFR(),tot=rows.length,uR=new Set(rows.map(r=>r.rule)).size,uC=new Set(rows.map(r=>r.comp)).size,vt=rows.filter(r=>!isNaN(r.ts)),tMin=vt.length?new Date(Math.min(...vt.map(r=>r.ts))):null,tMax=vt.length?new Date(Math.max(...vt.map(r=>r.ts))):null;const lc={critical:0,high:0,medium:0,low:0,informational:0};rows.forEach(r=>lc[r.lvl]++);
@@ -377,7 +935,10 @@ const s=Object.values(ra).sort((a,b)=>{const w=(LW[b.lvl]||0)-(LW[a.lvl]||0);ret
 function rFR(){const rows=getFR(),ec={};rows.forEach(r=>ec[r.eid]=(ec[r.eid]||0)+1);const es=Object.entries(ec).sort((a,b)=>b[1]-a[1]),est=cStats(es.map(e=>e[1])),eo=new Set(dFO(ec).map(o=>o.key));
 document.getElementById('freqEventTable').innerHTML=mFT(['Event ID','Count','Pct','Z-Score','Flag'],es.map(([eid,c])=>{const z=est.std>0?(c-est.mean)/est.std:0;return[eL(eid),c.toLocaleString(),((c/rows.length)*100).toFixed(2)+'%',z.toFixed(2),eo.has(eid)?(z>0?'<span class="badge badge-danger">HIGH</span>':'<span class="badge badge-warn">RARE</span>'):'<span class="badge badge-ok">OK</span>']}));
 const cc={};rows.forEach(r=>{if(r.chan)cc[r.chan]=(cc[r.chan]||0)+1});document.getElementById('freqChannelTable').innerHTML=mFT(['Channel','Count','Pct'],Object.entries(cc).sort((a,b)=>b[1]-a[1]).map(([c,n])=>[c,n.toLocaleString(),((n/rows.length)*100).toFixed(2)+'%']));
-const mc={};rows.forEach(r=>{if(r.comp)mc[r.comp]=(mc[r.comp]||0)+1});document.getElementById('freqComputerTable').innerHTML=mFT(['Computer','Count','Pct'],Object.entries(mc).sort((a,b)=>b[1]-a[1]).map(([c,n])=>[c,n.toLocaleString(),((n/rows.length)*100).toFixed(2)+'%']))}
+const mc={};rows.forEach(r=>{if(r.comp)mc[r.comp]=(mc[r.comp]||0)+1});document.getElementById('freqComputerTable').innerHTML=mFT(['Computer','Count','Pct'],Object.entries(mc).sort((a,b)=>b[1]-a[1]).map(([c,n])=>[c,n.toLocaleString(),((n/rows.length)*100).toFixed(2)+'%']));
+// Populate TOD computer selector
+const todSel=document.getElementById('todComputer');const todCur=todSel.value;todSel.innerHTML='<option value="">All Computers</option>';Object.keys(mc).sort().forEach(c=>todSel.innerHTML+=`<option value="${eH(c)}"${c===todCur?' selected':''}>${eH(c)}</option>`);
+renderTOD();}
 
 function rAN(){const rows=getFR(),an=[];const rs={};rows.forEach(r=>{if(!r.rule)return;if(!rs[r.rule])rs[r.rule]={lvl:r.lvl,count:0,rid:r.rid};rs[r.rule].count++;if(LW[r.lvl]>LW[rs[r.rule].lvl])rs[r.rule].lvl=r.lvl});
 for(const[rule,d]of Object.entries(rs)){if(d.lvl==='critical')an.push({severity:'critical',title:'Critical: '+eH(rule),detail:'Count: '+d.count+' | Rule: '+d.rid});else if(d.lvl==='high')an.push({severity:'danger',title:'High: '+eH(rule),detail:'Count: '+d.count+' | Rule: '+d.rid})}
@@ -492,7 +1053,7 @@ renderLatMatrix(g,sorted.slice(0,30));}
 
 // ──────────────────────────────────────────────────────────────────────────────
 
-function switchTab(t){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===t));document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+t));switch(t){case'overview':rOV();break;case'timeline':rTL();break;case'rules':rRU();break;case'frequency':rFR();break;case'anomalies':rAN();break;case'raw':rRW();break;case'eidfocus':renderEF();break;case'lateral':renderLateral();break}}
+function switchTab(t){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===t));document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+t));switch(t){case'overview':rOV();break;case'timeline':rTL();break;case'heatmap':rHM();break;case'arrivals':rArrivals();break;case'gaps':rGaps();break;case'periodic':rPeriodic();break;case'rules':rRU();break;case'frequency':rFR();break;case'anomalies':rAN();break;case'raw':rRW();break;case'eidfocus':renderEF();break;case'lateral':renderLateral();break}}
 
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>switchTab(t.dataset.tab)));
 document.querySelectorAll('.chart-btn[data-bucket]').forEach(b=>{b.addEventListener('click',()=>{S.bucketPref[b.dataset.target]=b.dataset.bucket;b.parentElement.querySelectorAll('.chart-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');const at=document.querySelector('.tab.active');if(at)switchTab(at.dataset.tab)})});
@@ -528,6 +1089,58 @@ sfi.addEventListener('change',()=>{if(sfi.files.length){loadAdditionalSession(sf
 // Lateral movement filters
 document.getElementById('latAccountFilter').addEventListener('input',deb(()=>{if(document.querySelector('.tab.active')?.dataset.tab==='lateral')renderLateral()},400));
 document.getElementById('latRefreshBtn').addEventListener('click',renderLateral);
+
+// Heatmap controls
+document.getElementById('hmComputerFilter').addEventListener('change',()=>{if(document.querySelector('.tab.active')?.dataset.tab==='heatmap')_renderHeatmap();});
+document.querySelectorAll('#hmWtCount,#hmWtSev').forEach(b=>b.addEventListener('click',()=>{
+  _hmWt=b.dataset.wt;
+  document.getElementById('hmWtCount').classList.toggle('active',_hmWt==='count');
+  document.getElementById('hmWtSev').classList.toggle('active',_hmWt==='severity');
+  if(document.querySelector('.tab.active')?.dataset.tab==='heatmap')_renderHeatmap();
+}));
+
+// Arrivals controls
+['arrivalsType','arrivalsSort'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{if(document.querySelector('.tab.active')?.dataset.tab==='arrivals')rArrivals();}));
+document.getElementById('arrivalsLateBtn').addEventListener('click',function(){this.classList.toggle('active');if(document.querySelector('.tab.active')?.dataset.tab==='arrivals')rArrivals();});
+
+// Gap Analysis controls
+document.getElementById('gapRunBtn').addEventListener('click',runGapAnalysis);
+document.getElementById('gapCompFilter').addEventListener('change',runGapAnalysis);
+['gapMinutes','gapSigma'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')runGapAnalysis();}));
+
+// Time-of-Day profile
+function renderTOD(){
+  const compF=document.getElementById('todComputer')?.value||'';
+  let rows=getFR().filter(r=>!isNaN(r.ts));
+  if(compF)rows=rows.filter(r=>r.comp===compF);
+  if(!rows.length)return;
+  // Hour counts
+  const hc=new Array(24).fill(0);rows.forEach(r=>hc[new Date(r.ts).getUTCHours()]++);
+  // Find peak 8-hour window
+  let bestSum=0,bestStart=0;
+  for(let s=0;s<24;s++){let sum=0;for(let i=0;i<8;i++)sum+=hc[(s+i)%24];if(sum>bestSum){bestSum=sum;bestStart=s;}}
+  const peakHours=new Set();for(let i=0;i<8;i++)peakHours.add((bestStart+i)%24);
+  // Z-scores for off-peak hours
+  const st=cStats(hc);
+  const labels=Array.from({length:24},(_,h)=>String(h).padStart(2,'0'));
+  const colors=hc.map((v,h)=>{if(peakHours.has(h))return'rgba(68,170,255,0.65)';const z=st.std>0?(v-st.mean)/st.std:0;if(z>2)return'rgba(248,165,53,0.8)';return'rgba(68,170,255,0.3)';});
+  const cvs=document.getElementById('canvasTOD');
+  const{ctx,w,h}=sC(cvs);
+  const pL=40,pR=20,pT=20,pB=30,cW=w-pL-pR,cH=h-pT-pB,mx=Math.max(...hc,1),bW=Math.max(2,(cW/24)-2);
+  ctx.clearRect(0,0,w,h);
+  ctx.strokeStyle='#1e2230';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){const y=pT+(cH/4)*i;ctx.beginPath();ctx.moveTo(pL,y);ctx.lineTo(w-pR,y);ctx.stroke();ctx.fillStyle='#6b7490';ctx.font='10px JetBrains Mono,monospace';ctx.textAlign='right';ctx.fillText(Math.round(mx*(1-i/4)).toLocaleString(),pL-6,y+4);}
+  for(let h2=0;h2<24;h2++){const x=pL+(h2/24)*cW,bH=(hc[h2]/mx)*cH;ctx.fillStyle=colors[h2];ctx.fillRect(x,pT+cH-bH,bW,bH);ctx.fillStyle='#6b7490';ctx.font='9px JetBrains Mono,monospace';ctx.textAlign='center';ctx.fillText(labels[h2],x+bW/2,h-5);}
+  // Off-peak anomalies
+  const offPeak=[];for(let h2=0;h2<24;h2++){if(!peakHours.has(h2)&&hc[h2]>0){const z=st.std>0?(hc[h2]-st.mean)/st.std:0;if(z>2)offPeak.push({h:h2,count:hc[h2],z});}}
+  document.getElementById('todAfterHours').innerHTML=offPeak.length?`<div class="anomaly-item warn"><div class="anomaly-title">Off-hours activity detected</div><div class="anomaly-detail">Peak window: ${String(bestStart).padStart(2,'0')}:00\u2013${String((bestStart+8)%24).padStart(2,'0')}:00 UTC<br>${offPeak.map(o=>`Hour ${String(o.h).padStart(2,'0')}:00 — ${o.count.toLocaleString()} events (${o.z.toFixed(1)}\u03c3)`).join('<br>')}</div></div>`:
+  `<div class="anomaly-item info"><div class="anomaly-title">No significant off-hours activity</div><div class="anomaly-detail">Peak window: ${String(bestStart).padStart(2,'0')}:00\u2013${String((bestStart+8)%24).padStart(2,'0')}:00 UTC</div></div>`;
+}
+document.getElementById('todComputer').addEventListener('change',renderTOD);
+
+// Periodicity controls
+document.getElementById('periodicRunBtn').addEventListener('click',rPeriodic);
+['periodicMinEvents','periodicMaxCV'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')rPeriodic();}));
 
 </script>
 </body>
