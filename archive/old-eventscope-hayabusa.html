@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EventScope — Hayabusa Timeline Analyzer</title>
+<style>
+  :root {
+    --bg: #0a0c10;
+    --surface: #12151c;
+    --surface2: #1a1e28;
+    --surface3: #222733;
+    --border: #2a3040;
+    --border-bright: #3a4560;
+    --text: #c8cdd8;
+    --text-dim: #6b7490;
+    --text-bright: #e8ecf4;
+    --accent: #4af;
+    --accent-dim: rgba(68,170,255,0.15);
+    --accent-glow: rgba(68,170,255,0.3);
+    --warn: #f8a535;
+    --warn-dim: rgba(248,165,53,0.15);
+    --danger: #f05545;
+    --danger-dim: rgba(240,85,69,0.15);
+    --success: #36d986;
+    --success-dim: rgba(54,217,134,0.15);
+    --critical: #ff2a6d;
+    --critical-dim: rgba(255,42,109,0.15);
+    --high: #f05545; --medium: #f8a535; --low: #4af; --info: #36d986;
+    --mono: 'JetBrains Mono','Fira Code','SF Mono','Cascadia Code',monospace;
+    --sans: 'DM Sans','Segoe UI',system-ui,sans-serif;
+    --radius: 8px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.5;overflow-x:hidden}
+  ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:var(--surface)}::-webkit-scrollbar-thumb{background:var(--border-bright);border-radius:3px}
+
+  .header{padding:20px 32px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface)}
+  .header-left{display:flex;align-items:center;gap:16px}
+  .logo{font-family:var(--mono);font-size:18px;font-weight:600;color:var(--accent);letter-spacing:-0.5px}.logo span{color:var(--text-dim);font-weight:400}
+  .header-stats{display:flex;gap:24px;font-family:var(--mono);font-size:13px}
+  .header-stat{color:var(--text-dim)}.header-stat strong{color:var(--text-bright);font-weight:600}
+  .sev-pip{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}
+  .sev-critical{background:var(--critical);box-shadow:0 0 6px var(--critical)}.sev-high{background:var(--high)}.sev-medium{background:var(--medium)}.sev-low{background:var(--low)}.sev-info{background:var(--info)}
+
+  .dropzone-overlay{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 70px);padding:40px}
+  .dropzone{width:100%;max-width:640px;border:2px dashed var(--border-bright);border-radius:16px;padding:64px 40px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface)}
+  .dropzone:hover,.dropzone.dragover{border-color:var(--accent);background:var(--accent-dim);box-shadow:0 0 40px rgba(68,170,255,.08)}
+  .dropzone-icon{font-size:48px;margin-bottom:16px;opacity:.6}.dropzone h2{font-size:20px;font-weight:600;color:var(--text-bright);margin-bottom:8px}.dropzone p{color:var(--text-dim);font-size:14px}
+  .dropzone code{font-family:var(--mono);font-size:12px;background:var(--surface2);padding:2px 8px;border-radius:4px;color:var(--accent)}
+  .format-hint{margin-top:16px;padding:12px 16px;background:var(--surface2);border-radius:8px;text-align:left;font-family:var(--mono);font-size:11px;color:var(--text-dim);line-height:1.7}.format-hint strong{color:var(--accent)}
+  .progress-container{width:100%;max-width:640px;margin-top:24px;display:none}.progress-bar-bg{height:4px;background:var(--surface2);border-radius:2px;overflow:hidden}
+  .progress-bar-fill{height:100%;width:0%;background:var(--accent);border-radius:2px;transition:width .1s}.progress-text{font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-top:8px;text-align:center}
+
+  .dashboard{display:none}
+  .tabs{display:flex;gap:2px;padding:12px 32px 0;background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .tab{padding:10px 20px;font-size:13px;font-weight:500;color:var(--text-dim);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;user-select:none}.tab:hover{color:var(--text)}.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+  .panel{display:none;padding:24px 32px}.panel.active{display:block}
+  .card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:24px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+  .card-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text-dim);margin-bottom:6px}
+  .card-value{font-family:var(--mono);font-size:28px;font-weight:700;color:var(--text-bright)}.card-sub{font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-top:4px}
+
+  .chart-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px}
+  .chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.chart-title{font-size:14px;font-weight:600;color:var(--text-bright)}
+  .chart-controls{display:flex;gap:8px;align-items:center}
+  .chart-btn{font-family:var(--mono);font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text-dim);cursor:pointer;transition:all .15s}
+  .chart-btn:hover{border-color:var(--border-bright);color:var(--text)}.chart-btn.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
+  canvas.chart-canvas{width:100%;height:300px;display:block}
+
+  .data-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);max-height:500px;overflow-y:auto}
+  table.data-table{width:100%;border-collapse:collapse;font-size:13px}
+  .data-table th{position:sticky;top:0;background:var(--surface2);font-family:var(--mono);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);padding:10px 14px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+  .data-table td{padding:8px 14px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:12px;white-space:nowrap}.data-table tr:hover td{background:var(--surface2)}
+
+  .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;font-family:var(--mono)}
+  .badge-critical{background:var(--critical-dim);color:var(--critical)}.badge-danger{background:var(--danger-dim);color:var(--danger)}.badge-warn{background:var(--warn-dim);color:var(--warn)}.badge-info{background:var(--accent-dim);color:var(--accent)}.badge-ok{background:var(--success-dim);color:var(--success)}
+
+  .filter-bar{display:flex;flex-wrap:wrap;gap:8px;padding:16px 32px;background:var(--surface);border-bottom:1px solid var(--border);align-items:center}
+  .filter-bar label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);margin-right:4px}
+  .filter-input{font-family:var(--mono);font-size:12px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);outline:none;min-width:140px}
+  .filter-input:focus{border-color:var(--accent)}.filter-input::placeholder{color:var(--text-dim)}
+  select.filter-input{cursor:pointer;appearance:none;padding-right:24px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236b7490'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+  .filter-reset{font-family:var(--mono);font-size:11px;padding:6px 12px;border:1px solid var(--danger);border-radius:4px;background:var(--danger-dim);color:var(--danger);cursor:pointer}
+
+  .anomaly-item{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--danger);border-radius:var(--radius);padding:14px 18px;margin-bottom:8px}
+  .anomaly-item.warn{border-left-color:var(--warn)}.anomaly-item.info{border-left-color:var(--accent)}.anomaly-item.critical{border-left-color:var(--critical)}
+  .anomaly-title{font-size:13px;font-weight:600;color:var(--text-bright);margin-bottom:4px}.anomaly-detail{font-family:var(--mono);font-size:12px;color:var(--text-dim);line-height:1.6}
+
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:900px){.two-col{grid-template-columns:1fr}.filter-bar{padding:12px 16px}.panel{padding:16px}.tabs{padding:12px 16px 0}.header{padding:16px}}
+
+  .tooltip{position:fixed;background:var(--surface3);border:1px solid var(--border-bright);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:11px;color:var(--text-bright);pointer-events:none;z-index:1000;display:none;box-shadow:0 8px 32px rgba(0,0,0,.4);max-width:400px;line-height:1.5}
+
+  .eid-link{color:var(--accent);cursor:pointer;text-decoration:none;border-bottom:1px dashed var(--accent-dim);transition:all .15s}.eid-link:hover{color:var(--text-bright);border-bottom-color:var(--accent)}
+  .eid-focus-header{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+  .eid-focus-title{font-family:var(--mono);font-size:24px;font-weight:700;color:var(--accent)}
+  .eid-focus-close{font-family:var(--mono);font-size:11px;padding:4px 12px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text-dim);cursor:pointer}.eid-focus-close:hover{border-color:var(--accent);color:var(--accent)}
+
+  .seq-input-row{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+  .seq-eid-input{font-family:var(--mono);font-size:13px;padding:8px 14px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);outline:none;width:300px}.seq-eid-input:focus{border-color:var(--accent)}.seq-eid-input::placeholder{color:var(--text-dim)}
+  .seq-window-input{font-family:var(--mono);font-size:13px;padding:8px 12px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);outline:none;width:120px}
+  .seq-run-btn{font-family:var(--mono);font-size:12px;padding:8px 20px;border:1px solid var(--accent);border-radius:4px;background:var(--accent-dim);color:var(--accent);cursor:pointer;font-weight:600;transition:all .15s}.seq-run-btn:hover{background:var(--accent);color:var(--bg)}
+
+  .seq-cluster{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:10px}
+  .seq-cluster.scripted{border-left:3px solid var(--critical)}.seq-cluster.fast{border-left:3px solid var(--warn)}.seq-cluster.human{border-left:3px solid var(--success)}
+  .seq-cluster-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .seq-cluster-timing{font-family:var(--mono);font-size:20px;font-weight:700}
+  .seq-event-line{font-family:var(--mono);font-size:11px;color:var(--text-dim);padding:3px 0;border-bottom:1px solid var(--border);display:flex;gap:12px;cursor:pointer}.seq-event-line:last-child{border-bottom:none}.seq-event-line:hover{background:var(--surface2)}
+  .seq-delta{color:var(--warn);min-width:90px;text-align:right}.seq-ts{color:var(--text);min-width:200px}.seq-eid-tag{color:var(--accent);min-width:70px}.seq-rule{color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .seq-presets{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+  .seq-preset-btn{font-family:var(--mono);font-size:10px;padding:4px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text-dim);cursor:pointer;transition:all .15s}.seq-preset-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+  .detail-panel{position:fixed;top:0;right:0;width:520px;height:100vh;background:var(--surface);border-left:1px solid var(--border-bright);box-shadow:-8px 0 40px rgba(0,0,0,.5);z-index:900;display:none;flex-direction:column;overflow:hidden}
+  .detail-panel.open{display:flex}
+  .detail-panel-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface2);flex-shrink:0}
+  .detail-panel-title{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--text-bright)}
+  .detail-panel-close{background:none;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);cursor:pointer;font-size:16px;padding:2px 8px;font-family:var(--mono)}.detail-panel-close:hover{border-color:var(--danger);color:var(--danger)}
+  .detail-panel-body{padding:20px;overflow-y:auto;flex:1;font-family:var(--mono);font-size:12px;line-height:1.7}
+  .detail-section{margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}.detail-section:last-child{border-bottom:none}
+  .detail-section-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text-dim);margin-bottom:8px}
+  .detail-field{margin-bottom:4px}.detail-key{color:var(--accent);display:inline-block;min-width:140px}.detail-val{color:var(--text-bright)}
+  .detail-payload-block{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:12px;white-space:pre-wrap;word-break:break-all;font-size:11px;line-height:1.6;max-height:400px;overflow-y:auto}
+
+  .session-bar{display:flex;align-items:center;gap:10px;padding:8px 32px;background:var(--surface2);border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .session-chips{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+  .session-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);font-family:var(--mono);font-size:11px;color:var(--text)}
+  .session-chip-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;display:inline-block}
+  .session-add-btn{font-family:var(--mono);font-size:11px;padding:5px 14px;border:1px dashed var(--border-bright);border-radius:6px;background:none;color:var(--text-dim);cursor:pointer;transition:all .15s;white-space:nowrap}.session-add-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .session-badge{display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;font-family:var(--mono);font-weight:700;color:#0a0c10;line-height:1.6}
+
+  .lat-chain{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:8px}
+  .lat-chain.cross{border-left:3px solid var(--warn)}
+  .lat-chain-hdr{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+  .lat-chain-name{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text-bright)}
+  .lat-hops{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+  .lat-hop{display:inline-flex;flex-direction:column;align-items:center;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);text-align:center;min-width:88px}
+  .lat-hop-comp{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text-bright);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lat-hop-meta{font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:2px;white-space:nowrap}
+  .lat-arrow{font-size:13px;color:var(--text-dim);padding:0 2px;user-select:none;flex-shrink:0}
+  .lat-arrow.xsess{color:var(--warn);font-size:15px}
+  .lat-matrix-wrap{overflow-x:auto}
+  .lat-matrix-table{border-collapse:collapse;font-family:var(--mono);font-size:11px}
+  .lat-matrix-table th,.lat-matrix-table td{padding:5px 10px;border:1px solid var(--border);white-space:nowrap}
+  .lat-matrix-table th{background:var(--surface2);color:var(--text-dim);font-weight:600;text-align:center}
+  .lat-matrix-table td.acct-col{text-align:left}
+  .lat-matrix-table td.hit{background:var(--accent-dim);color:var(--accent);text-align:center;cursor:default}
+  .lat-matrix-table td.empty{color:var(--border);text-align:center}
+  .lat-matrix-table tr.cross-acct td.acct-col{color:var(--warn);font-weight:600}
+
+  /* ── COPY / COLUMN CONFIG ─────────────────────────────────────────────── */
+  .copy-toast{position:fixed;bottom:32px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--surface3);border:1px solid var(--border-bright);border-radius:8px;padding:10px 22px;font-family:var(--mono);font-size:13px;color:var(--success);opacity:0;transition:opacity .3s,transform .3s;z-index:2000;pointer-events:none;white-space:nowrap}.copy-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .copy-btn{font-family:var(--mono);font-size:10px;padding:3px 9px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text-dim);cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0}.copy-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .col-cfg-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1500;align-items:center;justify-content:center}.col-cfg-overlay.open{display:flex}
+  .col-cfg-modal{background:var(--surface);border:1px solid var(--border-bright);border-radius:12px;padding:24px;width:520px;max-width:95vw;max-height:82vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .col-cfg-title{font-size:15px;font-weight:600;color:var(--text-bright);margin-bottom:4px}.col-cfg-sub{font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:16px}
+  .col-cfg-rows{margin-bottom:8px}
+  .col-cfg-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)}.col-cfg-row:last-child{border-bottom:none}
+  .col-cfg-check{accent-color:var(--accent);width:14px;height:14px;cursor:pointer;flex-shrink:0}
+  .col-cfg-lbl{flex:1;font-family:var(--mono);font-size:12px;color:var(--text);cursor:pointer}
+  .col-cfg-mv{font-size:11px;padding:1px 6px;border:1px solid var(--border);border-radius:3px;background:var(--surface2);color:var(--text-dim);cursor:pointer;line-height:1.4}.col-cfg-mv:hover{border-color:var(--accent);color:var(--accent)}
+  .col-cfg-footer{display:flex;gap:8px;margin-top:16px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+  .col-cfg-save{font-family:var(--mono);font-size:12px;padding:7px 18px;border:1px solid var(--accent);border-radius:4px;background:var(--accent-dim);color:var(--accent);cursor:pointer;font-weight:600}.col-cfg-save:hover{background:var(--accent);color:var(--bg)}
+  .col-cfg-cancel{font-family:var(--mono);font-size:12px;padding:7px 18px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text-dim);cursor:pointer}.col-cfg-cancel:hover{border-color:var(--danger);color:var(--danger)}
+  .delim-toggle{display:inline-flex;border:1px solid var(--border);border-radius:4px;overflow:hidden}.delim-btn{font-family:var(--mono);font-size:11px;padding:4px 10px;background:var(--surface2);color:var(--text-dim);cursor:pointer;border:none;outline:none}.delim-btn.active{background:var(--accent-dim);color:var(--accent)}
+
+  /* Keyboard navigation */
+  .nav-selected td{background:var(--accent-dim) !important;outline:1px solid var(--accent);outline-offset:-1px}
+  .seq-event-line.nav-selected{background:var(--accent-dim) !important;outline:1px solid var(--accent);outline-offset:-1px}
+  .nav-hint{position:fixed;bottom:32px;right:32px;background:var(--surface3);border:1px solid var(--border-bright);border-radius:8px;padding:8px 14px;font-family:var(--mono);font-size:10px;color:var(--text-dim);z-index:800;pointer-events:none;opacity:0;transition:opacity .3s;line-height:1.7}
+  .nav-hint.visible{opacity:1}
+  .nav-hint kbd{display:inline-block;padding:1px 5px;border:1px solid var(--border-bright);border-radius:3px;background:var(--surface2);color:var(--text);font-size:10px;margin:0 2px}
+</style>
+</head>
+<body>
+<div class="header"><div class="header-left"><div class="logo">EventScope <span>/ hayabusa analyzer</span></div></div><div class="header-stats" id="headerStats"></div></div>
+<div class="session-bar" id="sessionBar" style="display:none"><div class="session-chips" id="sessionChips"></div><button class="session-add-btn" id="sessionAddBtn">+ Add Session</button></div>
+
+<div class="dropzone-overlay" id="dropzoneOverlay">
+  <div class="dropzone" id="dropzone">
+    <div class="dropzone-icon">⌗</div><h2>Drop Hayabusa CSV Export</h2>
+    <p>Or click to browse. Streams large files — won't choke on multi-GB exports.</p>
+    <div class="format-hint"><strong>Format A — Hayabusa:</strong> csv-timeline output<br><code>Timestamp, RuleTitle, Level, Computer, Channel, EventID, RecordID, Details, ExtraFieldInfo, RuleID</code><br><br><strong>Format B — EvtxECmd (Zimmerman):</strong> -d folder --csv output<br><code>TimeCreated, EventId, Level, Provider, Channel, Computer, MapDescription, PayloadData1-6, SourceFile, Payload</code><br><br>Auto-detected from the CSV header.</div>
+  </div>
+  <div class="progress-container" id="progressContainer"><div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div><div class="progress-text" id="progressText">Preparing...</div></div>
+</div>
+<input type="file" id="fileInput" accept=".csv,.tsv,.txt" style="display:none">
+<input type="file" id="sessionFileInput" accept=".csv,.tsv,.txt" style="display:none">
+
+<div class="dashboard" id="dashboard">
+  <div class="filter-bar">
+    <label>Filters:</label>
+    <input class="filter-input" id="filterEventId" placeholder="Event ID"><input class="filter-input" id="filterRuleTitle" placeholder="Rule title..." style="min-width:200px">
+    <select class="filter-input" id="filterLevel"><option value="">All Levels</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="informational">Informational</option></select>
+    <select class="filter-input" id="filterComputer"><option value="">All Computers</option></select>
+    <select class="filter-input" id="filterChannel"><option value="">All Channels</option></select>
+    <span id="filterSourceWrap" style="display:none"><select class="filter-input" id="filterSource"><option value="">All Sources</option></select></span>
+    <input class="filter-input" id="filterDetails" placeholder="Details contains..." style="min-width:180px">
+    <input class="filter-input" id="filterTimeStart" placeholder="Start (yyyy-mm-dd)"><input class="filter-input" id="filterTimeEnd" placeholder="End (yyyy-mm-dd)">
+    <button class="filter-reset" id="filterReset">Reset</button>
+  </div>
+  <div class="tabs">
+    <div class="tab active" data-tab="overview">Overview</div><div class="tab" data-tab="timeline">Timeline</div><div class="tab" data-tab="heatmap">Heatmap</div><div class="tab" data-tab="arrivals">Arrivals</div><div class="tab" data-tab="gaps">Gaps</div><div class="tab" data-tab="periodic">Periodic</div><div class="tab" data-tab="rules">Rules</div>
+    <div class="tab" data-tab="sequence">Sequence</div><div class="tab" data-tab="frequency">Frequency</div><div class="tab" data-tab="anomalies">Anomalies</div>
+    <div class="tab" data-tab="raw">Raw Data</div><div class="tab" data-tab="lateral">Lateral Movement</div><div class="tab" data-tab="eidfocus" id="tabEidFocus" style="display:none">EID Focus</div>
+  </div>
+
+  <div class="panel active" id="panel-overview"><div class="card-grid" id="overviewCards"></div><div class="two-col"><div class="chart-box"><div class="chart-header"><span class="chart-title">Detection Timeline</span><div class="chart-controls"><button class="chart-btn active" data-bucket="auto" data-target="timelineAll">Auto</button><button class="chart-btn" data-bucket="hour" data-target="timelineAll">1h</button><button class="chart-btn" data-bucket="day" data-target="timelineAll">1d</button></div></div><canvas class="chart-canvas" id="canvasTimelineAll"></canvas></div><div class="chart-box"><div class="chart-header"><span class="chart-title">Severity Distribution</span></div><canvas class="chart-canvas" id="canvasSeverity"></canvas></div></div><div class="two-col"><div class="chart-box"><div class="chart-header"><span class="chart-title">Top 20 Event IDs</span></div><canvas class="chart-canvas" id="canvasTopEvents"></canvas></div><div class="chart-box"><div class="chart-header"><span class="chart-title">Events by Channel</span></div><canvas class="chart-canvas" id="canvasChannels"></canvas></div></div></div>
+
+  <div class="panel" id="panel-periodic">
+    <div class="chart-box">
+      <div class="chart-header">
+        <span class="chart-title">Periodicity Detection</span>
+        <div class="chart-controls">
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Min events:</label>
+          <input class="filter-input" id="periodicMinEvents" type="number" value="10" min="3" max="10000" style="width:65px">
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Max CV:</label>
+          <input class="filter-input" id="periodicMaxCV" type="number" value="0.4" min="0.05" max="2" step="0.05" style="width:65px">
+          <button class="seq-run-btn" id="periodicRunBtn">Analyze</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:12px">Detects EIDs with regular inter-event timing (scheduled tasks, heartbeats, backup cycles). CV (coefficient of variation = σ/median) below threshold = periodic. A <em>break</em> in periodicity is the real signal.</p>
+      <div id="periodicCards" class="card-grid" style="margin-bottom:16px"></div>
+      <div class="data-table-wrap" id="periodicTable" style="max-height:600px"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-gaps">
+    <div class="chart-box">
+      <div class="chart-header">
+        <span class="chart-title">Gap Analysis — Silence Periods Per Host</span>
+        <div class="chart-controls">
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Min gap (min):</label>
+          <input class="filter-input" id="gapMinutes" type="number" value="15" min="1" max="10080" style="width:70px">
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">&sigma; threshold:</label>
+          <input class="filter-input" id="gapSigma" type="number" value="3" min="1" max="10" step="0.5" style="width:60px">
+          <select class="filter-input" id="gapCompFilter" style="min-width:160px"><option value="">All Computers</option></select>
+          <button class="seq-run-btn" id="gapRunBtn">Analyze</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:12px">A gap exceeds the threshold when both the <em>absolute minimum</em> (min gap) AND the per-host statistical baseline (mean + σ) are exceeded. A DC going silent for 40 minutes mid-workday is significant regardless of cause.</p>
+      <div id="gapCards" class="card-grid" style="margin-bottom:16px"></div>
+      <div class="data-table-wrap" id="gapTable" style="max-height:600px"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-arrivals">
+    <div class="chart-box">
+      <div class="chart-header">
+        <span class="chart-title">First-Seen / Last-Seen Tracker</span>
+        <div class="chart-controls">
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Type:</label>
+          <select class="filter-input" id="arrivalsType" style="min-width:130px">
+            <option value="eid">Event IDs</option>
+            <option value="rule">Rules</option>
+            <option value="computer">Computers</option>
+            <option value="account">Accounts</option>
+          </select>
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Sort:</label>
+          <select class="filter-input" id="arrivalsSort" style="min-width:130px">
+            <option value="first">First Seen ▲</option>
+            <option value="last">Last Seen ▲</option>
+            <option value="count">Count ▼</option>
+          </select>
+          <button class="chart-btn active" id="arrivalsLateBtn" title="Show only items first appearing in second half of dataset">Late Only</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:12px">Items first appearing after the dataset midpoint are highlighted <span style="color:var(--warn)">orange</span> — these are inherently more interesting.</p>
+      <div id="arrivalsCards" class="card-grid" style="margin-bottom:16px"></div>
+      <div class="data-table-wrap" id="arrivalsTable" style="max-height:600px"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-heatmap">
+    <div class="chart-box">
+      <div class="chart-header">
+        <span class="chart-title">Activity Heatmap — Hour × Day</span>
+        <div class="chart-controls">
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Host:</label>
+          <select class="filter-input" id="hmComputerFilter" style="min-width:160px"><option value="">All Computers</option></select>
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Weight:</label>
+          <button class="chart-btn active" id="hmWtCount" data-wt="count">Count</button>
+          <button class="chart-btn" id="hmWtSev" data-wt="severity">Severity</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:12px">Click any cell to filter timeline to that hour · Severity-weighted: critical=5, high=4, medium=3, low=2, info=1</p>
+      <div style="overflow-x:auto">
+        <canvas id="canvasHeatmap" style="display:block;height:auto"></canvas>
+      </div>
+      <div id="hmStats" style="margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--text-dim)"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-timeline"><div class="chart-box"><div class="chart-header"><span class="chart-title">Filtered Timeline</span><div class="chart-controls"><button class="chart-btn active" data-bucket="auto" data-target="timelineFiltered">Auto</button><button class="chart-btn" data-bucket="minute" data-target="timelineFiltered">1m</button><button class="chart-btn" data-bucket="hour" data-target="timelineFiltered">1h</button><button class="chart-btn" data-bucket="day" data-target="timelineFiltered">1d</button></div></div><canvas class="chart-canvas" id="canvasTimelineFiltered" style="height:300px"></canvas></div><div class="chart-box"><div class="chart-header"><span class="chart-title">Severity Heatmap</span></div><canvas class="chart-canvas" id="canvasSevTimeline" style="height:200px"></canvas></div><div class="chart-box"><div class="chart-header"><span class="chart-title">Burst Detection</span></div><div id="burstList"></div></div></div>
+
+  <div class="panel" id="panel-rules"><div class="chart-box"><div class="chart-header"><span class="chart-title">Rule Detections</span><div style="margin-left:auto"><button class="copy-btn" onclick="copyTableRows('rules')" title="Copy visible rules">Copy Rows</button></div></div><div class="data-table-wrap" id="ruleTable" style="max-height:700px"></div></div></div>
+
+  <div class="panel" id="panel-sequence"><div class="chart-box"><div class="chart-header"><span class="chart-title">Sequence Cluster Analysis</span></div>
+    <p style="color:var(--text-dim);font-size:13px;margin-bottom:12px">Define Event IDs to find temporal clusters. Measures inter-event timing: <span style="color:var(--critical)">scripted (&lt;500ms)</span>, <span style="color:var(--warn)">fast (500ms–5s)</span>, <span style="color:var(--success)">human (&gt;5s)</span></p>
+    <div class="seq-presets" id="seqPresets"><span style="font-size:11px;color:var(--text-dim);margin-right:4px">Presets:</span>
+      <button class="seq-preset-btn" data-eids="4624,4672,4634,4647" data-win="60">Logon/Logoff cycle</button>
+      <button class="seq-preset-btn" data-eids="4624,4672,4648" data-win="30">Explicit cred logon</button>
+      <button class="seq-preset-btn" data-eids="4688,4689" data-win="10">Process create/exit</button>
+      <button class="seq-preset-btn" data-eids="4698,4699,4700,4701,4702" data-win="60">Sched task lifecycle</button>
+      <button class="seq-preset-btn" data-eids="7045,7036,4697" data-win="30">Service install</button>
+      <button class="seq-preset-btn" data-eids="4720,4722,4732,4724" data-win="120">Account creation</button>
+    </div>
+    <div class="seq-input-row"><input class="seq-eid-input" id="seqEidInput" placeholder="Event IDs (comma-separated, e.g. 4624,4672,4634,4647)"><label style="font-size:11px;color:var(--text-dim)">Window (sec):</label><input class="seq-window-input" id="seqWindowInput" value="60" type="number" min="1" max="3600"><button class="seq-run-btn" id="seqRunBtn">Analyze</button></div>
+    <div id="seqSummary"></div><div id="seqResults"></div>
+  </div></div>
+
+  <div class="panel" id="panel-frequency"><div class="two-col"><div class="chart-box"><div class="chart-header"><span class="chart-title">Event ID Distribution</span></div><div class="data-table-wrap" id="freqEventTable"></div></div><div class="chart-box"><div class="chart-header"><span class="chart-title">Channel Distribution</span></div><div class="data-table-wrap" id="freqChannelTable"></div></div></div><div class="chart-box"><div class="chart-header"><span class="chart-title">Computer Distribution</span></div><div class="data-table-wrap" id="freqComputerTable"></div></div>
+    <div class="chart-box"><div class="chart-header"><span class="chart-title">Time-of-Day Profile (UTC Hours)</span><div class="chart-controls"><select class="filter-input" id="todComputer" style="min-width:180px"><option value="">All Computers</option></select></div></div><p style="font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:12px">Event frequency by UTC hour. <span style="color:var(--warn)">Orange</span> bars = Z-score &gt; 2 outside the host&apos;s peak window (potential off-hours activity).</p><canvas class="chart-canvas" id="canvasTOD" style="height:220px"></canvas><div id="todAfterHours" style="margin-top:12px"></div></div>
+  </div>
+
+  <div class="panel" id="panel-anomalies"><div class="card-grid" id="anomalyCards"></div><div id="anomalyList"></div></div>
+
+  <div class="panel" id="panel-raw"><div class="chart-box"><div class="chart-header"><span class="chart-title">Filtered Detections</span><span class="chart-title" id="rawCount" style="font-weight:400;color:var(--text-dim)"></span><div style="display:flex;gap:6px;margin-left:auto"><button class="copy-btn" onclick="copyTableRows('raw')" title="Copy visible rows">Copy Rows</button><button class="copy-btn" onclick="openColCfg()" title="Configure columns">Columns ⋯</button></div></div><div class="data-table-wrap" id="rawTableWrap" style="max-height:600px"></div></div></div>
+
+  <div class="panel" id="panel-eidfocus"><div class="eid-focus-header"><span class="eid-focus-title" id="eidFocusTitle">EID —</span><button class="eid-focus-close" id="eidFocusClose">✕ Close</button><button class="seq-run-btn" id="eidFocusToSeq" style="font-size:11px;padding:4px 12px">→ Add to Sequence</button></div><div id="eidFocusContent"></div></div>
+
+  <div class="panel" id="panel-lateral">
+    <div id="latSessionLegend" style="margin-bottom:16px"></div>
+    <div class="two-col" style="margin-bottom:16px">
+      <div class="chart-box">
+        <div class="chart-header"><span class="chart-title">Account Movement Chains</span><div class="chart-controls"><input class="filter-input" id="latAccountFilter" placeholder="Filter account..." style="min-width:150px"><button class="chart-btn active" id="latRefreshBtn">Refresh</button></div></div>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;font-family:var(--mono)">Extracts accounts from event details. <span style="color:var(--warn)">⇒</span> = session boundary crossed.</p>
+        <div id="latChains"></div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-header"><span class="chart-title">Cross-Session Accounts</span></div>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;font-family:var(--mono)">Accounts observed in 2+ loaded sessions — high-value lateral movement indicators.</p>
+        <div id="latCrossSession"></div>
+      </div>
+    </div>
+    <div class="chart-box"><div class="chart-header"><span class="chart-title">Account × Session Matrix</span><span style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Top 30 accounts</span></div><div class="lat-matrix-wrap"><div id="latMatrix"></div></div></div>
+  </div>
+</div>
+
+<div class="detail-panel" id="detailPanel"><div class="detail-panel-header"><span class="detail-panel-title" id="detailPanelTitle">Event Detail</span><div style="display:flex;gap:6px"><button class="copy-btn" id="detailCopyBtn" title="Copy this event as CSV/TSV">Copy</button><button class="detail-panel-close" id="detailPanelClose">✕</button></div></div><div class="detail-panel-body" id="detailPanelBody"></div></div>
+<div class="tooltip" id="tooltip"></div>
+<div class="copy-toast" id="copyToast"></div>
+<div class="nav-hint" id="navHint"><kbd>↑</kbd><kbd>↓</kbd> prev/next event &nbsp; <kbd>←</kbd><kbd>→</kbd> prev/next cluster &nbsp; <kbd>Ctrl+C</kbd> copy event &nbsp; <kbd>Esc</kbd> close</div>
+
+<!-- Column Config Modal -->
+<div class="col-cfg-overlay" id="colCfgOverlay">
+  <div class="col-cfg-modal">
+    <div class="col-cfg-title">Copy Column Configuration</div>
+    <div class="col-cfg-sub">Choose and order the columns included when copying events. Saved automatically.</div>
+    <div class="col-cfg-rows" id="colCfgRows"></div>
+    <div class="col-cfg-footer">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Delimiter:</span>
+        <div class="delim-toggle" id="delimToggle">
+          <button class="delim-btn active" data-delim="tab">TSV (Excel)</button>
+          <button class="delim-btn" data-delim="comma">CSV</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="col-cfg-cancel" id="colCfgCancel">Cancel</button>
+        <button class="col-cfg-save" id="colCfgSave">Save &amp; Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SESSION_COLORS=['#4af','#36d986','#f8a535','#a78bfa','#f472b6','#38bdf8','#fb923c','#f05545'];
+const S={rows:[],columns:[],colIndex:{},sessions:[],sessionCurrent:0,eventIdCounts:{},computerCounts:{},channelCounts:{},levelCounts:{critical:0,high:0,medium:0,low:0,informational:0},ruleTitleCounts:{},ruleIdMap:{},sourceCounts:{},timeMin:Infinity,timeMax:-Infinity,format:null,filters:{},filteredRows:null,bucketPref:{},focusEid:null,_seqClusters:null,nav:{ctx:null,idx:null,clusterIdx:null,evtIdx:null}};
+const LT_NAMES={2:'Interactive',3:'Network',4:'Batch',5:'Service',7:'Unlock',8:'NetCleartext',9:'NewCred',10:'RDP',11:'CachedInteract'};
+const LW={critical:5,high:4,medium:3,low:2,informational:1};
+
+function parseCSVLine(l){const r=[];let c='',q=false;for(let i=0;i<l.length;i++){const ch=l[i];if(q){if(ch==='"'){if(i+1<l.length&&l[i+1]==='"'){c+='"';i++}else q=false}else c+=ch}else{if(ch==='"')q=true;else if(ch===','){r.push(c);c=''}else c+=ch}}r.push(c);return r}
+function parseTS(s){if(!s)return NaN;s=s.trim();if(/^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}/.test(s)){let n=s.replace(/\s+(\d{2}:\d{2}:\d{2})/,'T$1');n=n.replace(/\s+([+-]\d{2}:\d{2})/,'$1');const d=new Date(n);return isNaN(d.getTime())?NaN:d.getTime()}return NaN}
+function parseDet(d){if(!d)return{};const p={};for(const part of d.split('¦')){const t=part.trim(),ci=t.indexOf(':');if(ci>0){const k=t.substring(0,ci).trim(),v=t.substring(ci+1).trim();if(k)p[k]=v}}return p}
+function normLvl(l){if(!l)return'informational';const s=l.trim().toLowerCase();if(s==='crit'||s==='critical'||s==='1')return'critical';if(s==='high'||s==='error'||s==='2')return'high';if(s==='med'||s==='medium'||s==='warning'||s==='warn'||s==='3')return'medium';if(s==='low'||s==='verbose'||s==='5')return'low';if(s==='info'||s==='information'||s==='0'||s==='4'||s==='logalways')return'informational';return'informational'}
+
+async function streamParse(file){const CS=4*1024*1024;let off=0,buf='',hp=false,rc=0,procFn=procRow;const pf=document.getElementById('progressFill'),pt=document.getElementById('progressText');document.getElementById('progressContainer').style.display='block';
+while(off<file.size){buf+=await file.slice(off,off+CS).text();off+=CS;let sf=0;while(true){const nl=buf.indexOf('\n',sf);if(nl===-1)break;const cand=buf.substring(0,nl);let qc=0;for(let i=0;i<cand.length;i++)if(cand[i]==='"')qc++;if(qc%2!==0){sf=nl+1;continue}const rec=cand.replace(/\r$/,'');buf=buf.substring(nl+1);sf=0;if(!rec.trim())continue;if(!hp){S.colIndex={};S.columns=parseCSVLine(rec);S.columns.forEach((c,i)=>S.colIndex[c.trim().replace(/^"/,'').replace(/"$/,'')]=i);hp=true;if('TimeCreated' in S.colIndex&&'EventId' in S.colIndex){S.format='evtxecmd';procFn=procRowEvtxECmd;}else{S.format='hayabusa';procFn=procRow;}continue}procFn(parseCSVLine(rec));rc++}const fmt=S.format==='evtxecmd'?'EvtxECmd':'Hayabusa';pf.style.width=Math.min(100,off/file.size*100)+'%';pt.textContent=`Parsed ${rc.toLocaleString()} records [${fmt}] (${Math.round(Math.min(100,off/file.size*100))}%)`;await new Promise(r=>setTimeout(r,0))}
+if(buf.trim()&&hp){procFn(parseCSVLine(buf.trim()));rc++}pf.style.width='100%';pt.textContent=`Complete: ${rc.toLocaleString()} records [${S.format==='evtxecmd'?'EvtxECmd':'Hayabusa'}]`;return rc}
+
+function procRow(f){const ci=S.colIndex,ts=parseTS(f[ci['Timestamp']]),rule=(f[ci['RuleTitle']]||'').trim(),lvl=normLvl(f[ci['Level']]),comp=(f[ci['Computer']]||'').trim(),chan=(f[ci['Channel']]||'').trim(),eid=(f[ci['EventID']]||'').trim(),rec=(f[ci['RecordID']]||'').trim(),det=(f[ci['Details']]||'').trim(),ext=(f[ci['ExtraFieldInfo']]||'').trim(),rid=(f[ci['RuleID']]||'').trim();
+S.rows.push({ts,rule,lvl,comp,chan,eid,rec,det,extra:ext,rid,src:'',sessionIdx:S.sessionCurrent||0});S.eventIdCounts[eid]=(S.eventIdCounts[eid]||0)+1;if(comp)S.computerCounts[comp]=(S.computerCounts[comp]||0)+1;if(chan)S.channelCounts[chan]=(S.channelCounts[chan]||0)+1;S.levelCounts[lvl]=(S.levelCounts[lvl]||0)+1;
+if(rule){S.ruleTitleCounts[rule]=(S.ruleTitleCounts[rule]||0)+1;if(!S.ruleIdMap[rule])S.ruleIdMap[rule]={ruleId:rid,level:lvl,count:0,channel:chan,eventIds:new Set()};S.ruleIdMap[rule].count++;if(eid)S.ruleIdMap[rule].eventIds.add(eid)}
+if(!isNaN(ts)){if(ts<S.timeMin)S.timeMin=ts;if(ts>S.timeMax)S.timeMax=ts}}
+
+function procRowEvtxECmd(f){
+const ci=S.colIndex;
+const ts=parseTS(f[ci['TimeCreated']]);
+const rule=(f[ci['MapDescription']]||'').trim();
+const lvl=normLvl(f[ci['Level']]);
+const comp=(f[ci['Computer']]||'').trim();
+const chan=(f[ci['Channel']]||'').trim();
+const eid=(f[ci['EventId']]||'').trim();
+const rec=(f[ci['EventRecordId']]||'').trim();
+const provider=(f[ci['Provider']]||'').trim();
+const src=(f[ci['SourceFile']]||'').trim();
+const parts=[];
+for(let i=1;i<=6;i++){const v=(f[ci['PayloadData'+i]]||'').trim();if(v&&v!=='-')parts.push(v)}
+const un=(f[ci['UserName']]||'').trim(),rh=(f[ci['RemoteHost']]||'').trim(),uid2=(f[ci['UserId']]||'').trim(),ei=(f[ci['ExecutableInfo']]||'').trim();
+if(un&&un!=='-')parts.push('UserName: '+un);
+if(rh&&rh!=='-')parts.push('RemoteHost: '+rh);
+if(uid2&&uid2!=='-')parts.push('UserId: '+uid2);
+if(ei&&ei!=='-')parts.push('ExecutableInfo: '+ei);
+const det=parts.join('\u00a6'),ext=(f[ci['Payload']]||'').trim(),rid=provider;
+S.rows.push({ts,rule,lvl,comp,chan,eid,rec,det,extra:ext,rid,src,sessionIdx:S.sessionCurrent||0});
+S.eventIdCounts[eid]=(S.eventIdCounts[eid]||0)+1;
+if(comp)S.computerCounts[comp]=(S.computerCounts[comp]||0)+1;
+if(chan)S.channelCounts[chan]=(S.channelCounts[chan]||0)+1;
+S.levelCounts[lvl]=(S.levelCounts[lvl]||0)+1;
+if(src)S.sourceCounts[src]=(S.sourceCounts[src]||0)+1;
+if(rule){S.ruleTitleCounts[rule]=(S.ruleTitleCounts[rule]||0)+1;if(!S.ruleIdMap[rule])S.ruleIdMap[rule]={ruleId:rid,level:lvl,count:0,channel:chan,eventIds:new Set()};S.ruleIdMap[rule].count++;if(eid)S.ruleIdMap[rule].eventIds.add(eid)}
+if(!isNaN(ts)){if(ts<S.timeMin)S.timeMin=ts;if(ts>S.timeMax)S.timeMax=ts}}
+
+function getFR(){if(S.filteredRows!==null)return S.filteredRows;const f=S.filters;let r=S.rows;if(f.eventId){const ids=f.eventId.split(',').map(s=>s.trim()).filter(Boolean);if(ids.length)r=r.filter(x=>ids.includes(x.eid))}if(f.ruleTitle){const s=f.ruleTitle.toLowerCase();r=r.filter(x=>x.rule.toLowerCase().includes(s))}if(f.level)r=r.filter(x=>x.lvl===f.level);if(f.computer)r=r.filter(x=>x.comp===f.computer);if(f.channel)r=r.filter(x=>x.chan===f.channel);if(f.source)r=r.filter(x=>x.src===f.source);if(f.details){const s=f.details.toLowerCase();r=r.filter(x=>x.det.toLowerCase().includes(s))}if(f.timeStart){const t=new Date(f.timeStart).getTime();if(!isNaN(t))r=r.filter(x=>x.ts>=t)}if(f.timeEnd){const t=new Date(f.timeEnd+'T23:59:59Z').getTime();if(!isNaN(t))r=r.filter(x=>x.ts<=t)}S.filteredRows=r;return r}
+function invF(){S.filteredRows=null}
+
+function cStats(v){const n=v.length;if(!n)return{mean:0,std:0,median:0,q1:0,q3:0,iqr:0};const s=[...v].sort((a,b)=>a-b),sum=s.reduce((a,b)=>a+b,0),m=sum/n,va=s.reduce((a,x)=>a+(x-m)**2,0)/n;return{mean:m,std:Math.sqrt(va),median:s[Math.floor(n/2)],q1:s[Math.floor(n*.25)],q3:s[Math.floor(n*.75)],iqr:s[Math.floor(n*.75)]-s[Math.floor(n*.25)]}}
+function dBursts(rows,wMs){if(!rows.length)return[];const ts=rows.map(r=>r.ts).filter(t=>!isNaN(t)).sort((a,b)=>a-b);if(!ts.length)return[];const tMin=ts[0],tMax=ts[ts.length-1],bc=new Array(Math.ceil((tMax-tMin)/wMs)+1).fill(0);for(const t of ts)bc[Math.floor((t-tMin)/wMs)]++;const st=cStats(bc),th=st.mean+3*st.std,res=[];for(let i=0;i<bc.length;i++)if(bc[i]>th&&bc[i]>5)res.push({start:new Date(tMin+i*wMs),end:new Date(tMin+(i+1)*wMs),count:bc[i],zscore:st.std>0?(bc[i]-st.mean)/st.std:0,baseline:st.mean});return res.sort((a,b)=>b.zscore-a.zscore).slice(0,50)}
+function dFO(cm){const e=Object.entries(cm);if(!e.length)return[];const c=e.map(x=>x[1]),st=cStats(c),lb=st.q1-1.5*st.iqr,ub=st.q3+1.5*st.iqr,r=[];for(const[k,cnt]of e){const z=st.std>0?(cnt-st.mean)/st.std:0;let t=null;if(cnt<lb&&cnt<=3)t='rare';else if(cnt>ub&&st.iqr>0)t='high';else if(z>3)t='high';if(t)r.push({key:k,count:cnt,zscore:z,type:t,mean:st.mean,std:st.std})}return r.sort((a,b)=>Math.abs(b.zscore)-Math.abs(a.zscore))}
+
+function aBMs(tMin,tMax){const s=tMax-tMin;if(s<3600000)return 60000;if(s<86400000)return 600000;if(s<604800000)return 3600000;return 86400000}
+function gBMs(p,tMin,tMax){switch(p){case'minute':return 60000;case'hour':return 3600000;case'day':return 86400000;default:return aBMs(tMin,tMax)}}
+function bTL(rows,bMs){const ts=rows.map(r=>r.ts).filter(t=>!isNaN(t));if(!ts.length)return{labels:[],values:[],tMin:0};const tMin=Math.min(...ts),tMax=Math.max(...ts),c=Math.ceil((tMax-tMin)/bMs)+1,v=new Array(c).fill(0);for(const t of ts)v[Math.floor((t-tMin)/bMs)]++;const l=[];for(let i=0;i<c;i++)l.push(new Date(tMin+i*bMs));return{labels:l,values:v,tMin}}
+function bTLSev(rows,bMs){const v=rows.filter(r=>!isNaN(r.ts));if(!v.length)return{labels:[],series:{},tMin:0};const tMin=Math.min(...v.map(r=>r.ts)),tMax=Math.max(...v.map(r=>r.ts)),c=Math.ceil((tMax-tMin)/bMs)+1;const se={critical:new Array(c).fill(0),high:new Array(c).fill(0),medium:new Array(c).fill(0),low:new Array(c).fill(0),informational:new Array(c).fill(0)};for(const r of v){const i=Math.floor((r.ts-tMin)/bMs);if(se[r.lvl])se[r.lvl][i]++}const l=[];for(let i=0;i<c;i++)l.push(new Date(tMin+i*bMs));return{labels:l,series:se,tMin}}
+
+function sC(el){const r=el.getBoundingClientRect(),d=window.devicePixelRatio||1;el.width=r.width*d;el.height=r.height*d;const ctx=el.getContext('2d');ctx.scale(d,d);return{ctx,w:r.width,h:r.height}}
+
+function drawBC(el,labels,values,opt={}){const{ctx,w,h}=sC(el);const pL=60,pR=20,pT=20,pB=50,cW=w-pL-pR,cH=h-pT-pB,mx=Math.max(...values,1),bW=Math.max(1,(cW/values.length)-1);ctx.clearRect(0,0,w,h);ctx.strokeStyle='#1e2230';ctx.lineWidth=1;for(let i=0;i<=4;i++){const y=pT+(cH/4)*i;ctx.beginPath();ctx.moveTo(pL,y);ctx.lineTo(w-pR,y);ctx.stroke();ctx.fillStyle='#6b7490';ctx.font='11px JetBrains Mono,monospace';ctx.textAlign='right';ctx.fillText(Math.round(mx*(1-i/4)).toLocaleString(),pL-8,y+4)}
+const bc=opt.baseColor||'rgba(68,170,255,0.6)',st=cStats(values),th=st.mean+2.5*st.std;for(let i=0;i<values.length;i++){const x=pL+(i/values.length)*cW,bH=(values[i]/mx)*cH;ctx.fillStyle=(values[i]>th&&values[i]>5)?'rgba(240,85,69,0.8)':bc;ctx.fillRect(x,pT+cH-bH,bW,bH)}
+if(labels.length){const step=Math.max(1,Math.floor(labels.length/8));ctx.fillStyle='#6b7490';ctx.font='10px JetBrains Mono,monospace';ctx.textAlign='center';for(let i=0;i<labels.length;i+=step)ctx.fillText(labels[i]instanceof Date?fDS(labels[i]):String(labels[i]),pL+((i+.5)/values.length)*cW,h-pB+16)}
+el._chartData={labels,values,padL:pL,padR:pR,padT:pT,padB:pB,chartW:cW,chartH:cH,barW:bW,type:'bar'}}
+
+function drawSBC(el,labels,sm){const{ctx,w,h}=sC(el);const pL=60,pR=20,pT=10,pB=40,cW=w-pL-pR,cH=h-pT-pB,lvls=['informational','low','medium','high','critical'],cols={critical:'#ff2a6d',high:'#f05545',medium:'#f8a535',low:'rgba(68,170,255,0.6)',informational:'rgba(54,217,134,0.4)'},bc=labels.length,tots=new Array(bc).fill(0);for(const l of lvls)for(let i=0;i<bc;i++)tots[i]+=(sm[l]?.[i]||0);const mx=Math.max(...tots,1);ctx.clearRect(0,0,w,h);ctx.strokeStyle='#1e2230';ctx.lineWidth=1;for(let i=0;i<=4;i++){const y=pT+(cH/4)*i;ctx.beginPath();ctx.moveTo(pL,y);ctx.lineTo(w-pR,y);ctx.stroke();ctx.fillStyle='#6b7490';ctx.font='10px JetBrains Mono,monospace';ctx.textAlign='right';ctx.fillText(Math.round(mx*(1-i/4)).toLocaleString(),pL-8,y+4)}
+const bW=Math.max(1,(cW/bc)-1);for(let i=0;i<bc;i++){let yo=0;for(const l of lvls){const v=sm[l]?.[i]||0;if(!v)continue;const bH=(v/mx)*cH;ctx.fillStyle=cols[l];ctx.fillRect(pL+(i/bc)*cW,pT+cH-yo-bH,bW,bH);yo+=bH}}
+if(labels.length){const step=Math.max(1,Math.floor(bc/8));ctx.fillStyle='#6b7490';ctx.font='10px JetBrains Mono,monospace';ctx.textAlign='center';for(let i=0;i<bc;i+=step)ctx.fillText(fDS(labels[i]),pL+((i+.5)/bc)*cW,h-pB+14)}}
+
+function drawHBC(el,labels,values,bc){const{ctx,w,h}=sC(el);const pL=160,pR=60,pT=10,pB=10,cW=w-pL-pR,cH=h-pT-pB,mx=Math.max(...values,1),bH=Math.max(2,(cH/labels.length)-4);ctx.clearRect(0,0,w,h);const dc=['#4af','#36d986','#f8a535','#f05545','#a78bfa','#f472b6','#38bdf8','#fb923c'];for(let i=0;i<labels.length;i++){const y=pT+(i/labels.length)*cH,bw=(values[i]/mx)*cW;ctx.fillStyle=bc?bc[i]:dc[i%dc.length];ctx.globalAlpha=.7;ctx.fillRect(pL,y,bw,bH);ctx.globalAlpha=1;ctx.fillStyle='#c8cdd8';ctx.font='11px JetBrains Mono,monospace';ctx.textAlign='right';ctx.fillText(labels[i].length>22?labels[i].substring(0,20)+'…':labels[i],pL-8,y+bH/2+4);ctx.fillStyle='#6b7490';ctx.textAlign='left';ctx.fillText(values[i].toLocaleString(),pL+bw+6,y+bH/2+4)}}
+
+function fDS(d){return String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0')+' '+String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0')}
+function fDF(d){return d.toISOString().replace('T',' ').replace(/\.\d+Z$/,' UTC')}
+function fDMs(d){return d.toISOString().replace('T',' ').replace('Z',' UTC')}
+function fDelta(ms){if(ms<1000)return ms.toFixed(0)+'ms';if(ms<60000)return(ms/1000).toFixed(2)+'s';return(ms/60000).toFixed(1)+'m'}
+
+const ttEl=document.getElementById('tooltip');function sT(x,y,h){ttEl.innerHTML=h;ttEl.style.display='block';let tx=x+14,ty=y-10;if(tx+ttEl.offsetWidth>window.innerWidth-10)tx=x-ttEl.offsetWidth-10;if(ty+ttEl.offsetHeight>window.innerHeight-10)ty=y-ttEl.offsetHeight;ttEl.style.left=tx+'px';ttEl.style.top=ty+'px'}function hT(){ttEl.style.display='none'}
+function aCT(el){el.addEventListener('mousemove',e=>{const cd=el._chartData;if(!cd||cd.type!=='bar'){hT();return}const r=el.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;if(mx<cd.padL||mx>cd.padL+cd.chartW||my<cd.padT||my>cd.padT+cd.chartH){hT();return}const i=Math.floor((mx-cd.padL)/cd.chartW*cd.values.length);if(i>=0&&i<cd.values.length){const l=cd.labels[i]instanceof Date?fDF(cd.labels[i]):cd.labels[i];sT(e.clientX,e.clientY,`<div style="color:var(--text-bright)">${l}</div><div>Count: <strong style="color:var(--accent)">${cd.values[i].toLocaleString()}</strong></div>`)}});el.addEventListener('mouseleave',hT)}
+
+function lB(l){const c={critical:'badge-critical',high:'badge-danger',medium:'badge-warn',low:'badge-info',informational:'badge-ok'};return`<span class="badge ${c[l]||'badge-ok'}">${l}</span>`}
+function lC(l){return{critical:'#ff2a6d',high:'#f05545',medium:'#f8a535',low:'#4af',informational:'#36d986'}[l]||'#6b7490'}
+function eH(s){return s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''}
+function eL(eid){return`<a class="eid-link" onclick="focusEid('${eH(eid)}')">${eH(eid)}</a>`}
+function mFT(h,r){return`<table class="data-table"><thead><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${r.map(x=>`<tr>${x.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`}
+
+// ── COPY / COLUMN CONFIG ──────────────────────────────────────────────────────
+
+const COPY_COLS_DEF=[
+  {key:'ts',      label:'Timestamp',      on:true,  fmt:r=>!isNaN(r.ts)?fDMs(new Date(r.ts)):''},
+  {key:'lvl',     label:'Level',          on:true,  fmt:r=>r.lvl},
+  {key:'eid',     label:'Event ID',       on:true,  fmt:r=>r.eid},
+  {key:'rule',    label:'Rule / Description', on:true, fmt:r=>r.rule},
+  {key:'comp',    label:'Computer',       on:true,  fmt:r=>r.comp},
+  {key:'chan',    label:'Channel',        on:false, fmt:r=>r.chan},
+  {key:'rec',     label:'Record ID',      on:false, fmt:r=>r.rec},
+  {key:'det',     label:'Details',        on:true,  fmt:r=>r.det},
+  {key:'extra',   label:'Extra / Payload',on:false, fmt:r=>r.extra},
+  {key:'rid',     label:'Rule ID / Provider',on:false,fmt:r=>r.rid},
+  {key:'src',     label:'Source File',    on:false, fmt:r=>r.src},
+];
+
+let _copyCfg=null; // {cols:[{key,label,on}], delim:'tab'|'comma'}
+
+function loadCopyCfg(){
+  if(_copyCfg)return _copyCfg;
+  try{const s=localStorage.getItem('eventscope_copy_cfg');if(s){_copyCfg=JSON.parse(s);return _copyCfg;}}catch(e){}
+  _copyCfg={cols:COPY_COLS_DEF.map(c=>({key:c.key,label:c.label,on:c.on})),delim:'tab'};
+  return _copyCfg;
+}
+
+function saveCopyCfg(){
+  try{localStorage.setItem('eventscope_copy_cfg',JSON.stringify(_copyCfg));}catch(e){}
+}
+
+function fmtCell(key,r){
+  const def=COPY_COLS_DEF.find(d=>d.key===key);
+  return def?def.fmt(r):'';
+}
+
+function esc_csv(v,delim){
+  const s=String(v??'');
+  if(delim===','&&(s.includes(',')||s.includes('"')||s.includes('\n')))return '"'+s.replace(/"/g,'""')+'"';
+  return s;
+}
+
+function rowsToText(rows){
+  const cfg=loadCopyCfg();
+  const active=cfg.cols.filter(c=>c.on);
+  if(!active.length)return '';
+  const d=cfg.delim==='comma'?',':'\t';
+  const lines=[active.map(c=>c.label).join(d)];
+  for(const r of rows)lines.push(active.map(c=>esc_csv(fmtCell(c.key,r),d)).join(d));
+  return lines.join('\r\n');
+}
+
+function showToast(msg){
+  const el=document.getElementById('copyToast');
+  el.textContent=msg;el.classList.add('show');
+  clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),2200);
+}
+
+function copyRows(rows){
+  if(!rows||!rows.length){showToast('No rows to copy');return;}
+  const text=rowsToText(rows);
+  navigator.clipboard.writeText(text).then(()=>showToast(`Copied ${rows.length} row${rows.length!==1?'s':''}`)).catch(()=>showToast('Clipboard write failed'));
+}
+
+// Copy the currently-open event from detail panel
+let _detailRowIndex=null;
+function copyDetailEvent(){
+  if(_detailRowIndex==null)return;
+  const r=getFR()[_detailRowIndex];
+  if(r)copyRows([r]);
+}
+
+// Copy rows from a named table context
+function copyTableRows(ctx){
+  if(ctx==='raw'){copyRows(getFR().slice(0,2000));return;}
+  if(ctx==='rules'){
+    // Build a flat row per rule from ruleIdMap
+    const rows=getFR(),ra={};
+    rows.forEach(r=>{if(!r.rule)return;if(!ra[r.rule])ra[r.rule]={ts:r.ts,lvl:r.lvl,eid:r.eid,rule:r.rule,comp:r.comp,chan:r.chan,rec:'',det:'',extra:'',rid:r.rid,src:''};});
+    copyRows(Object.values(ra));return;
+  }
+}
+
+// Copy a sequence cluster
+function copyCluster(ci){
+  const c=S._seqClusters?.[ci];
+  if(!c)return;
+  copyRows(c.events);
+}
+
+// ── COLUMN CONFIG MODAL ────────────────────────────────────────────────────────
+
+function openColCfg(){
+  const cfg=loadCopyCfg();
+  const container=document.getElementById('colCfgRows');
+  function render(){
+    container.innerHTML=cfg.cols.map((c,i)=>`
+    <div class="col-cfg-row" data-idx="${i}">
+      <input class="col-cfg-check" type="checkbox" id="cc${i}" ${c.on?'checked':''} onchange="loadCopyCfg().cols[${i}].on=this.checked">
+      <label class="col-cfg-lbl" for="cc${i}">${c.label}</label>
+      <button class="col-cfg-mv" onclick="moveCfgCol(${i},-1)" ${i===0?'disabled':''}>&#9650;</button>
+      <button class="col-cfg-mv" onclick="moveCfgCol(${i},1)" ${i===cfg.cols.length-1?'disabled':''}>&#9660;</button>
+    </div>`).join('');
+  }
+  render();
+  window._cfgRender=render;
+  // Delimiter buttons
+  document.querySelectorAll('.delim-btn').forEach(b=>{
+    b.classList.toggle('active',b.dataset.delim===cfg.delim);
+    b.onclick=()=>{cfg.delim=b.dataset.delim;document.querySelectorAll('.delim-btn').forEach(x=>x.classList.toggle('active',x.dataset.delim===cfg.delim));};
+  });
+  document.getElementById('colCfgOverlay').classList.add('open');
+}
+
+function moveCfgCol(i,dir){
+  const cfg=loadCopyCfg(),j=i+dir;
+  if(j<0||j>=cfg.cols.length)return;
+  [cfg.cols[i],cfg.cols[j]]=[cfg.cols[j],cfg.cols[i]];
+  if(window._cfgRender)window._cfgRender();
+}
+
+document.getElementById('colCfgSave').addEventListener('click',()=>{
+  saveCopyCfg();document.getElementById('colCfgOverlay').classList.remove('open');
+});
+document.getElementById('colCfgCancel').addEventListener('click',()=>{
+  _copyCfg=null;loadCopyCfg(); // reload saved
+  document.getElementById('colCfgOverlay').classList.remove('open');
+});
+document.getElementById('colCfgOverlay').addEventListener('click',e=>{
+  if(e.target===document.getElementById('colCfgOverlay')){
+    _copyCfg=null;loadCopyCfg();
+    document.getElementById('colCfgOverlay').classList.remove('open');
+  }
+});
+document.getElementById('detailCopyBtn').addEventListener('click',copyDetailEvent);
+
+// DETAIL PANEL
+function openDP(i,navCtx){_detailRowIndex=i;S.nav.idx=i;if(navCtx)S.nav.ctx=navCtx;const r=getFR()[i];if(!r)return;highlightNavRow();showNavHint();const dp=document.getElementById('detailPanel'),body=document.getElementById('detailPanelBody');const isEvtx=S.format==='evtxecmd';document.getElementById('detailPanelTitle').textContent=`EID ${r.eid} — ${r.rule||'No rule'}`;
+const p=parseDet(r.det),pl=Object.entries(p).map(([k,v])=>`<span class="detail-key">${eH(k)}</span>: <span class="detail-val">${eH(v)}</span>`).join('\n');
+const srcField=isEvtx&&r.src?`<div class="detail-field"><span class="detail-key">Source File</span>: <span class="detail-val" style="word-break:break-all;white-space:normal">${eH(r.src)}</span></div>`:'';
+const ruleSection=`<div class="detail-section"><div class="detail-section-title">${isEvtx?'Event Description':'Rule'}</div><div class="detail-field"><span class="detail-key">${isEvtx?'Description':'Rule Title'}</span>: <span class="detail-val">${eH(r.rule)}</span></div><div class="detail-field"><span class="detail-key">${isEvtx?'Provider':'Rule ID'}</span>: <span class="detail-val">${eH(r.rid)}</span></div></div>`;
+const extraTitle=isEvtx?'Raw Payload (JSON)':'Extra Field Info';
+body.innerHTML=`<div class="detail-section"><div class="detail-section-title">Event Metadata</div><div class="detail-field"><span class="detail-key">Timestamp</span>: <span class="detail-val">${!isNaN(r.ts)?fDMs(new Date(r.ts)):'N/A'}</span></div><div class="detail-field"><span class="detail-key">Event ID</span>: <span class="detail-val">${eL(r.eid)}</span></div><div class="detail-field"><span class="detail-key">Level</span>: ${lB(r.lvl)}</div><div class="detail-field"><span class="detail-key">Computer</span>: <span class="detail-val">${eH(r.comp)}</span></div><div class="detail-field"><span class="detail-key">Channel</span>: <span class="detail-val">${eH(r.chan)}</span></div><div class="detail-field"><span class="detail-key">Record ID</span>: <span class="detail-val">${eH(r.rec)}</span></div>${srcField}</div>${ruleSection}<div class="detail-section"><div class="detail-section-title">Payload (Details)</div><div class="detail-payload-block">${pl||'<span style="color:var(--text-dim)">No parsed details</span>'}</div></div>${r.extra&&r.extra!=='-'?`<div class="detail-section"><div class="detail-section-title">${extraTitle}</div><div class="detail-payload-block">${eH(r.extra)}</div></div>`:''}<div class="detail-section"><div class="detail-section-title">Raw Details String</div><div class="detail-payload-block" style="font-size:10px;color:var(--text-dim)">${eH(r.det)}</div></div>`;
+dp.classList.add('open')}
+document.getElementById('detailPanelClose').addEventListener('click',()=>document.getElementById('detailPanel').classList.remove('open'));
+
+// EID FOCUS
+function focusEid(eid){S.focusEid=eid;document.getElementById('tabEidFocus').style.display='';document.getElementById('tabEidFocus').textContent='EID '+eid;switchTab('eidfocus')}
+document.getElementById('eidFocusClose').addEventListener('click',()=>{document.getElementById('tabEidFocus').style.display='none';S.focusEid=null;switchTab('overview')});
+document.getElementById('eidFocusToSeq').addEventListener('click',()=>{if(!S.focusEid)return;const inp=document.getElementById('seqEidInput'),ex=inp.value.split(',').map(s=>s.trim()).filter(Boolean);if(!ex.includes(S.focusEid))ex.push(S.focusEid);inp.value=ex.join(',');switchTab('sequence')});
+
+function renderEF(){const eid=S.focusEid;if(!eid)return;document.getElementById('eidFocusTitle').textContent='EID '+eid;const ar=getFR().filter(r=>r.eid===eid),el=document.getElementById('eidFocusContent');
+const lc={critical:0,high:0,medium:0,low:0,informational:0},rules={},comps={};ar.forEach(r=>{lc[r.lvl]++;rules[r.rule]=(rules[r.rule]||0)+1;comps[r.comp]=(comps[r.comp]||0)+1});const tR=Object.entries(rules).sort((a,b)=>b[1]-a[1]).slice(0,10);const vt=ar.filter(r=>!isNaN(r.ts));const tMin=vt.length?new Date(Math.min(...vt.map(r=>r.ts))):null,tMax=vt.length?new Date(Math.max(...vt.map(r=>r.ts))):null;
+el.innerHTML=`<div class="card-grid"><div class="card"><div class="card-label">Total Hits</div><div class="card-value">${ar.length.toLocaleString()}</div></div><div class="card"><div class="card-label">Severity</div><div class="card-sub" style="margin-top:6px"><span class="sev-pip sev-critical"></span>${lc.critical} crit <span class="sev-pip sev-high"></span>${lc.high} high <span class="sev-pip sev-medium"></span>${lc.medium} med <span class="sev-pip sev-low"></span>${lc.low} low</div></div><div class="card"><div class="card-label">Computers</div><div class="card-value">${Object.keys(comps).length}</div><div class="card-sub">${Object.entries(comps).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([c,n])=>c+' ('+n+')').join(', ')}</div></div><div class="card"><div class="card-label">Time Range</div><div class="card-value" style="font-size:13px">${tMin?fDF(tMin):'N/A'}</div><div class="card-sub">${tMax?'to '+fDF(tMax):''}</div></div></div><div class="chart-box"><div class="chart-header"><span class="chart-title">EID ${eid} Timeline</span></div><canvas class="chart-canvas" id="canvasEidFocus" style="height:250px"></canvas></div><div class="chart-box"><div class="chart-header"><span class="chart-title">Associated Rules</span></div><div class="data-table-wrap" style="max-height:300px"><table class="data-table"><thead><tr><th>Rule Title</th><th>Count</th></tr></thead><tbody>${tR.map(([r,c])=>`<tr><td style="white-space:normal;max-width:400px">${eH(r)}</td><td>${c}</td></tr>`).join('')}</tbody></table></div></div><div class="chart-box"><div class="chart-header"><span class="chart-title">Recent Events (last 100)</span></div><div class="data-table-wrap" style="max-height:400px"><table class="data-table"><thead><tr><th>Timestamp</th><th>Level</th><th>Rule</th><th>Computer</th></tr></thead><tbody>${ar.slice(-100).reverse().map((r,i)=>`<tr style="cursor:pointer" data-nav-idx="${i}" onclick="openEFD(${i},'${eid}')"><td>${!isNaN(r.ts)?fDMs(new Date(r.ts)):'N/A'}</td><td>${lB(r.lvl)}</td><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis" title="${eH(r.rule)}">${eH(r.rule)}</td><td>${r.comp}</td></tr>`).join('')}</tbody></table></div></div>`;
+if(vt.length){const mn=Math.min(...vt.map(r=>r.ts)),mx=Math.max(...vt.map(r=>r.ts)),bMs=aBMs(mn,mx),tl=bTL(vt,bMs);setTimeout(()=>{drawBC(document.getElementById('canvasEidFocus'),tl.labels,tl.values);aCT(document.getElementById('canvasEidFocus'))},50)}}
+
+function openEFD(di,eid){const ar=getFR().filter(r=>r.eid===eid).slice(-100).reverse(),tr=ar[di];if(!tr)return;const ri=getFR().indexOf(tr);if(ri>=0)openDP(ri,'eidfocus')}
+
+// SEQUENCE ANALYSIS
+function runSeq(){const es=document.getElementById('seqEidInput').value.trim(),ws=parseInt(document.getElementById('seqWindowInput').value)||60;if(!es){document.getElementById('seqResults').innerHTML='<div class="anomaly-item info"><div class="anomaly-title">Enter Event IDs above</div></div>';return}
+const tEids=new Set(es.split(',').map(s=>s.trim()).filter(Boolean)),wMs=ws*1000,rows=getFR().filter(r=>tEids.has(r.eid)&&!isNaN(r.ts)).sort((a,b)=>a.ts-b.ts);
+if(!rows.length){document.getElementById('seqResults').innerHTML='<div class="anomaly-item info"><div class="anomaly-title">No matching events</div></div>';document.getElementById('seqSummary').innerHTML='';return}
+const clusters=[];let cc=[rows[0]];for(let i=1;i<rows.length;i++){if(rows[i].ts-cc[cc.length-1].ts<=wMs)cc.push(rows[i]);else{if(cc.length>=2)clusters.push([...cc]);cc=[rows[i]]}}if(cc.length>=2)clusters.push(cc);
+
+const cd=clusters.map(ev=>{const dl=[];for(let i=1;i<ev.length;i++)dl.push(ev[i].ts-ev[i-1].ts);const span=ev[ev.length-1].ts-ev[0].ts,avg=dl.length?dl.reduce((a,b)=>a+b,0)/dl.length:0,ue=new Set(ev.map(e=>e.eid)).size;let beh='human';if(avg<500)beh='scripted';else if(avg<5000)beh='fast';return{events:ev,deltas:dl,totalSpan:span,avgDelta:avg,maxDelta:Math.max(...dl,0),minDelta:Math.min(...dl,Infinity),uniqueEids:ue,behavior:beh}});
+
+const sc=cd.filter(c=>c.behavior==='scripted').length,fc=cd.filter(c=>c.behavior==='fast').length,hc=cd.filter(c=>c.behavior==='human').length,aD=cd.map(c=>c.avgDelta),as=cStats(aD);
+document.getElementById('seqSummary').innerHTML=`<div class="card-grid" style="margin-bottom:16px"><div class="card"><div class="card-label">Clusters</div><div class="card-value">${clusters.length}</div><div class="card-sub">${rows.length} events in ${ws}s window</div></div><div class="card" style="border-left:3px solid var(--critical)"><div class="card-label">Scripted (&lt;500ms)</div><div class="card-value" style="color:var(--critical)">${sc}</div></div><div class="card" style="border-left:3px solid var(--warn)"><div class="card-label">Fast (500ms–5s)</div><div class="card-value" style="color:var(--warn)">${fc}</div></div><div class="card" style="border-left:3px solid var(--success)"><div class="card-label">Human (&gt;5s)</div><div class="card-value" style="color:var(--success)">${hc}</div></div><div class="card"><div class="card-label">Mean Inter-Event</div><div class="card-value" style="font-size:18px">${fDelta(as.mean)}</div><div class="card-sub">σ = ${fDelta(as.std)}</div></div></div>`;
+
+cd.sort((a,b)=>a.events[0].ts-b.events[0].ts);
+document.getElementById('seqResults').innerHTML=cd.slice(0,200).map((c,ci)=>`<div class="seq-cluster ${c.behavior}"><div class="seq-cluster-header"><div>${c.behavior==='scripted'?'<span class="badge badge-critical">SCRIPTED</span>':c.behavior==='fast'?'<span class="badge badge-warn">FAST</span>':'<span class="badge badge-ok">HUMAN</span>'} ${c.events.length} events, ${c.uniqueEids} unique EIDs</div><div style="display:flex;align-items:center;gap:8px"><div class="seq-cluster-timing" style="color:${lC(c.behavior==='scripted'?'critical':c.behavior==='fast'?'medium':'informational')}">avg ${fDelta(c.avgDelta)} span ${fDelta(c.totalSpan)}</div><button class="copy-btn" onclick="copyCluster(${ci})">Copy</button></div></div>${c.events.map((ev,i)=>`<div class="seq-event-line" data-cluster="${ci}" data-evt="${i}" onclick="openSD(${ci},${i})"><span class="seq-delta">${i>0?'+'+fDelta(c.deltas[i-1]):'—'}</span><span class="seq-ts">${fDMs(new Date(ev.ts))}</span><span class="seq-eid-tag">EID ${ev.eid}</span><span class="seq-rule">${eH(ev.rule)}</span></div>`).join('')}</div>`).join('');
+S._seqClusters=cd}
+
+function openSD(ci,ei){const c=S._seqClusters?.[ci];if(!c)return;const ev=c.events[ei];if(!ev)return;S.nav.clusterIdx=ci;S.nav.evtIdx=ei;const ri=getFR().indexOf(ev);if(ri>=0)openDP(ri,'sequence')}
+
+// ── HEATMAP ───────────────────────────────────────────────────────────────────
+
+let _hmWt='count'; // 'count' | 'severity'
+const HM_SEV_W={critical:5,high:4,medium:3,low:2,informational:1};
+const HM_GRAD=[
+  [0,   [26,30,40,0]],
+  [0.01,[68,170,255,0.15]],
+  [0.08,[68,170,255,0.5]],
+  [0.25,[68,170,255,0.85]],
+  [0.5, [248,165,53,0.85]],
+  [0.8, [240,85,69,0.9]],
+  [1.0, [255,42,109,1]],
+];
+function hmColor(v,mx){
+  if(mx===0||v===0)return'rgba(26,30,40,1)';
+  const t=Math.min(1,v/mx);
+  let lo=HM_GRAD[0],hi=HM_GRAD[HM_GRAD.length-1];
+  for(let i=0;i<HM_GRAD.length-1;i++){if(t>=HM_GRAD[i][0]&&t<=HM_GRAD[i+1][0]){lo=HM_GRAD[i];hi=HM_GRAD[i+1];break}}
+  const r2=(hi[0]-lo[0])===0?0:(t-lo[0])/(hi[0]-lo[0]);
+  const [r1a,g1a,b1a,a1a]=lo[1],[r2a,g2a,b2a,a2a]=hi[1];
+  const ri=Math.round(r1a+(r2a-r1a)*r2),gi=Math.round(g1a+(g2a-g1a)*r2),bi=Math.round(b1a+(b2a-b1a)*r2),ai=(a1a+(a2a-a1a)*r2).toFixed(2);
+  return`rgba(${ri},${gi},${bi},${ai})`;
+}
+
+function popHMFilter(){
+  const sel=document.getElementById('hmComputerFilter');if(!sel)return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">All Computers</option>';
+  Object.keys(S.computerCounts).sort().forEach(c=>sel.innerHTML+=`<option value="${eH(c)}"${c===cur?' selected':''}>${eH(c)}</option>`);
+}
+
+function rHM(){
+  popHMFilter();
+  _renderHeatmap();
+}
+
+function _renderHeatmap(){
+  const compFilter=document.getElementById('hmComputerFilter')?.value||'';
+  let rows=getFR().filter(r=>!isNaN(r.ts));
+  if(compFilter)rows=rows.filter(r=>r.comp===compFilter);
+  if(!rows.length){document.getElementById('hmStats').textContent='No data for this filter.';return;}
+
+  const dayMap=new Map(),dayWeight=new Map();
+  for(const r of rows){
+    const d=new Date(r.ts);
+    const dk=d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+    const h=d.getUTCHours();
+    if(!dayMap.has(dk)){dayMap.set(dk,new Float64Array(24));dayWeight.set(dk,new Float64Array(24));}
+    dayMap.get(dk)[h]++;dayWeight.get(dk)[h]+=(HM_SEV_W[r.lvl]||1);
+  }
+  const days=[...dayMap.keys()].sort();
+  const useWeight=_hmWt==='severity',dataMap=useWeight?dayWeight:dayMap;
+  let mx=0;for(const arr of dataMap.values())for(const v of arr)if(v>mx)mx=v;
+
+  const CELL_W=Math.max(16,Math.floor((window.innerWidth-300)/24)),CELL_H=22;
+  const PAD_L=90,PAD_T=32,PAD_B=16,PAD_R=16;
+  const cvs=document.getElementById('canvasHeatmap');
+  const dpr=window.devicePixelRatio||1;
+  const cw=PAD_L+24*CELL_W+PAD_R,ch=PAD_T+days.length*CELL_H+PAD_B;
+  cvs.width=cw*dpr;cvs.height=ch*dpr;cvs.style.width=cw+'px';cvs.style.height=ch+'px';
+  const ctx=cvs.getContext('2d');ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,cw,ch);
+  ctx.fillStyle='#6b7490';ctx.font='10px JetBrains Mono,monospace';ctx.textAlign='center';
+  for(let h=0;h<24;h++)ctx.fillText(String(h).padStart(2,'0'),PAD_L+h*CELL_W+CELL_W/2,PAD_T-8);
+  days.forEach((dk,di)=>{
+    const arr=dataMap.get(dk);
+    ctx.fillStyle='#6b7490';ctx.font='11px JetBrains Mono,monospace';ctx.textAlign='right';
+    ctx.fillText(dk.slice(5),PAD_L-6,PAD_T+di*CELL_H+CELL_H/2+4);
+    for(let h=0;h<24;h++){const v=arr[h];ctx.fillStyle=hmColor(v,mx);ctx.fillRect(PAD_L+h*CELL_W+1,PAD_T+di*CELL_H+1,CELL_W-2,CELL_H-2);}
+  });
+
+  const peak=days.map(dk=>{const a=dataMap.get(dk);let s=0;for(const v of a)s+=v;return{dk,sum:s}}).sort((a,b)=>b.sum-a.sum)[0];
+  document.getElementById('hmStats').innerHTML=`<strong>Days:</strong> ${days.length} &nbsp; <strong>Peak day (UTC):</strong> ${peak?peak.dk+' ('+peak.sum.toFixed(useWeight?1:0)+(_hmWt==='severity'?' wt':' evt')+')':''} &nbsp; <strong>Max/cell:</strong> ${mx.toFixed(useWeight?1:0)}`;
+
+  cvs.onclick=e=>{
+    const rect=cvs.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;
+    const col=Math.floor((x-PAD_L)/CELL_W),row=Math.floor((y-PAD_T)/CELL_H);
+    if(col<0||col>23||row<0||row>=days.length)return;
+    const dk=days[row];
+    document.getElementById('filterTimeStart').value=dk;document.getElementById('filterTimeEnd').value=dk;
+    S.filters.timeStart=dk;S.filters.timeEnd=dk;invF();
+    showToast(`Filtered to ${dk} — switching to Timeline`);
+    switchTab('timeline');
+  };
+  cvs.onmousemove=e=>{
+    const rect=cvs.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;
+    const col=Math.floor((x-PAD_L)/CELL_W),row=Math.floor((y-PAD_T)/CELL_H);
+    if(col<0||col>23||row<0||row>=days.length){hT();return;}
+    const dk=days[row],cnt=dayMap.get(dk)?.[col]||0,wt=dayWeight.get(dk)?.[col]||0;
+    sT(e.clientX,e.clientY,`<strong>${dk}</strong> ${String(col).padStart(2,'0')}:00 UTC<br>Events: <strong style="color:var(--accent)">${cnt}</strong><br>Sev-weight: <strong style="color:var(--warn)">${wt.toFixed(1)}</strong>`);
+  };
+  cvs.onmouseleave=hT;
+}
+
+// ── PERIODICITY DETECTION ───────────────────────────────────────────────────────────────────
+
+// Known periodic periods to check (ms)
+const PERIODIC_REFS=[
+  {label:'15min',ms:15*60000},{label:'30min',ms:30*60000},{label:'1h',ms:3600000},
+  {label:'2h',ms:7200000},{label:'4h',ms:4*3600000},{label:'6h',ms:6*3600000},
+  {label:'8h',ms:8*3600000},{label:'12h',ms:12*3600000},{label:'24h',ms:86400000},
+];
+
+function classifyPeriod(medianMs){
+  let best=null,bestDiff=Infinity;
+  for(const ref of PERIODIC_REFS){
+    const diff=Math.abs(medianMs-ref.ms)/ref.ms;
+    if(diff<0.15&&diff<bestDiff){best=ref;bestDiff=diff;}
+  }
+  return best?best.label:null;
+}
+
+function rPeriodic(){
+  const minEv=parseInt(document.getElementById('periodicMinEvents')?.value)||10;
+  const maxCV=parseFloat(document.getElementById('periodicMaxCV')?.value)||0.4;
+  const rows=getFR().filter(r=>!isNaN(r.ts));
+
+  // Group by EID
+  const byEid=new Map();
+  for(const r of rows){if(!byEid.has(r.eid))byEid.set(r.eid,[]);byEid.get(r.eid).push(r.ts);}
+
+  const results=[];
+  for(const [eid,ts] of byEid){
+    if(ts.length<minEv)continue;
+    ts.sort((a,b)=>a-b);
+    const intervals=[];
+    for(let i=1;i<ts.length;i++)intervals.push(ts[i]-ts[i-1]);
+    const st=cStats(intervals);
+    if(st.median===0)continue;
+    const cv=st.std/st.median;
+    const label=classifyPeriod(st.median);
+    results.push({eid,count:ts.length,median:st.median,std:st.std,cv,periodic:cv<=maxCV,periodLabel:label,first:ts[0],last:ts[ts.length-1]});
+  }
+  results.sort((a,b)=>a.cv-b.cv);
+
+  const periodicCount=results.filter(r=>r.periodic).length;
+  document.getElementById('periodicCards').innerHTML=`
+    <div class="card"><div class="card-label">EIDs Analyzed</div><div class="card-value">${results.length.toLocaleString()}</div></div>
+    <div class="card" style="border-left:3px solid var(--success)"><div class="card-label">Periodic (CV ≤ ${maxCV})</div><div class="card-value" style="color:var(--success)">${periodicCount}</div></div>
+    <div class="card"><div class="card-label">Irregular</div><div class="card-value">${(results.length-periodicCount).toLocaleString()}</div></div>
+  `;
+
+  if(!results.length){document.getElementById('periodicTable').innerHTML='<div style="padding:20px;color:var(--text-dim);font-family:var(--mono)">No EIDs with enough events to analyze.</div>';return;}
+
+  document.getElementById('periodicTable').innerHTML=`<table class="data-table"><thead><tr><th>Event ID</th><th>Count</th><th>Median Interval</th><th>Std Dev</th><th>CV</th><th>Matches</th><th>Classification</th></tr></thead><tbody>${
+    results.slice(0,200).map(r=>`<tr>
+      <td>${eL(r.eid)}</td>
+      <td>${r.count.toLocaleString()}</td>
+      <td style="font-family:var(--mono);font-size:11px">${fDelta(r.median)}</td>
+      <td style="font-family:var(--mono);font-size:11px">${fDelta(r.std)}</td>
+      <td style="font-family:var(--mono);font-size:12px;color:${r.periodic?'var(--success)':'var(--text-dim)'}">${r.cv.toFixed(3)}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--accent)">${r.periodLabel||'—'}</td>
+      <td>${r.periodic?'<span class="badge badge-ok">PERIODIC</span>':'<span class="badge">IRREGULAR</span>'}</td>
+    </tr>`
+  ).join('')}</tbody></table>`;
+}
+
+// ── GAP ANALYSIS ────────────────────────────────────────────────────────────────────────
+
+let _gapResults=[];
+
+function popGapCompFilter(){
+  const sel=document.getElementById('gapCompFilter');if(!sel)return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">All Computers</option>';
+  Object.keys(S.computerCounts).sort().forEach(c=>{sel.innerHTML+=`<option value="${eH(c)}"${c===cur?' selected':''}>${eH(c)}</option>`;});
+}
+
+function runGapAnalysis(){
+  const minMs=(parseFloat(document.getElementById('gapMinutes')?.value)||15)*60000;
+  const sigTh=parseFloat(document.getElementById('gapSigma')?.value)||3;
+  const compFilt=document.getElementById('gapCompFilter')?.value||'';
+  let rows=getFR().filter(r=>!isNaN(r.ts));
+  if(compFilt)rows=rows.filter(r=>r.comp===compFilt);
+
+  // Group by computer
+  const byComp=new Map();
+  for(const r of rows){
+    if(!byComp.has(r.comp))byComp.set(r.comp,[]);
+    byComp.get(r.comp).push(r);
+  }
+
+  const gaps=[];
+  for(const [comp,crows] of byComp){
+    const sorted=[...crows].sort((a,b)=>a.ts-b.ts);
+    const ts=sorted.map(r=>r.ts);
+    if(ts.length<4)continue;
+    const intervals=[];
+    for(let i=1;i<ts.length;i++)intervals.push(ts[i]-ts[i-1]);
+    const st=cStats(intervals);
+    const statTh=st.mean+sigTh*st.std;
+    for(let i=1;i<ts.length;i++){
+      const gap=ts[i]-ts[i-1];
+      if(gap>=minMs&&gap>=statTh){
+        const before=sorted[i-1],after=sorted[i];
+        gaps.push({comp,start:ts[i-1],end:ts[i],duration:gap,
+          zscore:st.std>0?(gap-st.mean)/st.std:0,
+          baseline:st.mean,baselineStr:fDelta(st.mean),
+          beforeRule:before.rule,beforeEid:before.eid,
+          afterRule:after.rule,afterEid:after.eid});
+      }
+    }
+  }
+  gaps.sort((a,b)=>b.duration-a.duration);
+  _gapResults=gaps;
+  renderGapResults(gaps);
+}
+
+function renderGapResults(gaps){
+  const longest=gaps[0];
+  document.getElementById('gapCards').innerHTML=`
+    <div class="card" style="border-left:3px solid var(--warn)"><div class="card-label">Gaps Found</div><div class="card-value" style="color:var(--warn)">${gaps.length.toLocaleString()}</div></div>
+    <div class="card"><div class="card-label">Hosts Analyzed</div><div class="card-value">${new Set(gaps.map(g=>g.comp)).size}</div></div>
+    <div class="card" style="border-left:3px solid var(--danger)"><div class="card-label">Longest Gap</div><div class="card-value" style="font-size:16px">${longest?fDelta(longest.duration):'N/A'}</div><div class="card-sub">${longest?longest.comp:''}</div></div>
+    <div class="card"><div class="card-label">Most Gaps</div><div class="card-value" style="font-size:16px">${(()=>{const c={};gaps.forEach(g=>c[g.comp]=(c[g.comp]||0)+1);const top=Object.entries(c).sort((a,b)=>b[1]-a[1])[0];return top?top[1]:'N/A'})()}</div><div class="card-sub">${(()=>{const c={};gaps.forEach(g=>c[g.comp]=(c[g.comp]||0)+1);const top=Object.entries(c).sort((a,b)=>b[1]-a[1])[0];return top?top[0]:''})()|''}</div></div>
+  `;
+
+  if(!gaps.length){document.getElementById('gapTable').innerHTML='<div style="padding:20px;color:var(--text-dim);font-family:var(--mono)">No gaps found with current thresholds. Try reducing the minimum gap duration.</div>';return;}
+
+  document.getElementById('gapTable').innerHTML=`<table class="data-table"><thead><tr><th>Computer</th><th>Gap Start</th><th>Gap End</th><th>Duration</th><th>Z-Score</th><th>Baseline</th><th>Before (EID / Rule)</th><th>After (EID / Rule)</th></tr></thead><tbody>${
+    gaps.slice(0,300).map(g=>`<tr><td>${eH(g.comp)}</td><td style="font-family:var(--mono);font-size:11px">${fDMs(new Date(g.start))}</td><td style="font-family:var(--mono);font-size:11px">${fDMs(new Date(g.end))}</td><td style="color:${g.zscore>6?'var(--danger)':g.zscore>3?'var(--warn)':'var(--text-bright)'}">${fDelta(g.duration)}</td><td style="font-family:var(--mono);font-size:12px">${g.zscore.toFixed(1)}σ</td><td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${g.baselineStr}</td><td style="font-family:var(--mono);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis" title="${eH(g.beforeRule)}">${eL(g.beforeEid)} ${eH(g.beforeRule.substring(0,40))}${g.beforeRule.length>40?'…':''}</td><td style="font-family:var(--mono);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis" title="${eH(g.afterRule)}">${eL(g.afterEid)} ${eH(g.afterRule.substring(0,40))}${g.afterRule.length>40?'…':''}</td></tr>`
+  ).join('')}</tbody></table>`;
+}
+
+function rGaps(){
+  popGapCompFilter();
+  runGapAnalysis();
+}
+
+// ── ARRIVALS (FIRST/LAST SEEN) ───────────────────────────────────────────────────
+
+function rArrivals(){
+  const rows=getFR().filter(r=>!isNaN(r.ts));
+  if(!rows.length){document.getElementById('arrivalsTable').innerHTML='<div style="padding:20px;color:var(--text-dim);font-family:var(--mono)">No data.</div>';return;}
+  const allTs=rows.map(r=>r.ts);
+  const dsMin=Math.min(...allTs),dsMax=Math.max(...allTs),dsMid=(dsMin+dsMax)/2;
+  const type=document.getElementById('arrivalsType')?.value||'eid';
+  const sort=document.getElementById('arrivalsSort')?.value||'first';
+  const lateOnly=document.getElementById('arrivalsLateBtn')?.classList.contains('active');
+
+  // Build first/last/count map
+  const map=new Map(); // key -> {first,last,count}
+  for(const r of rows){
+    let keys=[];
+    if(type==='eid')keys=[r.eid||''];
+    else if(type==='rule')keys=[r.rule||''];
+    else if(type==='computer')keys=[r.comp||''];
+    else if(type==='account')keys=[...extractAccounts(r)];
+    for(const k of keys){
+      if(!k)continue;
+      const e=map.get(k)||{first:Infinity,last:-Infinity,count:0};
+      if(r.ts<e.first)e.first=r.ts;
+      if(r.ts>e.last)e.last=r.ts;
+      e.count++;map.set(k,e);
+    }
+  }
+
+  let entries=[...map.entries()].filter(([k])=>k);
+  if(lateOnly)entries=entries.filter(([,e])=>e.first>dsMid);
+  if(sort==='first')entries.sort((a,b)=>a[1].first-b[1].first);
+  else if(sort==='last')entries.sort((a,b)=>a[1].last-b[1].last);
+  else entries.sort((a,b)=>b[1].count-a[1].count);
+
+  const lateCount=entries.filter(([,e])=>e.first>dsMid).length;
+  const dsSpan=dsMax-dsMin||1;
+
+  // Summary cards
+  document.getElementById('arrivalsCards').innerHTML=`
+    <div class="card"><div class="card-label">Unique ${type==='eid'?'Event IDs':type==='rule'?'Rules':type==='computer'?'Computers':'Accounts'}</div><div class="card-value">${map.size.toLocaleString()}</div></div>
+    <div class="card" style="border-left:3px solid var(--warn)"><div class="card-label">Late Arrivals</div><div class="card-value" style="color:var(--warn)">${lateCount.toLocaleString()}</div><div class="card-sub">First seen after dataset midpoint</div></div>
+    <div class="card"><div class="card-label">Dataset Midpoint</div><div class="card-value" style="font-size:13px">${fDF(new Date(dsMid))}</div></div>
+  `;
+
+  // Position bar helper
+  function posBar(ts){
+    const pct=Math.round(((ts-dsMin)/dsSpan)*100);
+    const isLate=ts>dsMid;
+    return `<div style="width:80px;height:6px;border-radius:3px;background:var(--surface3);display:inline-block;vertical-align:middle;position:relative"><div style="position:absolute;left:0;top:0;height:100%;width:${pct}%;border-radius:3px;background:${isLate?'var(--warn)':'var(--accent)'}"></div></div>`;
+  }
+
+  const rows2=entries.slice(0,500);
+  const isLinkable=type==='eid'||type==='rule';
+  const rows_html=rows2.map(([k,e])=>{
+    const isLate=e.first>dsMid;
+    const span=e.last-e.first;
+    const kDisp=type==='eid'?eL(k):eH(k);
+    return `<tr${isLate?' style="color:var(--warn)"':''}>
+      <td style="font-family:var(--mono);font-size:12px;max-width:300px;overflow:hidden;text-overflow:ellipsis">${kDisp}</td>
+      <td style="font-family:var(--mono);font-size:11px">${fDMs(new Date(e.first))}</td>
+      <td style="font-family:var(--mono);font-size:11px">${fDMs(new Date(e.last))}</td>
+      <td style="font-family:var(--mono);font-size:12px">${e.count.toLocaleString()}</td>
+      <td style="font-family:var(--mono);font-size:11px">${span>0?fDelta(span):'—'}</td>
+      <td>${posBar(e.first)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('arrivalsTable').innerHTML=`<table class="data-table"><thead><tr><th>${type==='eid'?'Event ID':type==='rule'?'Rule':type==='computer'?'Computer':'Account'}</th><th>First Seen</th><th>Last Seen</th><th>Count</th><th>Span</th><th>Position in Dataset</th></tr></thead><tbody>${rows_html}</tbody></table>`;
+}
+
+// RENDERS
+function rOV(){const rows=getFR(),tot=rows.length,uR=new Set(rows.map(r=>r.rule)).size,uC=new Set(rows.map(r=>r.comp)).size,vt=rows.filter(r=>!isNaN(r.ts)),tMin=vt.length?new Date(Math.min(...vt.map(r=>r.ts))):null,tMax=vt.length?new Date(Math.max(...vt.map(r=>r.ts))):null;const lc={critical:0,high:0,medium:0,low:0,informational:0};rows.forEach(r=>lc[r.lvl]++);
+document.getElementById('overviewCards').innerHTML=`<div class="card"><div class="card-label">Total Detections</div><div class="card-value">${tot.toLocaleString()}</div></div><div class="card" style="border-left:3px solid var(--critical)"><div class="card-label">Critical / High</div><div class="card-value" style="color:var(--danger)">${(lc.critical+lc.high).toLocaleString()}</div><div class="card-sub"><span class="sev-pip sev-critical"></span>${lc.critical} crit <span class="sev-pip sev-high"></span>${lc.high} high</div></div><div class="card" style="border-left:3px solid var(--medium)"><div class="card-label">Medium / Low</div><div class="card-value" style="color:var(--warn)">${(lc.medium+lc.low).toLocaleString()}</div><div class="card-sub"><span class="sev-pip sev-medium"></span>${lc.medium} med <span class="sev-pip sev-low"></span>${lc.low} low</div></div><div class="card"><div class="card-label">Unique Rules</div><div class="card-value">${uR.toLocaleString()}</div></div><div class="card"><div class="card-label">Computers</div><div class="card-value">${uC.toLocaleString()}</div></div><div class="card"><div class="card-label">Time Range</div><div class="card-value" style="font-size:14px">${tMin?fDF(tMin):'N/A'}</div><div class="card-sub">${tMax?'to '+fDF(tMax):''}</div></div>`;
+document.getElementById('headerStats').innerHTML=`<span class="header-stat"><strong>${tot.toLocaleString()}</strong> det</span><span class="header-stat"><span class="sev-pip sev-critical"></span><strong>${lc.critical}</strong></span><span class="header-stat"><span class="sev-pip sev-high"></span><strong>${lc.high}</strong></span><span class="header-stat"><span class="sev-pip sev-medium"></span><strong>${lc.medium}</strong></span><span class="header-stat"><strong>${uC}</strong> hosts</span>`;
+const tsR=rows.filter(r=>!isNaN(r.ts)),bMs=gBMs(S.bucketPref['timelineAll'],S.timeMin,S.timeMax),tl=bTL(tsR,bMs);drawBC(document.getElementById('canvasTimelineAll'),tl.labels,tl.values);aCT(document.getElementById('canvasTimelineAll'));
+const sl=['critical','high','medium','low','informational'];drawHBC(document.getElementById('canvasSeverity'),sl,sl.map(l=>lc[l]||0),sl.map(l=>lC(l)));
+const ec={};rows.forEach(r=>ec[r.eid]=(ec[r.eid]||0)+1);const es=Object.entries(ec).sort((a,b)=>b[1]-a[1]).slice(0,20);drawHBC(document.getElementById('canvasTopEvents'),es.map(s=>'EID '+s[0]),es.map(s=>s[1]));
+const cc={};rows.forEach(r=>{if(r.chan)cc[r.chan]=(cc[r.chan]||0)+1});const cs=Object.entries(cc).sort((a,b)=>b[1]-a[1]).slice(0,15);drawHBC(document.getElementById('canvasChannels'),cs.map(s=>s[0]),cs.map(s=>s[1]))}
+
+function rTL(){const rows=getFR().filter(r=>!isNaN(r.ts)),tMin=rows.length?Math.min(...rows.map(r=>r.ts)):S.timeMin,tMax=rows.length?Math.max(...rows.map(r=>r.ts)):S.timeMax,bMs=gBMs(S.bucketPref['timelineFiltered'],tMin,tMax),tl=bTL(rows,bMs);drawBC(document.getElementById('canvasTimelineFiltered'),tl.labels,tl.values);aCT(document.getElementById('canvasTimelineFiltered'));
+const sv=bTLSev(rows,bMs);drawSBC(document.getElementById('canvasSevTimeline'),sv.labels,sv.series);
+const bu=dBursts(rows,bMs);document.getElementById('burstList').innerHTML=bu.length?bu.map(b=>`<div class="anomaly-item ${b.zscore>6?'':'warn'}"><div class="anomaly-title"><span class="badge ${b.zscore>6?'badge-danger':'badge-warn'}">${b.zscore.toFixed(1)}σ</span> ${b.count.toLocaleString()} det</div><div class="anomaly-detail">${fDF(b.start)} → ${fDF(b.end)}<br>Baseline: ${b.baseline.toFixed(1)}/window</div></div>`).join(''):'<div class="anomaly-item info"><div class="anomaly-title">No bursts detected</div></div>'}
+
+function rRU(){const rows=getFR(),ra={};rows.forEach(r=>{if(!r.rule)return;if(!ra[r.rule])ra[r.rule]={rule:r.rule,rid:r.rid,lvl:r.lvl,count:0,eids:new Set(),chans:new Set(),comps:new Set()};ra[r.rule].count++;if(r.eid)ra[r.rule].eids.add(r.eid);if(r.chan)ra[r.rule].chans.add(r.chan);if(r.comp)ra[r.rule].comps.add(r.comp);if(LW[r.lvl]>LW[ra[r.rule].lvl])ra[r.rule].lvl=r.lvl});
+const s=Object.values(ra).sort((a,b)=>{const w=(LW[b.lvl]||0)-(LW[a.lvl]||0);return w!==0?w:b.count-a.count});document.getElementById('ruleTable').innerHTML=`<table class="data-table"><thead><tr><th>Level</th><th>Rule Title</th><th>Count</th><th>Event IDs</th><th>Channels</th><th>Computers</th><th>Rule ID</th></tr></thead><tbody>${s.map(r=>`<tr><td>${lB(r.lvl)}</td><td style="white-space:normal;max-width:350px">${eH(r.rule)}</td><td>${r.count.toLocaleString()}</td><td>${[...r.eids].slice(0,5).map(e=>eL(e)).join(', ')}${r.eids.size>5?' …':''}</td><td>${[...r.chans].slice(0,2).join(', ')}${r.chans.size>2?' …':''}</td><td>${[...r.comps].slice(0,3).join(', ')}${r.comps.size>3?' …':''}</td><td style="font-size:10px;color:var(--text-dim)" title="${eH(r.rid)}">${r.rid.substring(0,8)}…</td></tr>`).join('')}</tbody></table>`}
+
+function rFR(){const rows=getFR(),ec={};rows.forEach(r=>ec[r.eid]=(ec[r.eid]||0)+1);const es=Object.entries(ec).sort((a,b)=>b[1]-a[1]),est=cStats(es.map(e=>e[1])),eo=new Set(dFO(ec).map(o=>o.key));
+document.getElementById('freqEventTable').innerHTML=mFT(['Event ID','Count','Pct','Z-Score','Flag'],es.map(([eid,c])=>{const z=est.std>0?(c-est.mean)/est.std:0;return[eL(eid),c.toLocaleString(),((c/rows.length)*100).toFixed(2)+'%',z.toFixed(2),eo.has(eid)?(z>0?'<span class="badge badge-danger">HIGH</span>':'<span class="badge badge-warn">RARE</span>'):'<span class="badge badge-ok">OK</span>']}));
+const cc={};rows.forEach(r=>{if(r.chan)cc[r.chan]=(cc[r.chan]||0)+1});document.getElementById('freqChannelTable').innerHTML=mFT(['Channel','Count','Pct'],Object.entries(cc).sort((a,b)=>b[1]-a[1]).map(([c,n])=>[c,n.toLocaleString(),((n/rows.length)*100).toFixed(2)+'%']));
+const mc={};rows.forEach(r=>{if(r.comp)mc[r.comp]=(mc[r.comp]||0)+1});document.getElementById('freqComputerTable').innerHTML=mFT(['Computer','Count','Pct'],Object.entries(mc).sort((a,b)=>b[1]-a[1]).map(([c,n])=>[c,n.toLocaleString(),((n/rows.length)*100).toFixed(2)+'%']));
+// Populate TOD computer selector
+const todSel=document.getElementById('todComputer');const todCur=todSel.value;todSel.innerHTML='<option value="">All Computers</option>';Object.keys(mc).sort().forEach(c=>todSel.innerHTML+=`<option value="${eH(c)}"${c===todCur?' selected':''}>${eH(c)}</option>`);
+renderTOD();}
+
+function rAN(){const rows=getFR(),an=[];const rs={};rows.forEach(r=>{if(!r.rule)return;if(!rs[r.rule])rs[r.rule]={lvl:r.lvl,count:0,rid:r.rid};rs[r.rule].count++;if(LW[r.lvl]>LW[rs[r.rule].lvl])rs[r.rule].lvl=r.lvl});
+for(const[rule,d]of Object.entries(rs)){if(d.lvl==='critical')an.push({severity:'critical',title:'Critical: '+eH(rule),detail:'Count: '+d.count+' | Rule: '+d.rid});else if(d.lvl==='high')an.push({severity:'danger',title:'High: '+eH(rule),detail:'Count: '+d.count+' | Rule: '+d.rid})}
+const ec={};rows.forEach(r=>ec[r.eid]=(ec[r.eid]||0)+1);for(const o of dFO(ec).slice(0,15))an.push({severity:o.type==='high'?'warn':'info',title:(o.type==='high'?'Frequent':'Rare')+' EID '+o.key,detail:'Count: '+o.count+' | Z: '+o.zscore.toFixed(2)});
+const tr=rows.filter(r=>!isNaN(r.ts));if(tr.length>1){const mn=Math.min(...tr.map(r=>r.ts)),mx=Math.max(...tr.map(r=>r.ts));for(const b of dBursts(tr,aBMs(mn,mx)).slice(0,10))an.push({severity:b.zscore>6?'critical':'warn',title:'Burst: '+b.count+' det ('+b.zscore.toFixed(1)+'σ)',detail:fDF(b.start)+' → '+fDF(b.end)})}
+const so={critical:0,danger:1,warn:2,info:3};an.sort((a,b)=>(so[a.severity]||9)-(so[b.severity]||9));
+const cn={critical:an.filter(a=>a.severity==='critical').length,danger:an.filter(a=>a.severity==='danger').length,warn:an.filter(a=>a.severity==='warn').length,info:an.filter(a=>a.severity==='info').length};
+document.getElementById('anomalyCards').innerHTML=`<div class="card" style="border-left:3px solid var(--critical)"><div class="card-label">Critical</div><div class="card-value" style="color:var(--critical)">${cn.critical}</div></div><div class="card" style="border-left:3px solid var(--danger)"><div class="card-label">High</div><div class="card-value" style="color:var(--danger)">${cn.danger}</div></div><div class="card" style="border-left:3px solid var(--warn)"><div class="card-label">Warnings</div><div class="card-value" style="color:var(--warn)">${cn.warn}</div></div><div class="card" style="border-left:3px solid var(--accent)"><div class="card-label">Info</div><div class="card-value" style="color:var(--accent)">${cn.info}</div></div>`;
+document.getElementById('anomalyList').innerHTML=an.length?an.map(a=>`<div class="anomaly-item ${a.severity}"><div class="anomaly-title">${a.title}</div><div class="anomaly-detail">${a.detail}</div></div>`).join(''):'<div class="anomaly-item info"><div class="anomaly-title">No anomalies</div></div>'}
+
+function rRW(){const rows=getFR(),mx=2000,sh=rows.slice(0,mx);document.getElementById('rawCount').textContent=`Showing ${Math.min(mx,rows.length).toLocaleString()} of ${rows.length.toLocaleString()}`;
+const isEvtx=S.format==='evtxecmd';
+const hdr=`<th>Timestamp</th><th>Level</th><th>EID</th><th>${isEvtx?'Description':'Rule Title'}</th><th>Computer</th><th>Channel</th><th>Record</th>${isEvtx?'<th>Source</th>':''}`;
+document.getElementById('rawTableWrap').innerHTML=`<table class="data-table"><thead><tr>${hdr}</tr></thead><tbody>${sh.map((r,i)=>{const srcCell=isEvtx?`<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis" title="${eH(r.src||'')}">${eH((r.src||'').split(/[/\\]/).pop())}</td>`:'';return`<tr style="cursor:pointer" data-nav-idx="${i}" onclick="openDP(${i},'raw')"><td>${!isNaN(r.ts)?fDMs(new Date(r.ts)):'N/A'}</td><td>${lB(r.lvl)}</td><td>${eL(r.eid)}</td><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis" title="${eH(r.rule)}">${eH(r.rule)}</td><td>${r.comp}</td><td>${r.chan.length>25?r.chan.substring(0,23)+'…':r.chan}</td><td>${r.rec}</td>${srcCell}</tr>`}).join('')}</tbody></table>`}
+
+// ── MULTI-SESSION & LATERAL MOVEMENT ──────────────────────────────────────────
+
+function renderSessionBar(){
+const bar=document.getElementById('sessionBar');
+document.getElementById('sessionChips').innerHTML=S.sessions.map(s=>`<span class="session-chip"><span class="session-chip-dot" style="background:${s.color}"></span><span title="${eH(s.label)}">${eH(s.label.length>30?s.label.substring(0,28)+'…':s.label)}</span><span style="color:var(--text-dim);margin-left:4px">(${s.count.toLocaleString()})</span></span>`).join('');
+bar.style.display='';}
+
+async function loadAdditionalSession(file){
+const idx=S.sessions.length;
+const label=file.name.replace(/\.[^.]+$/,'');
+const color=SESSION_COLORS[idx%SESSION_COLORS.length];
+const before=S.rows.length;
+S.sessionCurrent=idx;
+const c=await streamParse(file);
+if(!c)return;
+const newRows=S.rows.slice(before);
+const tMin=newRows.reduce((m,r)=>!isNaN(r.ts)?Math.min(m,r.ts):m,Infinity);
+const tMax=newRows.reduce((m,r)=>!isNaN(r.ts)?Math.max(m,r.ts):m,-Infinity);
+S.sessions.push({idx,label,color,format:S.format,count:newRows.length,timeMin:tMin,timeMax:tMax});
+if(tMin<S.timeMin)S.timeMin=tMin;if(tMax>S.timeMax)S.timeMax=tMax;
+S.filteredRows=null;renderSessionBar();popF();
+const at=document.querySelector('.tab.active');if(at)switchTab(at.dataset.tab);}
+
+const LAT_SKIP=new Set(['','system','local service','network service','-','anonymous logon','null','dwm-1','dwm-2','dwm-3','umfd-0','umfd-1','umfd-2','umfd-3','window manager','font driver host','iis apppool']);
+function extractAccounts(r){
+const p=parseDet(r.det),out=new Set();
+for(const k of['TargetUserName','SubjectUserName','AccountName','UserName','SamAccountName','RemoteUserName']){
+let v=(p[k]||'').trim();if(!v||v==='-')continue;
+if(v.includes('\\'))v=v.split('\\').pop();
+if(v.includes('@'))v=v.split('@')[0];
+v=v.trim();
+if(v.length>=2&&!v.endsWith('$')&&!LAT_SKIP.has(v.toLowerCase()))out.add(v);}
+return out;}
+
+function buildLateralGraph(){
+const accounts=new Map();
+for(const r of S.rows){
+for(const acct of extractAccounts(r)){
+if(!accounts.has(acct))accounts.set(acct,[]);
+const p=parseDet(r.det);
+const lt=p['LogonType']||p['Logon Type']||'';
+const srcIp=p['IpAddress']||p['IPAddress']||p['RemoteHost']||p['WorkstationName']||'';
+accounts.get(acct).push({ts:r.ts,comp:r.comp,eid:r.eid,sessionIdx:r.sessionIdx??0,logonType:lt,srcIp,lvl:r.lvl,rule:r.rule});}}
+for(const[,evts]of accounts)evts.sort((a,b)=>a.ts-b.ts);
+const crossSession=new Set(),multiComp=new Set();
+for(const[acct,evts]of accounts){
+const sess=new Set(evts.map(e=>e.sessionIdx)),comps=new Set(evts.map(e=>e.comp));
+if(sess.size>1)crossSession.add(acct);if(comps.size>1)multiComp.add(acct);}
+return{accounts,crossSession,multiComp};}
+
+function buildHops(evts){
+const hops=[];
+for(const e of evts){const last=hops[hops.length-1];
+if(last&&last.comp===e.comp&&last.sessionIdx===e.sessionIdx){last.count++;last.tsLast=e.ts;if(e.logonType&&!last.logonTypes.includes(e.logonType))last.logonTypes.push(e.logonType);}
+else hops.push({comp:e.comp,sessionIdx:e.sessionIdx,tsFirst:e.ts,tsLast:e.ts,count:1,logonTypes:e.logonType?[e.logonType]:[]});}
+return hops;}
+
+function renderLatMatrix(g,tops){
+if(!S.sessions.length)return;
+const el=document.getElementById('latMatrix');
+const hdr=`<tr><th style="text-align:left">Account</th>${S.sessions.map(s=>`<th><span class="session-badge" style="background:${s.color}">S${s.idx+1}</span> ${eH(s.label.length>18?s.label.substring(0,16)+'…':s.label)}</th>`).join('')}</tr>`;
+const rowsHtml=tops.map(([acct,evts])=>{
+const isCross=g.crossSession.has(acct);
+const cells=S.sessions.map(s=>{const se=evts.filter(e=>e.sessionIdx===s.idx);if(!se.length)return`<td class="empty">—</td>`;const comps=[...new Set(se.map(e=>e.comp))];return`<td class="hit" title="${eH(comps.join(', '))}">${se.length}<br><span style="font-size:9px;opacity:.7">${comps.length}sys</span></td>`;}).join('');
+return`<tr${isCross?' class="cross-acct"':''}><td class="acct-col">${eH(acct)}</td>${cells}</tr>`;}).join('');
+el.innerHTML=`<table class="lat-matrix-table"><thead>${hdr}</thead><tbody>${rowsHtml}</tbody></table>`;}
+
+function renderLateral(){
+const g=buildLateralGraph();
+const filterVal=(document.getElementById('latAccountFilter')||{}).value?.toLowerCase()||'';
+// Session legend
+const legEl=document.getElementById('latSessionLegend');
+if(S.sessions.length===0){legEl.innerHTML='<div class="anomaly-item info"><div class="anomaly-title">No sessions loaded yet.</div></div>';return;}
+legEl.innerHTML=`<div class="card-grid">${S.sessions.map(s=>`<div class="card" style="border-left:3px solid ${s.color}"><div class="card-label">Session ${s.idx+1}</div><div class="card-value" style="font-size:15px;color:${s.color};white-space:normal;word-break:break-all">${eH(s.label)}</div><div class="card-sub">${s.count.toLocaleString()} records &middot; ${s.format==='evtxecmd'?'EvtxECmd':'Hayabusa'}</div><div class="card-sub" style="font-size:10px">${s.timeMin<Infinity?fDF(new Date(s.timeMin))+'&nbsp;→':''} ${s.timeMax>-Infinity?fDF(new Date(s.timeMax)):''}</div></div>`).join('')}</div>`;
+// Sort: cross-session first, then multi-comp, then by event count
+const sorted=[...g.accounts.entries()].sort((a,b)=>{const ax=g.crossSession.has(a[0])?2:g.multiComp.has(a[0])?1:0,bx=g.crossSession.has(b[0])?2:g.multiComp.has(b[0])?1:0;return bx!==ax?bx-ax:b[1].length-a[1].length;});
+const filtered=filterVal?sorted.filter(([n])=>n.toLowerCase().includes(filterVal)):sorted;
+// Chains
+const chains=filtered.slice(0,120).map(([acct,evts])=>{
+const hops=buildHops(evts);const isCross=g.crossSession.has(acct),isMulti=g.multiComp.has(acct);
+const flags=(isCross?'<span class="badge badge-warn">CROSS-SESSION</span> ':isMulti?'<span class="badge badge-info">MULTI-HOST</span> ':'');
+const hopHtml=hops.map((h,i)=>{
+const sess=S.sessions[h.sessionIdx]||{color:'#6b7490',idx:0};
+const lt=h.logonTypes[0];const ltName=lt?(' · '+(LT_NAMES[+lt]||'T'+lt)):'';
+const prev=hops[i-1];const xsess=prev&&prev.sessionIdx!==h.sessionIdx;
+const arrow=i>0?`<span class="lat-arrow${xsess?' xsess':''}">${xsess?' ⇒ ':' → '}</span>`:'';
+return`${arrow}<div class="lat-hop"><span class="lat-hop-comp" title="${eH(h.comp)}">${eH(h.comp.length>14?h.comp.substring(0,12)+'…':h.comp)}</span><span class="session-badge" style="background:${sess.color}">S${sess.idx+1}</span><span class="lat-hop-meta">${h.count}evt${ltName}</span></div>`;}).join('');
+const comps=new Set(evts.map(e=>e.comp));
+return`<div class="lat-chain${isCross?' cross':''}"><div class="lat-chain-hdr"><span class="lat-chain-name">${eH(acct)}</span>${flags}<span style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">${evts.length} events &middot; ${comps.size} system${comps.size!==1?'s':''}</span></div><div class="lat-hops">${hopHtml}</div></div>`;}).join('');
+document.getElementById('latChains').innerHTML=chains||'<div class="anomaly-item info"><div class="anomaly-title">No accounts extracted from loaded data</div><div class="anomaly-detail" style="font-family:var(--mono);font-size:11px">Accounts are extracted from Details fields: TargetUserName, SubjectUserName, UserName, AccountName. Ensure events like 4624, 4648, 4625, 5140 are present.</div></div>';
+// Cross-session table
+if(g.crossSession.size>0){
+document.getElementById('latCrossSession').innerHTML=mFT(['Account','Sessions','Computers','Events'],[...g.crossSession].sort((a,b)=>g.accounts.get(b).length-g.accounts.get(a).length).map(acct=>{const evts=g.accounts.get(acct);const sess=[...new Set(evts.map(e=>e.sessionIdx))].map(i=>`<span class="session-badge" style="background:${(S.sessions[i]||{color:'#6b7490'}).color}">S${i+1}</span>`).join(' ');const comps=new Set(evts.map(e=>e.comp));return[eH(acct),sess,comps.size,evts.length];}));
+}else{document.getElementById('latCrossSession').innerHTML=`<div style="color:var(--text-dim);font-size:12px;padding:12px;font-family:var(--mono)">${S.sessions.length<2?'Use <strong>+ Add Session</strong> to load a second CSV. Accounts seen in both sessions will appear here.':'No accounts found spanning multiple sessions.'}</div>`;}
+// Matrix
+renderLatMatrix(g,sorted.slice(0,30));}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
+function switchTab(t){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===t));document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+t));switch(t){case'overview':rOV();break;case'timeline':rTL();break;case'heatmap':rHM();break;case'arrivals':rArrivals();break;case'gaps':rGaps();break;case'periodic':rPeriodic();break;case'rules':rRU();break;case'frequency':rFR();break;case'anomalies':rAN();break;case'raw':rRW();break;case'eidfocus':renderEF();break;case'lateral':renderLateral();break}}
+
+// ── KEYBOARD NAVIGATION ────────────────────────────────────────────────────────
+
+function showNavHint(){
+  const el=document.getElementById('navHint');el.classList.add('visible');
+  clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('visible'),4000);
+}
+
+function highlightNavRow(){
+  // Clear previous highlights
+  document.querySelectorAll('.nav-selected').forEach(el=>el.classList.remove('nav-selected'));
+  const n=S.nav;
+  if(n.ctx==='raw'&&n.idx!=null){
+    const tr=document.querySelector(`#rawTableWrap tr[data-nav-idx="${n.idx}"]`);
+    if(tr){tr.classList.add('nav-selected');tr.scrollIntoView({block:'nearest',behavior:'smooth'});}
+  }else if(n.ctx==='sequence'&&n.clusterIdx!=null&&n.evtIdx!=null){
+    const el=document.querySelector(`.seq-event-line[data-cluster="${n.clusterIdx}"][data-evt="${n.evtIdx}"]`);
+    if(el){el.classList.add('nav-selected');el.scrollIntoView({block:'nearest',behavior:'smooth'});}
+  }else if(n.ctx==='eidfocus'&&n.idx!=null){
+    const tr=document.querySelector(`#eidFocusContent tr[data-nav-idx]`);
+    // Find the right row — eidfocus uses display index not global
+  }
+}
+
+function navMove(delta){
+  const n=S.nav,dp=document.getElementById('detailPanel');
+  if(!dp.classList.contains('open'))return false;
+
+  if(n.ctx==='raw'){
+    const rows=getFR(),maxShow=Math.min(2000,rows.length);
+    const next=(n.idx||0)+delta;
+    if(next<0||next>=maxShow)return true;
+    n.idx=next;
+    openDP(next,'raw');
+    return true;
+  }
+
+  if(n.ctx==='sequence'&&S._seqClusters){
+    const cluster=S._seqClusters[n.clusterIdx];
+    if(!cluster)return false;
+    const nextEvt=(n.evtIdx||0)+delta;
+    if(nextEvt<0||nextEvt>=cluster.events.length)return true; // at boundary
+    n.evtIdx=nextEvt;
+    const ev=cluster.events[nextEvt];
+    const ri=getFR().indexOf(ev);
+    if(ri>=0){n.idx=ri;openDP(ri,'sequence');}
+    return true;
+  }
+
+  if(n.ctx==='eidfocus'&&S.focusEid){
+    const ar=getFR().filter(r=>r.eid===S.focusEid).slice(-100).reverse();
+    // Determine current display index from global idx
+    const curRow=getFR()[n.idx];
+    let di=ar.indexOf(curRow);
+    if(di===-1)di=0;
+    const nextDi=di+delta;
+    if(nextDi<0||nextDi>=ar.length)return true;
+    const tr=ar[nextDi];
+    const ri=getFR().indexOf(tr);
+    if(ri>=0)openDP(ri,'eidfocus');
+    return true;
+  }
+  return false;
+}
+
+function navCluster(delta){
+  const n=S.nav;
+  if(n.ctx!=='sequence'||!S._seqClusters)return false;
+  const nextCi=(n.clusterIdx||0)+delta;
+  if(nextCi<0||nextCi>=S._seqClusters.length)return false;
+  const cluster=S._seqClusters[nextCi];
+  if(!cluster||!cluster.events.length)return false;
+  n.clusterIdx=nextCi;
+  n.evtIdx=0;
+  const ev=cluster.events[0];
+  const ri=getFR().indexOf(ev);
+  if(ri>=0){n.idx=ri;openDP(ri,'sequence');}
+  return true;
+}
+
+document.addEventListener('keydown',function(e){
+  const dp=document.getElementById('detailPanel');
+  const isOpen=dp&&dp.classList.contains('open');
+
+  // Don't capture if user is typing in an input/select
+  const tag=document.activeElement?.tagName;
+  if(tag==='INPUT'||tag==='SELECT'||tag==='TEXTAREA')return;
+
+  if(!isOpen)return;
+
+  if(e.key==='ArrowUp'){e.preventDefault();navMove(-1);return;}
+  if(e.key==='ArrowDown'){e.preventDefault();navMove(1);return;}
+  if(e.key==='ArrowLeft'){e.preventDefault();navCluster(-1);return;}
+  if(e.key==='ArrowRight'){e.preventDefault();navCluster(1);return;}
+  if(e.key==='Escape'){e.preventDefault();dp.classList.remove('open');document.getElementById('navHint').classList.remove('visible');return;}
+  if(e.key==='c'&&(e.ctrlKey||e.metaKey)){
+    // Only intercept if detail panel is open and no text is selected
+    const sel=window.getSelection();
+    if(sel&&sel.toString().length>0)return; // let native copy work
+    e.preventDefault();
+    copyDetailEvent();
+    return;
+  }
+});
+
+// Close nav hint when detail panel closes
+const _origClose=document.getElementById('detailPanelClose').onclick;
+document.getElementById('detailPanelClose').addEventListener('click',()=>{
+  document.getElementById('navHint').classList.remove('visible');
+  document.querySelectorAll('.nav-selected').forEach(el=>el.classList.remove('nav-selected'));
+});
+
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>switchTab(t.dataset.tab)));
+document.querySelectorAll('.chart-btn[data-bucket]').forEach(b=>{b.addEventListener('click',()=>{S.bucketPref[b.dataset.target]=b.dataset.bucket;b.parentElement.querySelectorAll('.chart-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');const at=document.querySelector('.tab.active');if(at)switchTab(at.dataset.tab)})});
+document.querySelectorAll('.seq-preset-btn').forEach(b=>{b.addEventListener('click',()=>{document.getElementById('seqEidInput').value=b.dataset.eids;document.getElementById('seqWindowInput').value=b.dataset.win;runSeq()})});
+document.getElementById('seqRunBtn').addEventListener('click',runSeq);
+document.getElementById('seqEidInput').addEventListener('keydown',e=>{if(e.key==='Enter')runSeq()});
+
+const fEls=['filterEventId','filterRuleTitle','filterLevel','filterComputer','filterChannel','filterSource','filterDetails','filterTimeStart','filterTimeEnd'];
+function readF(){S.filters={eventId:document.getElementById('filterEventId').value.trim(),ruleTitle:document.getElementById('filterRuleTitle').value.trim(),level:document.getElementById('filterLevel').value,computer:document.getElementById('filterComputer').value,channel:document.getElementById('filterChannel').value,source:document.getElementById('filterSource').value,details:document.getElementById('filterDetails').value.trim(),timeStart:document.getElementById('filterTimeStart').value.trim(),timeEnd:document.getElementById('filterTimeEnd').value.trim()};invF();const at=document.querySelector('.tab.active');if(at)switchTab(at.dataset.tab)}
+function deb(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms)}}
+fEls.forEach(id=>{const el=document.getElementById(id);el.addEventListener('change',readF);el.addEventListener('input',deb(readF,400))});
+document.getElementById('filterReset').addEventListener('click',()=>{fEls.forEach(id=>{const el=document.getElementById(id);if(el.tagName==='SELECT')el.selectedIndex=0;else el.value=''});readF()});
+
+const dz=document.getElementById('dropzone'),fi=document.getElementById('fileInput');
+dz.addEventListener('click',()=>fi.click());dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover')});dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('dragover');if(e.dataTransfer.files.length)loadF(e.dataTransfer.files[0])});fi.addEventListener('change',()=>{if(fi.files.length)loadF(fi.files[0])});
+
+function popF(){const cs=document.getElementById('filterComputer');cs.innerHTML='<option value="">All Computers</option>';Object.keys(S.computerCounts).sort().forEach(c=>{cs.innerHTML+=`<option value="${eH(c)}">${c} (${S.computerCounts[c]})</option>`});
+const ch=document.getElementById('filterChannel');ch.innerHTML='<option value="">All Channels</option>';Object.entries(S.channelCounts).sort((a,b)=>b[1]-a[1]).forEach(([c,n])=>{ch.innerHTML+=`<option value="${eH(c)}">${c.length>40?c.substring(0,38)+'…':c} (${n})</option>`});
+const sw=document.getElementById('filterSourceWrap'),sf=document.getElementById('filterSource');if(S.format==='evtxecmd'){sf.innerHTML='<option value="">All Sources</option>';Object.entries(S.sourceCounts).sort((a,b)=>b[1]-a[1]).forEach(([s,n])=>{const fn=s.split(/[/\\]/).pop();sf.innerHTML+=`<option value="${eH(s)}">${eH(fn)} (${n})</option>`});sw.style.display='';}else{sw.style.display='none';}}
+
+async function loadF(file){S.rows=[];S.sessions=[];S.sessionCurrent=0;S.eventIdCounts={};S.computerCounts={};S.channelCounts={};S.levelCounts={critical:0,high:0,medium:0,low:0,informational:0};S.ruleTitleCounts={};S.ruleIdMap={};S.sourceCounts={};S.timeMin=Infinity;S.timeMax=-Infinity;S.format=null;S.filteredRows=null;S.filters={};S.focusEid=null;
+const c=await streamParse(file);if(!c){document.getElementById('progressText').textContent='No detections. Check CSV format.';return}
+S.sessions.push({idx:0,label:file.name.replace(/\.[^.]+$/,''),color:SESSION_COLORS[0],format:S.format,count:S.rows.length,timeMin:S.timeMin,timeMax:S.timeMax});
+document.getElementById('dropzoneOverlay').style.display='none';document.getElementById('dashboard').style.display='block';renderSessionBar();popF();switchTab('overview')}
+
+let rt;window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{const at=document.querySelector('.tab.active');if(at&&S.rows.length)switchTab(at.dataset.tab)},200)});
+
+// Session add button
+const sfi=document.getElementById('sessionFileInput');
+document.getElementById('sessionAddBtn').addEventListener('click',()=>sfi.click());
+sfi.addEventListener('change',()=>{if(sfi.files.length){loadAdditionalSession(sfi.files[0]);sfi.value='';} });
+
+// Lateral movement filters
+document.getElementById('latAccountFilter').addEventListener('input',deb(()=>{if(document.querySelector('.tab.active')?.dataset.tab==='lateral')renderLateral()},400));
+document.getElementById('latRefreshBtn').addEventListener('click',renderLateral);
+
+// Heatmap controls
+document.getElementById('hmComputerFilter').addEventListener('change',()=>{if(document.querySelector('.tab.active')?.dataset.tab==='heatmap')_renderHeatmap();});
+document.querySelectorAll('#hmWtCount,#hmWtSev').forEach(b=>b.addEventListener('click',()=>{
+  _hmWt=b.dataset.wt;
+  document.getElementById('hmWtCount').classList.toggle('active',_hmWt==='count');
+  document.getElementById('hmWtSev').classList.toggle('active',_hmWt==='severity');
+  if(document.querySelector('.tab.active')?.dataset.tab==='heatmap')_renderHeatmap();
+}));
+
+// Arrivals controls
+['arrivalsType','arrivalsSort'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{if(document.querySelector('.tab.active')?.dataset.tab==='arrivals')rArrivals();}));
+document.getElementById('arrivalsLateBtn').addEventListener('click',function(){this.classList.toggle('active');if(document.querySelector('.tab.active')?.dataset.tab==='arrivals')rArrivals();});
+
+// Gap Analysis controls
+document.getElementById('gapRunBtn').addEventListener('click',runGapAnalysis);
+document.getElementById('gapCompFilter').addEventListener('change',runGapAnalysis);
+['gapMinutes','gapSigma'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')runGapAnalysis();}));
+
+// Time-of-Day profile
+function renderTOD(){
+  const compF=document.getElementById('todComputer')?.value||'';
+  let rows=getFR().filter(r=>!isNaN(r.ts));
+  if(compF)rows=rows.filter(r=>r.comp===compF);
+  if(!rows.length)return;
+  // Hour counts
+  const hc=new Array(24).fill(0);rows.forEach(r=>hc[new Date(r.ts).getUTCHours()]++);
+  // Find peak 8-hour window
+  let bestSum=0,bestStart=0;
+  for(let s=0;s<24;s++){let sum=0;for(let i=0;i<8;i++)sum+=hc[(s+i)%24];if(sum>bestSum){bestSum=sum;bestStart=s;}}
+  const peakHours=new Set();for(let i=0;i<8;i++)peakHours.add((bestStart+i)%24);
+  // Z-scores for off-peak hours
+  const st=cStats(hc);
+  const labels=Array.from({length:24},(_,h)=>String(h).padStart(2,'0'));
+  const colors=hc.map((v,h)=>{if(peakHours.has(h))return'rgba(68,170,255,0.65)';const z=st.std>0?(v-st.mean)/st.std:0;if(z>2)return'rgba(248,165,53,0.8)';return'rgba(68,170,255,0.3)';});
+  const cvs=document.getElementById('canvasTOD');
+  const{ctx,w,h}=sC(cvs);
+  const pL=40,pR=20,pT=20,pB=30,cW=w-pL-pR,cH=h-pT-pB,mx=Math.max(...hc,1),bW=Math.max(2,(cW/24)-2);
+  ctx.clearRect(0,0,w,h);
+  ctx.strokeStyle='#1e2230';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){const y=pT+(cH/4)*i;ctx.beginPath();ctx.moveTo(pL,y);ctx.lineTo(w-pR,y);ctx.stroke();ctx.fillStyle='#6b7490';ctx.font='10px JetBrains Mono,monospace';ctx.textAlign='right';ctx.fillText(Math.round(mx*(1-i/4)).toLocaleString(),pL-6,y+4);}
+  for(let h2=0;h2<24;h2++){const x=pL+(h2/24)*cW,bH=(hc[h2]/mx)*cH;ctx.fillStyle=colors[h2];ctx.fillRect(x,pT+cH-bH,bW,bH);ctx.fillStyle='#6b7490';ctx.font='9px JetBrains Mono,monospace';ctx.textAlign='center';ctx.fillText(labels[h2],x+bW/2,h-5);}
+  // Off-peak anomalies
+  const offPeak=[];for(let h2=0;h2<24;h2++){if(!peakHours.has(h2)&&hc[h2]>0){const z=st.std>0?(hc[h2]-st.mean)/st.std:0;if(z>2)offPeak.push({h:h2,count:hc[h2],z});}}
+  document.getElementById('todAfterHours').innerHTML=offPeak.length?`<div class="anomaly-item warn"><div class="anomaly-title">Off-hours activity detected</div><div class="anomaly-detail">Peak window: ${String(bestStart).padStart(2,'0')}:00\u2013${String((bestStart+8)%24).padStart(2,'0')}:00 UTC<br>${offPeak.map(o=>`Hour ${String(o.h).padStart(2,'0')}:00 — ${o.count.toLocaleString()} events (${o.z.toFixed(1)}\u03c3)`).join('<br>')}</div></div>`:
+  `<div class="anomaly-item info"><div class="anomaly-title">No significant off-hours activity</div><div class="anomaly-detail">Peak window: ${String(bestStart).padStart(2,'0')}:00\u2013${String((bestStart+8)%24).padStart(2,'0')}:00 UTC</div></div>`;
+}
+document.getElementById('todComputer').addEventListener('change',renderTOD);
+
+// Periodicity controls
+document.getElementById('periodicRunBtn').addEventListener('click',rPeriodic);
+['periodicMinEvents','periodicMaxCV'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')rPeriodic();}));
+
+</script>
+</body>
+</html>
