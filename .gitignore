@@ -1,0 +1,18 @@
+# Hayabusa release binaries & docs
+hayabusa-*.exe
+hayabusa-*-lin-*
+hayabusa-*-mac-*
+hayabusa-*-all-platforms.zip
+CHANGELOG*.pdf
+README-3.8.1-*.pdf
+SECURITY.pdf
+
+# Hayabusa runtime files
+config/
+rules/
+
+# Output data — never commit evidence
+output/
+
+# Claude internal
+.claude/

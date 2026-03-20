@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EventScope v5 — Forensic Event Log Analyzer</title>
+<style>
+  :root {
+    /* ── Core palette ─────────────────────────────── */
+    --orange:       #DC551F;
+    --orange-light: #e8703f;
+    --orange-dim:   rgba(220,85,31,0.18);
+    --orange-glow:  rgba(220,85,31,0.35);
+    --navy:         #09375F;
+    --navy-mid:     #0b2e50;
+    --stone:        #C8C2BD;
+    --stone-dim:    rgba(200,194,189,0.45);
+    --white:        #FFFFFF;
+
+    /* ── Surfaces ─────────────────────────────────── */
+    --bg:       #050e17;
+    --surface:  #0a1e2e;
+    --surface2: #0f2840;
+    --surface3: #163452;
+
+    /* ── Borders ─────────────────────────────────── */
+    --border:        #1a3a55;
+    --border-bright: #26527a;
+
+    /* ── Text ────────────────────────────────────── */
+    --text:        #C8C2BD;
+    --text-dim:    #6e7f90;
+    --text-bright: #FFFFFF;
+
+    /* ── Accent = orange ─────────────────────────── */
+    --accent:     #DC551F;
+    --accent-dim: rgba(220,85,31,0.15);
+    --accent-glow:rgba(220,85,31,0.30);
+
+    /* ── Severity ────────────────────────────────── */
+    --critical:     #ff3a3a;
+    --critical-dim: rgba(255,58,58,0.15);
+    --high:         #DC551F;
+    --medium:       #f0a830;
+    --low:          #4ab8dc;
+    --info:         #5ddba8;
+    --warn:         #f0a830;
+    --warn-dim:     rgba(240,168,48,0.15);
+    --danger:       #DC551F;
+    --danger-dim:   rgba(220,85,31,0.15);
+    --success:      #5ddba8;
+    --success-dim:  rgba(93,219,168,0.15);
+
+    /* ── Typography ──────────────────────────────── */
+    --mono: 'JetBrains Mono','Fira Code','SF Mono','Cascadia Code',monospace;
+    --sans: 'DM Sans','Segoe UI',system-ui,sans-serif;
+    --radius: 8px;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.5;overflow-x:hidden}
+  ::-webkit-scrollbar{width:12px;height:12px}
+  ::-webkit-scrollbar-track{background:var(--surface)}
+  ::-webkit-scrollbar-thumb{background:var(--border-bright);border-radius:6px;border:3px solid var(--surface)}
+  ::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+
+  /* ── HEADER ───────────────────────────────────── */
+  .header{
+    padding:20px 32px;
+    border-bottom:2px solid var(--orange);
+    display:flex;align-items:center;justify-content:space-between;
+    background:var(--surface);
+    box-shadow:0 2px 24px rgba(220,85,31,0.12);
+  }
+  .header-left{display:flex;align-items:center;gap:16px}
+  .logo{
+    font-family:var(--mono);font-size:18px;font-weight:700;
+    color:var(--orange);letter-spacing:-0.5px;
+    text-shadow:0 0 18px var(--orange-glow);
+  }
+  .logo span{color:var(--text-dim);font-weight:400}
+  .header-stats{display:flex;gap:24px;font-family:var(--mono);font-size:13px}
+  .header-stat{color:var(--text-dim)}.header-stat strong{color:var(--white);font-weight:600}
+
+  /* ── SEVERITY PIPS ───────────────────────────── */
+  .sev-pip{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}
+  .sev-critical{background:var(--critical);box-shadow:0 0 6px var(--critical)}
+  .sev-high    {background:var(--high);box-shadow:0 0 5px var(--orange-glow)}
+  .sev-medium  {background:var(--medium)}
+  .sev-low     {background:var(--low)}
+  .sev-info    {background:var(--info)}
+
+  /* ── DROP ZONE ───────────────────────────────── */
+  .dropzone-overlay{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 70px);padding:40px}
+  .dropzone{
+    width:100%;max-width:640px;
+    border:2px dashed var(--border-bright);border-radius:16px;
+    padding:64px 40px;text-align:center;cursor:pointer;
+    transition:all .25s;background:var(--surface);
+  }
+  .dropzone:hover,.dropzone.dragover{
+    border-color:var(--orange);
+    background:var(--orange-dim);
+    box-shadow:0 0 48px rgba(220,85,31,0.12);
+  }
+  .dropzone-icon{font-size:48px;margin-bottom:16px;opacity:.55;color:var(--orange)}
+  .dropzone h2{font-size:20px;font-weight:600;color:var(--white);margin-bottom:8px}
+  .dropzone p{color:var(--text-dim);font-size:14px}
+  .dropzone code{
+    font-family:var(--mono);font-size:12px;
+    background:var(--surface2);padding:2px 8px;border-radius:4px;
+    color:var(--orange);
+  }
+  .format-hint{
+    margin-top:16px;padding:12px 16px;
+    background:var(--surface2);border-radius:8px;border-left:3px solid var(--orange);
+    text-align:left;font-family:var(--mono);font-size:11px;
+    color:var(--text-dim);line-height:1.7;
+  }
+  .format-hint strong{color:var(--orange)}
+  .progress-container{width:100%;max-width:640px;margin-top:24px;display:none}
+  .progress-bar-bg{height:4px;background:var(--surface2);border-radius:2px;overflow:hidden}
+  .progress-bar-fill{height:100%;width:0%;background:var(--orange);border-radius:2px;transition:width .1s;box-shadow:0 0 10px var(--orange-glow)}
+  .progress-text{font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-top:8px;text-align:center}
+
+  /* ── DASHBOARD / TABS ────────────────────────── */
+  .dashboard{display:none}
+  .tabs{
+    display:flex;gap:2px;padding:12px 32px 0;
+    background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap;
+  }
+  .tab{
+    padding:10px 20px;font-size:13px;font-weight:500;
+    color:var(--text-dim);cursor:pointer;
+    border-bottom:2px solid transparent;transition:all .15s;user-select:none;
+  }
+  .tab:hover{color:var(--stone)}
+  .tab.active{color:var(--orange);border-bottom-color:var(--orange)}
+
+  .panel{display:none;padding:24px 32px}.panel.active{display:block}
+
+  /* ── CARDS ───────────────────────────────────── */
+  .card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:24px}
+  .card{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--radius);padding:20px;
+    transition:border-color .2s;
+  }
+  .card:hover{border-color:var(--border-bright)}
+  .card-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text-dim);margin-bottom:6px}
+  .card-value{font-family:var(--mono);font-size:28px;font-weight:700;color:var(--white)}
+  .card-sub{font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-top:4px}
+
+  /* ── CHART BOXES ─────────────────────────────── */
+  .chart-box{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--radius);padding:20px;margin-bottom:16px;
+  }
+  .chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .chart-title{font-size:14px;font-weight:600;color:var(--white)}
+  .chart-controls{display:flex;gap:8px;align-items:center}
+  .chart-btn{
+    font-family:var(--mono);font-size:11px;padding:4px 10px;
+    border:1px solid var(--border);border-radius:4px;
+    background:var(--surface2);color:var(--text-dim);cursor:pointer;transition:all .15s;
+  }
+  .chart-btn:hover{border-color:var(--border-bright);color:var(--stone)}
+  .chart-btn.active{background:var(--orange-dim);border-color:var(--orange);color:var(--orange)}
+  canvas.chart-canvas{width:100%;height:300px;display:block}
+
+  /* ── DATA TABLE ──────────────────────────────── */
+  .data-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius)}
+  table.data-table{width:100%;border-collapse:collapse;font-size:13px}
+  .data-table th{
+    position:sticky;top:0;background:var(--surface2);
+    font-family:var(--mono);font-size:11px;font-weight:600;
+    text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);
+    padding:10px 14px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;
+  }
+  .data-table td{padding:8px 14px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:12px;white-space:nowrap}
+  .data-table tr:hover td{background:var(--surface2)}
+
+  /* ── BADGES ──────────────────────────────────── */
+  .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;font-family:var(--mono)}
+  .badge-critical{background:var(--critical-dim);color:var(--critical)}
+  .badge-danger  {background:var(--orange-dim);color:var(--orange)}
+  .badge-warn    {background:var(--warn-dim);color:var(--warn)}
+  .badge-info    {background:rgba(74,184,220,0.15);color:var(--low)}
+  .badge-ok      {background:var(--success-dim);color:var(--success)}
+
+  /* ── FILTER BAR ──────────────────────────────── */
+  .filter-bar{
+    display:flex;flex-wrap:wrap;gap:8px;
+    padding:14px 32px;
+    background:var(--surface);border-bottom:1px solid var(--border);align-items:center;
+  }
+  .filter-bar label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);margin-right:4px}
+  .filter-input{
+    font-family:var(--mono);font-size:12px;padding:6px 10px;
+    border:1px solid var(--border);border-radius:4px;
+    background:var(--surface2);color:var(--text);outline:none;min-width:140px;
+  }
+  .filter-input:focus{border-color:var(--orange)}
+  .filter-input::placeholder{color:var(--text-dim)}
+  select.filter-input{
+    cursor:pointer;appearance:none;padding-right:24px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236e7f90'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 8px center;
+  }
+  .filter-reset{
+    font-family:var(--mono);font-size:11px;padding:6px 12px;
+    border:1px solid var(--orange);border-radius:4px;
+    background:var(--orange-dim);color:var(--orange);cursor:pointer;
+    transition:all .15s;
+  }
+  .filter-reset:hover{background:var(--orange);color:var(--white)}
+
+  /* ── COLLAPSIBLE FILTER BAR ──────────────────── */
+  .filter-bar-content{display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex:1}
+  .filter-bar-content.collapsed{display:none}
+  .filter-toggle-btn{
+    font-family:var(--mono);font-size:11px;padding:6px 12px;
+    border:1px solid var(--border);border-radius:4px;
+    background:var(--surface2);color:var(--text-dim);cursor:pointer;
+    white-space:nowrap;flex-shrink:0;
+  }
+  .filter-toggle-btn:hover{border-color:var(--orange);color:var(--orange)}
+  .filter-toggle-btn.active{border-color:var(--orange);color:var(--orange);background:var(--orange-dim)}
+
+  /* ── LEVEL FILTER CHECKBOXES ─────────────────── */
+  .level-filter-group{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .level-filter-group label{
+    font-size:11px;color:var(--text-dim);cursor:pointer;
+    display:flex;align-items:center;gap:4px;font-family:var(--mono);
+    text-transform:none;letter-spacing:0;
+  }
+  .level-filter-group input[type="checkbox"]{accent-color:var(--orange);cursor:pointer}
+
+  /* ── INLINE ROW EXPANSION ────────────────────── */
+  .inline-expansion td{
+    background:var(--surface2) !important;
+    border-top:2px solid var(--orange) !important;
+    border-bottom:2px solid var(--border-bright) !important;
+    padding:0 !important;
+  }
+  .inline-expansion-cell{padding:20px 32px !important}
+  .row-selected td{background:var(--orange-dim) !important;outline:1px solid var(--orange);outline-offset:-1px}
+
+  /* ── FULL-WIDTH TABLE ────────────────────────── */
+  #rawTableWrap{max-height:none}
+
+  /* ── DETAIL INLINE LAYOUT ────────────────────── */
+  .detail-inline{
+    display:grid;grid-template-columns:1fr 1fr;gap:24px;
+    font-family:var(--mono);font-size:12px;
+  }
+  .detail-inline-full{grid-column:1 / -1}
+  @media(max-width:1200px){.detail-inline{grid-template-columns:1fr}}
+
+  /* ── ANOMALY ITEMS ───────────────────────────── */
+  .anomaly-item{
+    background:var(--surface);border:1px solid var(--border);
+    border-left:3px solid var(--orange);border-radius:var(--radius);
+    padding:14px 18px;margin-bottom:8px;
+  }
+  .anomaly-item.warn    {border-left-color:var(--warn)}
+  .anomaly-item.info    {border-left-color:var(--low)}
+  .anomaly-item.critical{border-left-color:var(--critical)}
+  .anomaly-title {font-size:13px;font-weight:600;color:var(--white);margin-bottom:4px}
+  .anomaly-detail{font-family:var(--mono);font-size:12px;color:var(--text-dim);line-height:1.6}
+
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:900px){.two-col{grid-template-columns:1fr}.filter-bar{padding:12px 16px}.panel{padding:16px}.tabs{padding:12px 16px 0}.header{padding:16px}}
+
+  /* ── TOOLTIP ──────────────────────────────────── */
+  .tooltip{
+    position:fixed;background:var(--surface3);
+    border:1px solid var(--border-bright);border-radius:6px;
+    padding:8px 12px;font-family:var(--mono);font-size:11px;
+    color:var(--white);pointer-events:none;z-index:1000;display:none;
+    box-shadow:0 8px 32px rgba(0,0,0,.5);max-width:400px;line-height:1.5;
+  }
+
+  /* ── EID LINKS ────────────────────────────────── */
+  .eid-link{
+    color:var(--orange);cursor:pointer;text-decoration:none;
+    border-bottom:1px dashed var(--orange-dim);transition:all .15s;
+  }
+  .eid-link:hover{color:var(--white);border-bottom-color:var(--orange)}
+
+  .eid-focus-header{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+  .eid-focus-title{font-family:var(--mono);font-size:24px;font-weight:700;color:var(--orange)}
+  .eid-focus-close{
+    font-family:var(--mono);font-size:11px;padding:4px 12px;
+    border:1px solid var(--border);border-radius:4px;
+    background:var(--surface2);color:var(--text-dim);cursor:pointer;
+  }
+  .eid-focus-close:hover{border-color:var(--orange);color:var(--orange)}
+
+  /* ── SEQUENCE ─────────────────────────────────── */
+  .seq-input-row{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+  .seq-eid-input{
+    font-family:var(--mono);font-size:13px;padding:8px 14px;
+    border:1px solid var(--border);border-radius:4px;
+    background:var(--surface2);color:var(--text);outline:none;width:300px;
+  }
+  .seq-eid-input:focus{border-color:var(--orange)}
+  .seq-eid-input::placeholder{color:var(--text-dim)}
+  .seq-window-input{
+    font-family:var(--mono);font-size:13px;padding:8px 12px;
+    border:1px solid var(--border);border-radius:4px;
+    background:var(--surface2);color:var(--text);outline:none;width:120px;
+  }
+  .seq-run-btn{
+    font-family:var(--mono);font-size:12px;padding:8px 20px;
+    border:1px solid var(--orange);border-radius:4px;
+    background:var(--orange-dim);color:var(--orange);
+    cursor:pointer;font-weight:600;transition:all .15s;
+  }
+  .seq-run-btn:hover{background:var(--orange);color:var(--white)}
+
+  .seq-cluster{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--radius);padding:16px 20px;margin-bottom:10px;
+  }
+  .seq-cluster.scripted{border-left:3px solid var(--critical)}
+  .seq-cluster.fast    {border-left:3px solid var(--warn)}
+  .seq-cluster.human   {border-left:3px solid var(--success)}
+  .seq-cluster-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .seq-cluster-timing{font-family:var(--mono);font-size:20px;font-weight:700}
+  .seq-event-line{
+    font-family:var(--mono);font-size:11px;color:var(--text-dim);
+    padding:3px 0;border-bottom:1px solid var(--border);
+    display:flex;gap:12px;cursor:pointer;
+  }
+  .seq-event-line:last-child{border-bottom:none}
+  .seq-event-line:hover{background:var(--surface2)}
+  .seq-delta  {color:var(--warn);min-width:90px;text-align:right}
+  .seq-ts     {color:var(--stone);min-width:200px}
+  .seq-eid-tag{color:var(--orange);min-width:70px}
+  .seq-rule   {color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .seq-presets{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+  .seq-preset-btn{
+    font-family:var(--mono);font-size:10px;padding:4px 10px;
+    border:1px solid var(--border);border-radius:4px;
+    background:var(--surface2);color:var(--text-dim);cursor:pointer;transition:all .15s;
+  }
+  .seq-preset-btn:hover{border-color:var(--orange);color:var(--orange)}
+
+  /* ── DETAIL PANEL (kept for legacy compat, hidden) ── */
+  .detail-section{margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+  .detail-section:last-child{border-bottom:none}
+  .detail-section-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--orange);margin-bottom:8px}
+  .detail-field{margin-bottom:4px}
+  .detail-key {color:var(--orange);display:inline-block;min-width:140px}
+  .detail-val {color:var(--white)}
+  .detail-payload-block{
+    background:var(--bg);border:1px solid var(--border);border-radius:4px;
+    padding:12px;white-space:pre-wrap;word-break:break-all;
+    font-size:11px;line-height:1.6;max-height:400px;overflow-y:auto;
+  }
+
+  /* ── SESSION BAR ─────────────────────────────── */
+  .session-bar{
+    display:flex;align-items:center;gap:10px;
+    padding:8px 32px;background:var(--surface2);
+    border-bottom:1px solid var(--border);flex-wrap:wrap;
+  }
+  .session-chips{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+  .session-chip{
+    display:inline-flex;align-items:center;gap:6px;padding:4px 10px;
+    border-radius:6px;border:1px solid var(--border);
+    background:var(--surface);font-family:var(--mono);font-size:11px;color:var(--text);
+  }
+  .session-chip-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;display:inline-block}
+  .session-add-btn{
+    font-family:var(--mono);font-size:11px;padding:5px 14px;
+    border:1px dashed var(--orange);border-radius:6px;
+    background:none;color:var(--orange);cursor:pointer;transition:all .15s;white-space:nowrap;
+  }
+  .session-add-btn:hover{background:var(--orange-dim)}
+  .session-badge{
+    display:inline-block;padding:1px 5px;border-radius:3px;
+    font-size:9px;font-family:var(--mono);font-weight:700;
+    color:var(--white);line-height:1.6;
+  }
+
+  /* ── LATERAL MOVEMENT ────────────────────────── */
+  .lat-chain{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:8px}
+  .lat-chain.cross{border-left:3px solid var(--warn)}
+  .lat-chain-hdr{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+  .lat-chain-name{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--white)}
+  .lat-hops{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+  .lat-hop{
+    display:inline-flex;flex-direction:column;align-items:center;
+    padding:4px 8px;border-radius:4px;border:1px solid var(--border);
+    background:var(--surface2);text-align:center;min-width:88px;
+  }
+  .lat-hop-comp{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--white);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lat-hop-meta{font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:2px;white-space:nowrap}
+  .lat-arrow{font-size:13px;color:var(--text-dim);padding:0 2px;user-select:none;flex-shrink:0}
+  .lat-arrow.xsess{color:var(--warn);font-size:15px}
+  .lat-matrix-wrap{overflow-x:auto}
+  .lat-matrix-table{border-collapse:collapse;font-family:var(--mono);font-size:11px}
+  .lat-matrix-table th,.lat-matrix-table td{padding:5px 10px;border:1px solid var(--border);white-space:nowrap}
+  .lat-matrix-table th{background:var(--surface2);color:var(--text-dim);font-weight:600;text-align:center}
+  .lat-matrix-table td.acct-col{text-align:left}
+  .lat-matrix-table td.hit{background:var(--orange-dim);color:var(--orange);text-align:center;cursor:default}
+  .lat-matrix-table td.empty{color:var(--border);text-align:center}
+  .lat-matrix-table tr.cross-acct td.acct-col{color:var(--warn);font-weight:600}
+
+  /* ── COPY / COLUMN CONFIG ────────────────────── */
+  .copy-toast{
+    position:fixed;bottom:32px;left:50%;transform:translateX(-50%) translateY(8px);
+    background:var(--surface3);border:1px solid var(--orange);border-radius:8px;
+    padding:10px 22px;font-family:var(--mono);font-size:13px;color:var(--orange);
+    opacity:0;transition:opacity .3s,transform .3s;z-index:2000;pointer-events:none;white-space:nowrap;
+    box-shadow:0 4px 24px var(--orange-glow);
+  }
+  .copy-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .copy-btn{
+    font-family:var(--mono);font-size:10px;padding:3px 9px;
+    border:1px solid var(--border);border-radius:4px;
+    background:var(--surface2);color:var(--text-dim);cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0;
+  }
+  .copy-btn:hover{border-color:var(--orange);color:var(--orange)}
+
+  .col-cfg-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1500;align-items:center;justify-content:center}
+  .col-cfg-overlay.open{display:flex}
+  .col-cfg-modal{
+    background:var(--surface);border:1px solid var(--border-bright);
+    border-top:3px solid var(--orange);
+    border-radius:12px;padding:24px;width:520px;max-width:95vw;max-height:82vh;
+    overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.7);
+  }
+  .col-cfg-title{font-size:15px;font-weight:600;color:var(--white);margin-bottom:4px}
+  .col-cfg-sub{font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:16px}
+  .col-cfg-rows{margin-bottom:8px}
+  .col-cfg-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)}
+  .col-cfg-row:last-child{border-bottom:none}
+  .col-cfg-check{accent-color:var(--orange);width:14px;height:14px;cursor:pointer;flex-shrink:0}
+  .col-cfg-lbl{flex:1;font-family:var(--mono);font-size:12px;color:var(--text);cursor:pointer}
+  .col-cfg-mv{
+    font-size:11px;padding:1px 6px;border:1px solid var(--border);
+    border-radius:3px;background:var(--surface2);color:var(--text-dim);cursor:pointer;line-height:1.4;
+  }
+  .col-cfg-mv:hover{border-color:var(--orange);color:var(--orange)}
+  .col-cfg-footer{display:flex;gap:8px;margin-top:16px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+  .col-cfg-save{
+    font-family:var(--mono);font-size:12px;padding:7px 18px;
+    border:1px solid var(--orange);border-radius:4px;
+    background:var(--orange-dim);color:var(--orange);cursor:pointer;font-weight:600;
+  }
+  .col-cfg-save:hover{background:var(--orange);color:var(--white)}
+  .col-cfg-cancel{
+    font-family:var(--mono);font-size:12px;padding:7px 18px;
+    border:1px solid var(--border);border-radius:4px;
+    background:var(--surface2);color:var(--text-dim);cursor:pointer;
+  }
+  .col-cfg-cancel:hover{border-color:var(--critical);color:var(--critical)}
+  .delim-toggle{display:inline-flex;border:1px solid var(--border);border-radius:4px;overflow:hidden}
+  .delim-btn{font-family:var(--mono);font-size:11px;padding:4px 10px;background:var(--surface2);color:var(--text-dim);cursor:pointer;border:none;outline:none}
+  .delim-btn.active{background:var(--orange-dim);color:var(--orange)}
+
+  /* ── KEYBOARD NAV ────────────────────────────── */
+  .nav-selected td{background:var(--orange-dim) !important;outline:1px solid var(--orange);outline-offset:-1px}
+  .seq-event-line.nav-selected{background:var(--orange-dim) !important;outline:1px solid var(--orange);outline-offset:-1px}
+  .nav-hint{
+    position:fixed;bottom:32px;right:32px;
+    background:var(--surface3);border:1px solid var(--border-bright);border-radius:8px;
+    padding:8px 14px;font-family:var(--mono);font-size:10px;color:var(--text-dim);
+    z-index:800;pointer-events:none;opacity:0;transition:opacity .3s;line-height:1.7;
+  }
+  .nav-hint.visible{opacity:1}
+  .nav-hint kbd{
+    display:inline-block;padding:1px 5px;
+    border:1px solid var(--border-bright);border-radius:3px;
+    background:var(--surface2);color:var(--stone);font-size:10px;margin:0 2px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo">EventScope <span>/ v5 forensic analyzer</span></div>
+  </div>
+  <div class="header-stats" id="headerStats"></div>
+</div>
+
+<div class="session-bar" id="sessionBar" style="display:none">
+  <div class="session-chips" id="sessionChips"></div>
+  <button class="session-add-btn" id="sessionAddBtn">+ Add Session</button>
+</div>
+
+<div class="dropzone-overlay" id="dropzoneOverlay">
+  <div class="dropzone" id="dropzone">
+    <div class="dropzone-icon">⌗</div>
+    <h2>Drop Hayabusa or EvtxECmd CSV Export</h2>
+    <p>Or click to browse. Streams large files — won't choke on multi-GB exports.</p>
+    <div class="format-hint">
+      <strong>Format A — Hayabusa:</strong> csv-timeline output<br>
+      <code>Timestamp, RuleTitle, Level, Computer, Channel, EventID, RecordID, Details, ExtraFieldInfo, RuleID</code><br><br>
+      <strong>Format B — EvtxECmd (Zimmerman):</strong> -d folder --csv output<br>
+      <code>TimeCreated, EventId, Level, Provider, Channel, Computer, MapDescription, PayloadData1-6, SourceFile, Payload</code><br><br>
+      Auto-detected from the CSV header.
+    </div>
+  </div>
+  <div class="progress-container" id="progressContainer">
+    <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
+    <div class="progress-text" id="progressText">Preparing...</div>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept=".csv,.tsv,.txt" style="display:none">
+<input type="file" id="sessionFileInput" accept=".csv,.tsv,.txt" style="display:none">
+
+<div class="dashboard" id="dashboard">
+  <!-- FILTER BAR with collapse toggle and level checkboxes -->
+  <div class="filter-bar" id="filterBar">
+    <button class="filter-toggle-btn" id="filterToggle" title="Toggle filter bar">&#9776; Filters</button>
+    <div class="filter-bar-content" id="filterBarContent">
+      <label>EID:</label>
+      <input class="filter-input" id="filterEventId" placeholder="4624,4625..." autocomplete="off">
+      <label>Rule:</label>
+      <input class="filter-input" id="filterRuleTitle" placeholder="Rule title..." style="min-width:200px" autocomplete="off">
+      <label>Level:</label>
+      <div id="levelFilter" class="level-filter-group">
+        <label><input type="checkbox" value="critical" checked> Critical</label>
+        <label><input type="checkbox" value="high" checked> High</label>
+        <label><input type="checkbox" value="medium" checked> Medium</label>
+        <label><input type="checkbox" value="low" checked> Low</label>
+        <label><input type="checkbox" value="informational" checked> Info</label>
+      </div>
+      <select class="filter-input" id="filterComputer"><option value="">All Computers</option></select>
+      <select class="filter-input" id="filterChannel"><option value="">All Channels</option></select>
+      <span id="filterSourceWrap" style="display:none">
+        <select class="filter-input" id="filterSource"><option value="">All Sources</option></select>
+      </span>
+      <input class="filter-input" id="filterDetails" placeholder="Details contains..." style="min-width:180px" autocomplete="off">
+      <input class="filter-input" id="filterTimeStart" placeholder="Start (yyyy-mm-dd)" autocomplete="off">
+      <input class="filter-input" id="filterTimeEnd"   placeholder="End (yyyy-mm-dd)"   autocomplete="off">
+      <button class="filter-reset" id="filterReset">Reset</button>
+    </div>
+  </div>
+
+  <!-- TAB BAR -->
+  <div class="tabs">
+    <div class="tab active" data-tab="overview">Overview</div>
+    <div class="tab" data-tab="timeline">Timeline</div>
+    <div class="tab" data-tab="heatmap">Heatmap</div>
+    <div class="tab" data-tab="arrivals">Arrivals</div>
+    <div class="tab" data-tab="gaps">Gaps</div>
+    <div class="tab" data-tab="periodic">Periodic</div>
+    <div class="tab" data-tab="rules">Rules</div>
+    <div class="tab" data-tab="sequence">Sequence</div>
+    <div class="tab" data-tab="frequency">Frequency</div>
+    <div class="tab" data-tab="anomalies">Anomalies</div>
+    <div class="tab" data-tab="raw">Raw Data</div>
+    <div class="tab" data-tab="lateral">Lateral Movement</div>
+    <div class="tab" data-tab="eidfocus" id="tabEidFocus" style="display:none">EID Focus</div>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div class="panel active" id="panel-overview">
+    <div class="card-grid" id="overviewCards"></div>
+    <div class="two-col">
+      <div class="chart-box">
+        <div class="chart-header"><span class="chart-title">Detection Timeline</span>
+          <div class="chart-controls">
+            <button class="chart-btn active" data-bucket="auto" data-target="timelineAll">Auto</button>
+            <button class="chart-btn" data-bucket="hour" data-target="timelineAll">1h</button>
+            <button class="chart-btn" data-bucket="day"  data-target="timelineAll">1d</button>
+          </div>
+        </div>
+        <canvas class="chart-canvas" id="canvasTimelineAll"></canvas>
+      </div>
+      <div class="chart-box">
+        <div class="chart-header"><span class="chart-title">Severity Distribution</span></div>
+        <canvas class="chart-canvas" id="canvasSeverity"></canvas>
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="chart-box">
+        <div class="chart-header"><span class="chart-title">Top 20 Event IDs</span></div>
+        <canvas class="chart-canvas" id="canvasTopEvents"></canvas>
+      </div>
+      <div class="chart-box">
+        <div class="chart-header"><span class="chart-title">Events by Channel</span></div>
+        <canvas class="chart-canvas" id="canvasChannels"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- PERIODIC -->
+  <div class="panel" id="panel-periodic">
+    <div class="chart-box">
+      <div class="chart-header">
+        <span class="chart-title">Periodicity Detection</span>
+        <div class="chart-controls">
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Min events:</label>
+          <input class="filter-input" id="periodicMinEvents" type="number" value="10" min="3" max="10000" style="width:65px">
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Max CV:</label>
+          <input class="filter-input" id="periodicMaxCV" type="number" value="0.4" min="0.05" max="2" step="0.05" style="width:65px">
+          <button class="seq-run-btn" id="periodicRunBtn">Analyze</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:12px">Detects EIDs with regular inter-event timing (scheduled tasks, heartbeats, backup cycles). CV (coefficient of variation = σ/median) below threshold = periodic.</p>
+      <div id="periodicCards" class="card-grid" style="margin-bottom:16px"></div>
+      <div class="data-table-wrap" id="periodicTable"></div>
+    </div>
+  </div>
+
+  <!-- GAPS -->
+  <div class="panel" id="panel-gaps">
+    <div class="chart-box">
+      <div class="chart-header">
+        <span class="chart-title">Gap Analysis — Silence Periods Per Host</span>
+        <div class="chart-controls">
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Min gap (min):</label>
+          <input class="filter-input" id="gapMinutes" type="number" value="15" min="1" max="10080" style="width:70px">
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">&sigma; threshold:</label>
+          <input class="filter-input" id="gapSigma" type="number" value="3" min="1" max="10" step="0.5" style="width:60px">
+          <select class="filter-input" id="gapCompFilter" style="min-width:160px"><option value="">All Computers</option></select>
+          <button class="seq-run-btn" id="gapRunBtn">Analyze</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:12px">A gap exceeds the threshold when both the <em>absolute minimum</em> (min gap) AND the per-host statistical baseline (mean + σ) are exceeded.</p>
+      <div id="gapCards" class="card-grid" style="margin-bottom:16px"></div>
+      <div id="gapChartWrap" style="margin-bottom:16px;overflow-x:auto"></div>
+      <div id="gapTopList"></div>
+    </div>
+  </div>
+
+  <!-- ARRIVALS -->
+  <div class="panel" id="panel-arrivals">
+    <div class="chart-box">
+      <div class="chart-header">
+        <span class="chart-title">First-Seen / Last-Seen Tracker</span>
+        <div class="chart-controls">
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Type:</label>
+          <select class="filter-input" id="arrivalsType" style="min-width:130px">
+            <option value="eid">Event IDs</option>
+            <option value="rule">Rules</option>
+            <option value="computer">Computers</option>
+            <option value="account">Accounts</option>
+          </select>
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Sort:</label>
+          <select class="filter-input" id="arrivalsSort" style="min-width:130px">
+            <option value="first">First Seen ▲</option>
+            <option value="last">Last Seen ▲</option>
+            <option value="count">Count ▼</option>
+          </select>
+          <button class="chart-btn active" id="arrivalsLateBtn" title="Show only items first appearing in second half of dataset">Late Only</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:12px">Items first appearing after the dataset midpoint are highlighted <span style="color:var(--warn)">amber</span> — these are inherently more interesting.</p>
+      <div id="arrivalsCards" class="card-grid" style="margin-bottom:16px"></div>
+      <div class="data-table-wrap" id="arrivalsTable"></div>
+    </div>
+  </div>
+
+  <!-- HEATMAP -->
+  <div class="panel" id="panel-heatmap">
+    <div class="chart-box">
+      <div class="chart-header">
+        <span class="chart-title">Activity Heatmap — Hour × Day</span>
+        <div class="chart-controls">
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Host:</label>
+          <select class="filter-input" id="hmComputerFilter" style="min-width:160px"><option value="">All Computers</option></select>
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Weight:</label>
+          <button class="chart-btn active" id="hmWtCount" data-wt="count">Count</button>
+          <button class="chart-btn" id="hmWtSev" data-wt="severity">Severity</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:12px">Click any cell to filter timeline to that hour · Severity-weighted: critical=5, high=4, medium=3, low=2, info=1</p>
+      <div style="overflow-x:auto">
+        <canvas id="canvasHeatmap" style="display:block;height:auto"></canvas>
+      </div>
+      <div id="hmStats" style="margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--text-dim)"></div>
+    </div>
+  </div>
+
+  <!-- TIMELINE -->
+  <div class="panel" id="panel-timeline">
+    <div class="chart-box">
+      <div class="chart-header"><span class="chart-title">Filtered Timeline</span>
+        <div class="chart-controls">
+          <button class="chart-btn active" data-bucket="auto"   data-target="timelineFiltered">Auto</button>
+          <button class="chart-btn"        data-bucket="minute" data-target="timelineFiltered">1m</button>
+          <button class="chart-btn"        data-bucket="hour"   data-target="timelineFiltered">1h</button>
+          <button class="chart-btn"        data-bucket="day"    data-target="timelineFiltered">1d</button>
+        </div>
+      </div>
+      <canvas class="chart-canvas" id="canvasTimelineFiltered" style="height:300px"></canvas>
+    </div>
+    <div class="chart-box">
+      <div class="chart-header"><span class="chart-title">Severity Heatmap</span></div>
+      <canvas class="chart-canvas" id="canvasSevTimeline" style="height:200px"></canvas>
+    </div>
+    <div class="chart-box">
+      <div class="chart-header"><span class="chart-title">Burst Detection</span></div>
+      <div id="burstList"></div>
+    </div>
+  </div>
+
+  <!-- RULES -->
+  <div class="panel" id="panel-rules">
+    <div class="chart-box">
+      <div class="chart-header">
+        <span class="chart-title">Rule Detections</span>
+        <div style="margin-left:auto"><button class="copy-btn" onclick="copyTableRows('rules')" title="Copy visible rules">Copy Rows</button></div>
+      </div>
+      <div class="data-table-wrap" id="ruleTable"></div>
+    </div>
+  </div>
+
+  <!-- SEQUENCE -->
+  <div class="panel" id="panel-sequence">
+    <div class="chart-box">
+      <div class="chart-header"><span class="chart-title">Sequence Cluster Analysis</span></div>
+      <p style="color:var(--text-dim);font-size:13px;margin-bottom:12px">Define Event IDs to find temporal clusters. Measures inter-event timing: <span style="color:var(--critical)">scripted (&lt;500ms)</span>, <span style="color:var(--warn)">fast (500ms–5s)</span>, <span style="color:var(--success)">human (&gt;5s)</span></p>
+      <div class="seq-presets" id="seqPresets">
+        <span style="font-size:11px;color:var(--text-dim);margin-right:4px">Presets:</span>
+        <button class="seq-preset-btn" data-eids="4624,4672,4634,4647" data-win="60">Logon/Logoff cycle</button>
+        <button class="seq-preset-btn" data-eids="4624,4672,4648"      data-win="30">Explicit cred logon</button>
+        <button class="seq-preset-btn" data-eids="4688,4689"           data-win="10">Process create/exit</button>
+        <button class="seq-preset-btn" data-eids="4698,4699,4700,4701,4702" data-win="60">Sched task lifecycle</button>
+        <button class="seq-preset-btn" data-eids="7045,7036,4697"      data-win="30">Service install</button>
+        <button class="seq-preset-btn" data-eids="4720,4722,4732,4724" data-win="120">Account creation</button>
+      </div>
+      <div class="seq-input-row">
+        <input class="seq-eid-input" id="seqEidInput" placeholder="Event IDs (comma-separated, e.g. 4624,4672,4634,4647)">
+        <label style="font-size:11px;color:var(--text-dim)">Window (sec):</label>
+        <input class="seq-window-input" id="seqWindowInput" value="60" type="number" min="1" max="3600">
+        <button class="seq-run-btn" id="seqRunBtn">Analyze</button>
+      </div>
+      <div id="seqSummary"></div>
+      <div id="seqResults"></div>
+    </div>
+  </div>
+
+  <!-- FREQUENCY -->
+  <div class="panel" id="panel-frequency">
+    <div class="two-col">
+      <div class="chart-box">
+        <div class="chart-header"><span class="chart-title">Event ID Distribution</span></div>
+        <div class="data-table-wrap" id="freqEventTable"></div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-header"><span class="chart-title">Channel Distribution</span></div>
+        <div class="data-table-wrap" id="freqChannelTable"></div>
+      </div>
+    </div>
+    <div class="chart-box">
+      <div class="chart-header"><span class="chart-title">Computer Distribution</span></div>
+      <div class="data-table-wrap" id="freqComputerTable"></div>
+    </div>
+    <div class="chart-box">
+      <div class="chart-header">
+        <span class="chart-title">Time-of-Day Profile (UTC Hours)</span>
+        <div class="chart-controls">
+          <select class="filter-input" id="todComputer" style="min-width:180px"><option value="">All Computers</option></select>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:12px">Event frequency by UTC hour. <span style="color:var(--warn)">Amber</span> bars = Z-score &gt; 2 outside the host's peak window (potential off-hours activity).</p>
+      <canvas class="chart-canvas" id="canvasTOD" style="height:220px"></canvas>
+      <div id="todAfterHours" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <!-- ANOMALIES -->
+  <div class="panel" id="panel-anomalies">
+    <div class="card-grid" id="anomalyCards"></div>
+    <div id="anomalyList"></div>
+  </div>
+
+  <!-- RAW DATA — no max-height, page scrolls -->
+  <div class="panel" id="panel-raw">
+    <div class="chart-box">
+      <div class="chart-header">
+        <span class="chart-title">Filtered Detections</span>
+        <span class="chart-title" id="rawCount" style="font-weight:400;color:var(--text-dim)"></span>
+        <div style="display:flex;gap:6px;margin-left:auto;align-items:center">
+          <button class="copy-btn" id="copySelectedBtn" onclick="copySelectedRows()" style="display:none;border-color:var(--orange);color:var(--orange)">Copy Selected (0)</button>
+          <button class="copy-btn" onclick="copyTableRows('raw')" title="Copy visible rows">Copy Rows</button>
+          <button class="copy-btn" onclick="openColCfg()" title="Configure columns">Columns ⋯</button>
+        </div>
+      </div>
+      <div class="data-table-wrap" id="rawTableWrap"></div>
+    </div>
+  </div>
+
+  <!-- EID FOCUS -->
+  <div class="panel" id="panel-eidfocus">
+    <div class="eid-focus-header">
+      <span class="eid-focus-title" id="eidFocusTitle">EID —</span>
+      <button class="eid-focus-close" id="eidFocusClose">✕ Close</button>
+      <button class="seq-run-btn" id="eidFocusToSeq" style="font-size:11px;padding:4px 12px">→ Add to Sequence</button>
+    </div>
+    <div id="eidFocusContent"></div>
+  </div>
+
+  <!-- LATERAL MOVEMENT -->
+  <div class="panel" id="panel-lateral">
+    <div id="latSessionLegend" style="margin-bottom:16px"></div>
+    <div class="two-col" style="margin-bottom:16px">
+      <div class="chart-box">
+        <div class="chart-header">
+          <span class="chart-title">Account Movement Chains</span>
+          <div class="chart-controls">
+            <input class="filter-input" id="latAccountFilter" placeholder="Filter account..." style="min-width:150px">
+            <button class="chart-btn active" id="latRefreshBtn">Refresh</button>
+          </div>
+        </div>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;font-family:var(--mono)">Extracts accounts from event details. <span style="color:var(--warn)">⇒</span> = session boundary crossed.</p>
+        <div id="latChains"></div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-header"><span class="chart-title">Cross-Session Accounts</span></div>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;font-family:var(--mono)">Accounts observed in 2+ loaded sessions — high-value lateral movement indicators.</p>
+        <div id="latCrossSession"></div>
+      </div>
+    </div>
+    <div class="chart-box">
+      <div class="chart-header">
+        <span class="chart-title">Account × Session Matrix</span>
+        <span style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Top 30 accounts</span>
+      </div>
+      <div class="lat-matrix-wrap"><div id="latMatrix"></div></div>
+    </div>
+  </div>
+</div><!-- /.dashboard -->
+
+<div class="tooltip" id="tooltip"></div>
+<div class="copy-toast" id="copyToast"></div>
+<div class="nav-hint" id="navHint">
+  <kbd>↑</kbd><kbd>↓</kbd> prev/next event &nbsp;
+  <kbd>←</kbd><kbd>→</kbd> prev/next cluster &nbsp;
+  <kbd>Ctrl+C</kbd> copy event &nbsp;
+  <kbd>Esc</kbd> close
+</div>
+
+<!-- Column Config Modal -->
+<div class="col-cfg-overlay" id="colCfgOverlay">
+  <div class="col-cfg-modal">
+    <div class="col-cfg-title">Copy Column Configuration</div>
+    <div class="col-cfg-sub">Choose and order the columns included when copying events. Saved automatically.</div>
+    <div class="col-cfg-rows" id="colCfgRows"></div>
+    <div class="col-cfg-footer">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Delimiter:</span>
+        <div class="delim-toggle" id="delimToggle">
+          <button class="delim-btn active" data-delim="tab">TSV (Excel)</button>
+          <button class="delim-btn"        data-delim="comma">CSV</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="col-cfg-cancel" id="colCfgCancel">Cancel</button>
+        <button class="col-cfg-save"   id="colCfgSave">Save &amp; Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Module scripts — order matters -->
+<script src="es-core.js"></script>
+<script src="es-parsers.js"></script>
+<script src="es-filters.js"></script>
+<script src="es-charts.js"></script>
+<script src="es-views.js"></script>
+<script src="es-dedup.js"></script>
+<script src="es-export.js"></script>
+<script src="es-prefs.js"></script>
+
+<!-- Initialization -->
+<script>
+// ── FILE LOAD ──────────────────────────────────────────────────────────────────
+
+async function loadF(file) {
+  S.rows = [];
+  S.sessions = [];
+  S.sessionCurrent = 0;
+  S.eventIdCounts = {};
+  S.computerCounts = {};
+  S.channelCounts = {};
+  S.levelCounts = {critical:0, high:0, medium:0, low:0, informational:0};
+  S.ruleTitleCounts = {};
+  S.ruleIdMap = {};
+  S.sourceCounts = {};
+  S.timeMin = Infinity;
+  S.timeMax = -Infinity;
+  S.format = null;
+  S.filtered = null;
+  S.filters = {};
+  S.focusEid = null;
+
+  const c = await streamParse(file);
+  if (!c) { document.getElementById('progressText').textContent = 'No detections. Check CSV format.'; return; }
+
+  S.sessions.push({idx:0, label:file.name.replace(/\.[^.]+$/, ''), color:SESSION_COLORS[0], format:S.format, count:S.rows.length, timeMin:S.timeMin, timeMax:S.timeMax});
+  document.getElementById('dropzoneOverlay').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  renderSessionBar();
+  popF();
+  // Reset filter inputs
+  ['filterEventId','filterRuleTitle','filterComputer','filterChannel','filterSource','filterDetails','filterTimeStart','filterTimeEnd'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.tagName === 'SELECT') el.selectedIndex = 0; else el.value = '';
+  });
+  document.querySelectorAll('#levelFilter input[type="checkbox"]').forEach(c => c.checked = true);
+  S.filters = {};
+  invF();
+  switchTab('overview');
+}
+
+// ── DROP ZONE ──────────────────────────────────────────────────────────────────
+
+const dz = document.getElementById('dropzone');
+const fi = document.getElementById('fileInput');
+dz.addEventListener('click',     () => fi.click());
+dz.addEventListener('dragover',  e  => { e.preventDefault(); dz.classList.add('dragover'); });
+dz.addEventListener('dragleave', ()  => dz.classList.remove('dragover'));
+dz.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('dragover');
+  if (e.dataTransfer.files.length) loadF(e.dataTransfer.files[0]);
+});
+fi.addEventListener('change', () => { if (fi.files.length) loadF(fi.files[0]); });
+
+// ── SESSION FILE INPUT ─────────────────────────────────────────────────────────
+
+const sfi = document.getElementById('sessionFileInput');
+document.getElementById('sessionAddBtn').addEventListener('click', () => sfi.click());
+sfi.addEventListener('change', () => {
+  if (sfi.files.length) { loadAdditionalSession(sfi.files[0]); sfi.value = ''; }
+});
+
+// ── FILTER BAR INIT ────────────────────────────────────────────────────────────
+
+initFilterBar();
+
+// ── TAB CLICKS ─────────────────────────────────────────────────────────────────
+
+document.querySelectorAll('.tab').forEach(t =>
+  t.addEventListener('click', () => switchTab(t.dataset.tab))
+);
+
+// ── BUCKET BUTTONS ─────────────────────────────────────────────────────────────
+
+document.querySelectorAll('.chart-btn[data-bucket]').forEach(b => {
+  b.addEventListener('click', () => {
+    S.bucketPref[b.dataset.target] = b.dataset.bucket;
+    b.parentElement.querySelectorAll('.chart-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    const at = document.querySelector('.tab.active');
+    if (at) switchTab(at.dataset.tab);
+  });
+});
+
+// ── SEQUENCE PRESETS ───────────────────────────────────────────────────────────
+
+document.querySelectorAll('.seq-preset-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    document.getElementById('seqEidInput').value    = b.dataset.eids;
+    document.getElementById('seqWindowInput').value = b.dataset.win;
+    runSeq();
+  });
+});
+document.getElementById('seqRunBtn').addEventListener('click', runSeq);
+document.getElementById('seqEidInput').addEventListener('keydown', e => { if (e.key === 'Enter') runSeq(); });
+
+// ── EID FOCUS BUTTONS ──────────────────────────────────────────────────────────
+
+document.getElementById('eidFocusClose').addEventListener('click', () => {
+  document.getElementById('tabEidFocus').style.display = 'none';
+  S.focusEid = null;
+  switchTab('overview');
+});
+document.getElementById('eidFocusToSeq').addEventListener('click', () => {
+  if (!S.focusEid) return;
+  const inp = document.getElementById('seqEidInput');
+  const ex  = inp.value.split(',').map(s => s.trim()).filter(Boolean);
+  if (!ex.includes(S.focusEid)) ex.push(S.focusEid);
+  inp.value = ex.join(',');
+  switchTab('sequence');
+});
+
+// ── LATERAL BUTTONS ────────────────────────────────────────────────────────────
+
+document.getElementById('latAccountFilter').addEventListener('input', deb(() => {
+  if (document.querySelector('.tab.active')?.dataset.tab === 'lateral') renderLateral();
+}, 400));
+document.getElementById('latRefreshBtn').addEventListener('click', renderLateral);
+
+// ── HEATMAP BUTTONS ────────────────────────────────────────────────────────────
+
+document.getElementById('hmComputerFilter').addEventListener('change', () => {
+  if (document.querySelector('.tab.active')?.dataset.tab === 'heatmap') _renderHeatmap();
+});
+document.querySelectorAll('#hmWtCount,#hmWtSev').forEach(b => b.addEventListener('click', () => {
+  _hmWt = b.dataset.wt;
+  document.getElementById('hmWtCount').classList.toggle('active', _hmWt === 'count');
+  document.getElementById('hmWtSev').classList.toggle('active',   _hmWt === 'severity');
+  if (document.querySelector('.tab.active')?.dataset.tab === 'heatmap') _renderHeatmap();
+}));
+
+// ── ARRIVALS BUTTONS ───────────────────────────────────────────────────────────
+
+['arrivalsType','arrivalsSort'].forEach(id =>
+  document.getElementById(id).addEventListener('change', () => {
+    if (document.querySelector('.tab.active')?.dataset.tab === 'arrivals') rArrivals();
+  })
+);
+document.getElementById('arrivalsLateBtn').addEventListener('click', function() {
+  this.classList.toggle('active');
+  if (document.querySelector('.tab.active')?.dataset.tab === 'arrivals') rArrivals();
+});
+
+// ── GAP BUTTONS ────────────────────────────────────────────────────────────────
+
+document.getElementById('gapRunBtn').addEventListener('click', runGapAnalysis);
+document.getElementById('gapCompFilter').addEventListener('change', runGapAnalysis);
+['gapMinutes','gapSigma'].forEach(id =>
+  document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') runGapAnalysis(); })
+);
+
+// ── PERIODIC BUTTONS ───────────────────────────────────────────────────────────
+
+document.getElementById('periodicRunBtn').addEventListener('click', rPeriodic);
+['periodicMinEvents','periodicMaxCV'].forEach(id =>
+  document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') rPeriodic(); })
+);
+
+// ── TOD COMPUTER ───────────────────────────────────────────────────────────────
+
+document.getElementById('todComputer').addEventListener('change', renderTOD);
+
+// ── EXPORT / COPY INIT ─────────────────────────────────────────────────────────
+
+initExport();
+
+// ── KEYBOARD NAVIGATION ────────────────────────────────────────────────────────
+
+document.addEventListener('keydown', function(e) {
+  const hasExpansion = !!document.querySelector('.inline-expansion');
+  const tag = document.activeElement?.tagName;
+  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+  if (!hasExpansion) return;
+  if (e.key === 'ArrowUp')   { e.preventDefault(); navMove(-1);      return; }
+  if (e.key === 'ArrowDown') { e.preventDefault(); navMove(1);       return; }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); navCluster(-1);   return; }
+  if (e.key === 'ArrowRight'){ e.preventDefault(); navCluster(1);    return; }
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    const existing = document.querySelector('.inline-expansion');
+    if (existing) existing.remove();
+    document.querySelectorAll('.row-selected').forEach(el => el.classList.remove('row-selected'));
+    document.getElementById('navHint').classList.remove('visible');
+    return;
+  }
+  if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
+    const sel = window.getSelection();
+    if (sel && sel.toString().length > 0) return;
+    e.preventDefault();
+    copyDetailEvent();
+    return;
+  }
+});
+
+// ── EID DESCRIPTIONS ───────────────────────────────────────────────────────────
+
+fetch('es-data/win-security-eids.json').then(r => r.json()).then(d => { S.eidDescs = d; }).catch(() => {});
+
+// ── RESIZE HANDLER ─────────────────────────────────────────────────────────────
+
+let _resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(() => {
+    const at = document.querySelector('.tab.active');
+    if (at && S.rows.length) switchTab(at.dataset.tab);
+  }, 200);
+});
+</script>
+</body>
+</html>
