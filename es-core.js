@@ -213,6 +213,14 @@ function fDMs(d) {
   return d.toISOString().replace('T',' ').replace('Z',' UTC');
 }
 
+function fDTz(ms) {
+  const off = S.tz;
+  const d = new Date(ms + off * 60000);
+  const h = Math.abs(off / 60 | 0), sign = off >= 0 ? '+' : '-';
+  const tzStr = off === 0 ? 'UTC' : `UTC${sign}${h}`;
+  return d.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' ' + tzStr);
+}
+
 function fDelta(ms) {
   if (ms < 1000)   return ms.toFixed(0) + 'ms';
   if (ms < 60000)  return (ms/1000).toFixed(2) + 's';

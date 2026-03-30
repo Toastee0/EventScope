@@ -4,7 +4,7 @@
 // ── COPY COLUMN DEFINITIONS ────────────────────────────────────────────────────
 
 const COPY_COLS_DEF = [
-  {key:'ts',    label:'Timestamp',          on:true,  fmt:r => !isNaN(r.ts) ? fDMs(new Date(r.ts)) : ''},
+  {key:'ts',    label:'Timestamp',          on:true,  fmt:r => !isNaN(r.ts) ? fDTz(r.ts) : ''},
   {key:'lvl',   label:'Level',              on:true,  fmt:r => r.lvl},
   {key:'eid',   label:'Event ID',           on:true,  fmt:r => r.eid},
   {key:'rule',  label:'Rule / Description', on:true,  fmt:r => r.rule},

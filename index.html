@@ -64,6 +64,23 @@
   ::-webkit-scrollbar-thumb{background:var(--border-bright);border-radius:6px;border:3px solid var(--surface)}
   ::-webkit-scrollbar-thumb:hover{background:var(--accent)}
 
+  /* ── TZ BAR ──────────────────────────────────── */
+  .tz-bar{
+    background:var(--bg);
+    border-bottom:1px solid #1a2a3a;
+    padding:3px 12px;
+    display:flex;align-items:center;gap:8px;
+    font-size:11px;
+    font-family:var(--mono);
+    color:#8899aa;
+  }
+  .tz-bar select{
+    background:#0d1f2d;color:#ccd6e0;
+    border:1px solid #1e3448;border-radius:3px;
+    font-size:11px;padding:1px 4px;
+    font-family:var(--mono);
+  }
+
   /* ── HEADER ───────────────────────────────────── */
   .header{
     padding:20px 32px;
@@ -480,6 +497,37 @@
 </style>
 </head>
 <body>
+
+<div class="tz-bar">
+  <span>TZ:</span>
+  <select id="tzSelect">
+    <option value="-720">UTC-12</option>
+    <option value="-660">UTC-11</option>
+    <option value="-600">UTC-10</option>
+    <option value="-540">UTC-9</option>
+    <option value="-480">UTC-8</option>
+    <option value="-420">UTC-7</option>
+    <option value="-360">UTC-6</option>
+    <option value="-300">UTC-5</option>
+    <option value="-240">UTC-4</option>
+    <option value="-180">UTC-3</option>
+    <option value="-120">UTC-2</option>
+    <option value="-60">UTC-1</option>
+    <option value="0" selected>UTC+0</option>
+    <option value="60">UTC+1</option>
+    <option value="120">UTC+2</option>
+    <option value="180">UTC+3</option>
+    <option value="240">UTC+4</option>
+    <option value="300">UTC+5</option>
+    <option value="360">UTC+6</option>
+    <option value="420">UTC+7</option>
+    <option value="480">UTC+8</option>
+    <option value="540">UTC+9</option>
+    <option value="600">UTC+10</option>
+    <option value="660">UTC+11</option>
+    <option value="720">UTC+12</option>
+  </select>
+</div>
 
 <div class="header">
   <div class="header-left">
@@ -1036,6 +1084,14 @@ document.getElementById('periodicRunBtn').addEventListener('click', rPeriodic);
 // ── TOD COMPUTER ───────────────────────────────────────────────────────────────
 
 document.getElementById('todComputer').addEventListener('change', renderTOD);
+
+// ── TZ SELECT ──────────────────────────────────────────────────────────────────
+
+document.getElementById('tzSelect').addEventListener('change', function() {
+  S.tz = parseInt(this.value, 10);
+  const at = document.querySelector('.tab.active');
+  if (at && S.rows.length) switchTab(at.dataset.tab);
+});
 
 // ── EXPORT / COPY INIT ─────────────────────────────────────────────────────────
 
