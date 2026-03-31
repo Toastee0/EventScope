@@ -21,7 +21,7 @@ function buildDetailHTML(r) {
   return `<div class="detail-inline">
     <div>
       <div class="detail-section"><div class="detail-section-title">Event Metadata</div>
-        <div class="detail-field"><span class="detail-key">Timestamp</span>: <span class="detail-val">${!isNaN(r.ts)?fDMs(new Date(r.ts)):'N/A'}</span></div>
+        <div class="detail-field"><span class="detail-key">Timestamp</span>: <span class="detail-val">${!isNaN(r.ts)?fDTz(r.ts):'N/A'}</span></div>
         <div class="detail-field"><span class="detail-key">Event ID</span>: <span class="detail-val">${eL(r.eid)}</span></div>
         <div class="detail-field"><span class="detail-key">Level</span>: ${lB(r.lvl)}</div>
         <div class="detail-field"><span class="detail-key">Computer</span>: <span class="detail-val">${eH(r.comp)}</span></div>
@@ -214,7 +214,7 @@ function renderEF() {
   </div>
   <div class="chart-box"><div class="chart-header"><span class="chart-title">EID ${eid} Timeline</span></div><canvas class="chart-canvas" id="canvasEidFocus" style="height:250px"></canvas></div>
   <div class="chart-box"><div class="chart-header"><span class="chart-title">Associated Rules</span></div><div class="data-table-wrap" style="max-height:300px"><table class="data-table"><thead><tr><th>Rule Title</th><th>Count</th></tr></thead><tbody>${tR.map(([r,c])=>`<tr><td style="white-space:normal;max-width:400px">${eH(r)}</td><td>${c}</td></tr>`).join('')}</tbody></table></div></div>
-  <div class="chart-box"><div class="chart-header"><span class="chart-title">Recent Events (last 100)</span></div><div class="data-table-wrap" style="max-height:400px"><table class="data-table"><thead><tr><th>Timestamp</th><th>Level</th><th>Rule</th><th>Computer</th></tr></thead><tbody>${ar.slice(-100).reverse().map((r,i)=>`<tr style="cursor:pointer" data-nav-idx="${i}" onclick="openEFD(${i},'${eid}')"><td>${!isNaN(r.ts)?fDMs(new Date(r.ts)):'N/A'}</td><td>${lB(r.lvl)}</td><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis" title="${eH(r.rule)}">${eH(r.rule)}</td><td>${r.comp}</td></tr>`).join('')}</tbody></table></div></div>`;
+  <div class="chart-box"><div class="chart-header"><span class="chart-title">Recent Events (last 100)</span></div><div class="data-table-wrap" style="max-height:400px"><table class="data-table"><thead><tr><th>Timestamp</th><th>Level</th><th>Rule</th><th>Computer</th></tr></thead><tbody>${ar.slice(-100).reverse().map((r,i)=>`<tr style="cursor:pointer" data-nav-idx="${i}" onclick="openEFD(${i},'${eid}')"><td>${!isNaN(r.ts)?fDTz(r.ts):'N/A'}</td><td>${lB(r.lvl)}</td><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis" title="${eH(r.rule)}">${eH(r.rule)}</td><td>${r.comp}</td></tr>`).join('')}</tbody></table></div></div>`;
   if (vt.length) {
     const mn = tsMin(vt), mx = tsMax(vt);
     const bMs = aBMs(mn, mx), tl = bTL(vt, bMs);
@@ -292,7 +292,7 @@ function runSeq() {
           <button class="copy-btn" onclick="copyCluster(${ci})">Copy</button>
         </div>
       </div>
-      ${c.events.map((ev,i) => `<div class="seq-event-line" data-cluster="${ci}" data-evt="${i}" onclick="openSD(${ci},${i})"><span class="seq-delta">${i>0?'+'+fDelta(c.deltas[i-1]):'—'}</span><span class="seq-ts">${fDMs(new Date(ev.ts))}</span><span class="seq-eid-tag">EID ${ev.eid}</span><span class="seq-rule">${eH(ev.rule)}</span></div>`).join('')}
+      ${c.events.map((ev,i) => `<div class="seq-event-line" data-cluster="${ci}" data-evt="${i}" onclick="openSD(${ci},${i})"><span class="seq-delta">${i>0?'+'+fDelta(c.deltas[i-1]):'—'}</span><span class="seq-ts">${fDTz(ev.ts)}</span><span class="seq-eid-tag">EID ${ev.eid}</span><span class="seq-rule">${eH(ev.rule)}</span></div>`).join('')}
     </div>`
   ).join('');
   S._seqClusters = cd;
@@ -532,7 +532,7 @@ function rRW() {
           : '';
         return `<tr style="cursor:pointer" data-nav-idx="${i}" onclick="openDP(${i},'raw')">
           <td style="padding:6px 8px" onclick="event.stopPropagation()"><input type="checkbox" class="row-check" data-idx="${i}" style="accent-color:var(--orange);cursor:pointer" onchange="onRawCheck(${i},this,event)" onclick="event.stopPropagation()"></td>
-          <td>${!isNaN(r.ts)?fDMs(new Date(r.ts)):'N/A'}</td>
+          <td>${!isNaN(r.ts)?fDTz(r.ts):'N/A'}</td>
           <td>${lB(r.lvl)}</td>
           <td>${eL(r.eid)}</td>
           <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis" title="${eH(r.rule)}">${eH(r.rule)}</td>
@@ -576,7 +576,7 @@ function openPeriodicDetail(idx) {
   const desc = S.eidDescs[pr.eid] ? `<span style="color:var(--text-dim);font-size:11px"> — ${eH(S.eidDescs[pr.eid])}</span>` : '';
   const evtRows = evts.map(r =>
     `<div style="font-family:var(--mono);font-size:11px;padding:3px 0;border-bottom:1px solid var(--border);display:flex;gap:12px;cursor:pointer" onclick="jumpToRaw(${getFR().indexOf(r)})">
-      <span style="color:var(--stone);min-width:190px">${fDMs(new Date(r.ts))}</span>
+      <span style="color:var(--stone);min-width:190px">${fDTz(r.ts)}</span>
       <span>${lB(r.lvl)}</span>
       <span style="color:var(--text-dim);overflow:hidden;text-overflow:ellipsis">${eH(r.rule||r.comp)}</span>
     </div>`
@@ -1005,8 +1005,8 @@ function rArrivals() {
         <td style="font-family:var(--mono);font-size:12px;white-space:nowrap">${eL(k)}</td>
         <td style="font-size:11px;color:var(--text-dim);max-width:320px">${desc}</td>
         <td style="text-align:center">${lvlDot(e.maxLvlIdx)}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDMs(new Date(e.first))}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDMs(new Date(e.last))}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDTz(e.first)}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDTz(e.last)}</td>
         <td style="font-family:var(--mono);font-size:12px">${e.count.toLocaleString()}</td>
         <td style="font-family:var(--mono);font-size:12px;text-align:center">${e.comps.size}</td>
         <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${span>0?fDelta(span):'—'}</td>
@@ -1020,8 +1020,8 @@ function rArrivals() {
       return `<tr${isLate?' style="color:var(--warn)"':''}>
         <td style="font-family:var(--mono);font-size:11px;max-width:300px">${eH(k)}</td>
         <td style="text-align:center">${lvlDot(e.maxLvlIdx)}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDMs(new Date(e.first))}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDMs(new Date(e.last))}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDTz(e.first)}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDTz(e.last)}</td>
         <td style="font-family:var(--mono);font-size:12px">${e.count.toLocaleString()}</td>
         <td style="font-family:var(--mono);font-size:12px;text-align:center">${e.comps.size}</td>
         <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${span>0?fDelta(span):'—'}</td>
@@ -1034,8 +1034,8 @@ function rArrivals() {
       const isLate = e.first > dsMid, span = e.last-e.first;
       return `<tr${isLate?' style="color:var(--warn)"':''}>
         <td style="font-family:var(--mono);font-size:12px">${eH(k)}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDMs(new Date(e.first))}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDMs(new Date(e.last))}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDTz(e.first)}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDTz(e.last)}</td>
         <td style="font-family:var(--mono);font-size:12px">${e.count.toLocaleString()}</td>
         <td style="font-family:var(--mono);font-size:12px;text-align:center">${e.eids.size}</td>
         <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${span>0?fDelta(span):'—'}</td>
@@ -1048,8 +1048,8 @@ function rArrivals() {
       const isLate = e.first > dsMid, span = e.last-e.first;
       return `<tr${isLate?' style="color:var(--warn)"':''}>
         <td style="font-family:var(--mono);font-size:12px">${eH(k)}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDMs(new Date(e.first))}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDMs(new Date(e.last))}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDTz(e.first)}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDTz(e.last)}</td>
         <td style="font-family:var(--mono);font-size:12px">${e.count.toLocaleString()}</td>
         <td style="font-family:var(--mono);font-size:12px;text-align:center">${e.comps.size}</td>
         <td style="font-family:var(--mono);font-size:12px;text-align:center">${e.eids.size}</td>
