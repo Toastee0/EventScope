@@ -136,6 +136,9 @@
   }
   .tab:hover{color:var(--stone)}
   .tab.active{color:var(--orange);border-bottom-color:var(--orange)}
+  .tab.tab-disabled{color:#2a3a4a;cursor:not-allowed;pointer-events:none}
+  .tab.tab-disabled::after{content:' *';font-size:9px}
+  #tabEvtxLoad:hover{color:var(--white);background:rgba(220,85,31,0.12)}
 
   .panel{display:none;padding:24px 32px}.panel.active{display:block}
 
@@ -514,6 +517,7 @@
 
 <input type="file" id="fileInput" accept=".csv,.tsv,.txt" style="display:none">
 <input type="file" id="sessionFileInput" accept=".csv,.tsv,.txt" style="display:none">
+<input type="file" id="evtxLoadInput" accept=".csv,.tsv,.txt" style="display:none">
 
 <div class="dashboard" id="dashboard">
   <!-- FILTER BAR with collapse toggle and level checkboxes -->
@@ -559,6 +563,7 @@
     <div class="tab" data-tab="raw">Raw Data</div>
     <div class="tab" data-tab="lateral">Lateral Movement</div>
     <div class="tab" data-tab="eidfocus" id="tabEidFocus" style="display:none">EID Focus</div>
+    <div class="tab" id="tabEvtxLoad" style="display:none;margin-left:auto;color:var(--orange);border-bottom-color:transparent" title="Load EvtxECmd CSV to enable raw-event tabs">+ Load EVTX-All</div>
   </div>
 
   <!-- OVERVIEW -->
@@ -626,6 +631,7 @@
         </div>
       </div>
       <p style="font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:12px">A gap exceeds the threshold when both the <em>absolute minimum</em> (min gap) AND the per-host statistical baseline (mean + σ) are exceeded.</p>
+      <div id="gapFormatWarn" style="display:none;padding:8px 12px;margin-bottom:12px;background:#1a1000;border-left:3px solid var(--warn);font-family:var(--mono);font-size:12px;color:var(--warn)"></div>
       <div id="gapCards" class="card-grid" style="margin-bottom:16px"></div>
       <div id="gapChartWrap" style="margin-bottom:16px;overflow-x:auto"></div>
       <div id="gapTopList"></div>
@@ -891,6 +897,7 @@ async function loadF(file) {
   S.timeMin = Infinity;
   S.timeMax = -Infinity;
   S.format = null;
+  S.hayabusaFileName = null;
   S.filtered = null;
   S.filters = {};
   S.focusEid = null;
@@ -898,10 +905,12 @@ async function loadF(file) {
   const c = await streamParse(file);
   if (!c) { document.getElementById('progressText').textContent = 'No detections. Check CSV format.'; return; }
 
+  if (S.format === 'hayabusa') S.hayabusaFileName = file.name;
   S.sessions.push({idx:0, label:file.name.replace(/\.[^.]+$/, ''), color:SESSION_COLORS[0], format:S.format, count:S.rows.length, timeMin:S.timeMin, timeMax:S.timeMax});
   document.getElementById('dropzoneOverlay').style.display = 'none';
   document.getElementById('dashboard').style.display = 'block';
   renderSessionBar();
+  applyFormatTabRestrictions();
   popF();
   // Reset filter inputs
   ['filterEventId','filterRuleTitle','filterComputer','filterChannel','filterSource','filterDetails','filterTimeStart','filterTimeEnd'].forEach(id => {
@@ -935,6 +944,25 @@ const sfi = document.getElementById('sessionFileInput');
 document.getElementById('sessionAddBtn').addEventListener('click', () => sfi.click());
 sfi.addEventListener('change', () => {
   if (sfi.files.length) { loadAdditionalSession(sfi.files[0]); sfi.value = ''; }
+});
+
+// ── EVTX-ALL LOAD TAB ──────────────────────────────────────────────────────────
+
+const evtxLoadInput = document.getElementById('evtxLoadInput');
+document.getElementById('tabEvtxLoad').addEventListener('click', () => {
+  const hint = S.hayabusaFileName
+    ? 'Looking for EvtxECmd CSV alongside: ' + S.hayabusaFileName
+    : 'Select the EvtxECmd CSV (e.g. _EVTX_hostname-all.csv)';
+  // Can't set path — just show a tooltip-style alert and open picker
+  // Use title attribute as context when the browser shows the dialog title
+  evtxLoadInput.title = hint;
+  evtxLoadInput.click();
+});
+evtxLoadInput.addEventListener('change', async () => {
+  if (!evtxLoadInput.files.length) return;
+  await loadAdditionalSession(evtxLoadInput.files[0]);
+  applyFormatTabRestrictions();
+  evtxLoadInput.value = '';
 });
 
 // ── FILTER BAR INIT ────────────────────────────────────────────────────────────

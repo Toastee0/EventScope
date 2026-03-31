@@ -204,8 +204,8 @@ function renderEF() {
   ar.forEach(r => { lc[r.lvl]++; rules[r.rule]=(rules[r.rule]||0)+1; comps[r.comp]=(comps[r.comp]||0)+1; });
   const tR = Object.entries(rules).sort((a,b) => b[1]-a[1]).slice(0,10);
   const vt = ar.filter(r => !isNaN(r.ts));
-  const tMin = vt.length ? new Date(Math.min(...vt.map(r => r.ts))) : null;
-  const tMax = vt.length ? new Date(Math.max(...vt.map(r => r.ts))) : null;
+  const tMin = vt.length ? new Date(tsMin(vt)) : null;
+  const tMax = vt.length ? new Date(tsMax(vt)) : null;
   el.innerHTML = `<div class="card-grid">
     <div class="card"><div class="card-label">Total Hits</div><div class="card-value">${ar.length.toLocaleString()}</div></div>
     <div class="card"><div class="card-label">Severity</div><div class="card-sub" style="margin-top:6px"><span class="sev-pip sev-critical"></span>${lc.critical} crit <span class="sev-pip sev-high"></span>${lc.high} high <span class="sev-pip sev-medium"></span>${lc.medium} med <span class="sev-pip sev-low"></span>${lc.low} low</div></div>
@@ -216,7 +216,7 @@ function renderEF() {
   <div class="chart-box"><div class="chart-header"><span class="chart-title">Associated Rules</span></div><div class="data-table-wrap" style="max-height:300px"><table class="data-table"><thead><tr><th>Rule Title</th><th>Count</th></tr></thead><tbody>${tR.map(([r,c])=>`<tr><td style="white-space:normal;max-width:400px">${eH(r)}</td><td>${c}</td></tr>`).join('')}</tbody></table></div></div>
   <div class="chart-box"><div class="chart-header"><span class="chart-title">Recent Events (last 100)</span></div><div class="data-table-wrap" style="max-height:400px"><table class="data-table"><thead><tr><th>Timestamp</th><th>Level</th><th>Rule</th><th>Computer</th></tr></thead><tbody>${ar.slice(-100).reverse().map((r,i)=>`<tr style="cursor:pointer" data-nav-idx="${i}" onclick="openEFD(${i},'${eid}')"><td>${!isNaN(r.ts)?fDMs(new Date(r.ts)):'N/A'}</td><td>${lB(r.lvl)}</td><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis" title="${eH(r.rule)}">${eH(r.rule)}</td><td>${r.comp}</td></tr>`).join('')}</tbody></table></div></div>`;
   if (vt.length) {
-    const mn = Math.min(...vt.map(r => r.ts)), mx = Math.max(...vt.map(r => r.ts));
+    const mn = tsMin(vt), mx = tsMax(vt);
     const bMs = aBMs(mn, mx), tl = bTL(vt, bMs);
     setTimeout(() => {
       drawBC(document.getElementById('canvasEidFocus'), tl.labels, tl.values);
@@ -267,7 +267,7 @@ function runSeq() {
     let beh = 'human';
     if (avg < 500) beh = 'scripted';
     else if (avg < 5000) beh = 'fast';
-    return {events:ev, deltas:dl, totalSpan:span, avgDelta:avg, maxDelta:Math.max(...dl,0), minDelta:Math.min(...dl,Infinity), uniqueEids:ue, behavior:beh};
+    return {events:ev, deltas:dl, totalSpan:span, avgDelta:avg, maxDelta:dl.length?arrMax(dl):0, minDelta:dl.length?arrMin(dl):Infinity, uniqueEids:ue, behavior:beh};
   });
 
   const sc = cd.filter(c => c.behavior==='scripted').length;
@@ -316,8 +316,8 @@ function rOV() {
   const uR = new Set(rows.map(r => r.rule)).size;
   const uC = new Set(rows.map(r => r.comp)).size;
   const vt = rows.filter(r => !isNaN(r.ts));
-  const tMin = vt.length ? new Date(Math.min(...vt.map(r=>r.ts))) : null;
-  const tMax = vt.length ? new Date(Math.max(...vt.map(r=>r.ts))) : null;
+  const tMin = vt.length ? new Date(tsMin(vt)) : null;
+  const tMax = vt.length ? new Date(tsMax(vt)) : null;
   const lc = {critical:0,high:0,medium:0,low:0,informational:0};
   rows.forEach(r => lc[r.lvl]++);
 
@@ -358,8 +358,8 @@ function rOV() {
 
 function rTL() {
   const rows = getFR().filter(r => !isNaN(r.ts));
-  const tMin = rows.length ? Math.min(...rows.map(r=>r.ts)) : S.timeMin;
-  const tMax = rows.length ? Math.max(...rows.map(r=>r.ts)) : S.timeMax;
+  const tMin = rows.length ? tsMin(rows) : S.timeMin;
+  const tMax = rows.length ? tsMax(rows) : S.timeMax;
   const bMs = gBMs(S.bucketPref['timelineFiltered'], tMin, tMax);
   const tl = bTL(rows, bMs);
   drawBC(document.getElementById('canvasTimelineFiltered'), tl.labels, tl.values);
@@ -447,7 +447,7 @@ function rAN() {
     an.push({severity:o.type==='high'?'warn':'info', title:(o.type==='high'?'Frequent':'Rare')+' EID '+o.key, detail:'Count: '+o.count+' | Z: '+o.zscore.toFixed(2)});
   const tr = rows.filter(r => !isNaN(r.ts));
   if (tr.length > 1) {
-    const mn = Math.min(...tr.map(r=>r.ts)), mx = Math.max(...tr.map(r=>r.ts));
+    const mn = tsMin(tr), mx = tsMax(tr);
     for (const b of dBursts(tr, aBMs(mn,mx)).slice(0,10))
       an.push({severity:b.zscore>6?'critical':'warn', title:'Burst: '+b.count+' det ('+b.zscore.toFixed(1)+'σ)', detail:fDF(b.start)+' → '+fDF(b.end)});
   }
@@ -685,6 +685,28 @@ function rPeriodic() {
 
 let _gapResults = [];
 
+// Windows power/logging lifecycle EIDs
+// Shutdown side — these bracket the START of an expected gap
+const GAP_SHUTDOWN_EIDS = new Set(['6006','4609','13','42','1074','6008','41']);
+// Startup/wake side — these bracket the END of an expected gap
+const GAP_STARTUP_EIDS  = new Set(['6005','4608','12','107','6009','4']);
+// Unexpected power loss (dirty shutdown) — gap start without clean shutdown
+const GAP_DIRTY_EIDS    = new Set(['6008','41','1076']);
+
+// Classify a gap by the EIDs on either side:
+//   'power'    — clean shutdown before + startup after  (expected cycle)
+//   'dirty'    — dirty/unexpected shutdown indicator present
+//   'wake'     — sleep/resume cycle (42 before, 107 after)
+//   'unexplained' — no power bracketing — most suspicious
+function classifyGap(beforeEid, afterEid) {
+  const b = String(beforeEid||''), a = String(afterEid||'');
+  if (b === '42' && a === '107') return 'wake';
+  if (GAP_DIRTY_EIDS.has(b) || GAP_DIRTY_EIDS.has(a)) return 'dirty';
+  if (GAP_SHUTDOWN_EIDS.has(b) && GAP_STARTUP_EIDS.has(a)) return 'power';
+  if (GAP_STARTUP_EIDS.has(a)) return 'power';   // missing shutdown but clean startup
+  return 'unexplained';
+}
+
 function popGapCompFilter() {
   const sel = document.getElementById('gapCompFilter');
   if (!sel) return;
@@ -716,7 +738,8 @@ function runGapAnalysis() {
       const gap = ts[i]-ts[i-1];
       if (gap >= minMs && gap >= statTh) {
         const before = sorted[i-1], after = sorted[i];
-        gaps.push({comp, start:ts[i-1], end:ts[i], duration:gap, zscore:st.std>0?(gap-st.mean)/st.std:0, baseline:st.mean, baselineStr:fDelta(st.mean), beforeRule:before.rule, beforeEid:before.eid, afterRule:after.rule, afterEid:after.eid});
+        const kind = classifyGap(before.eid, after.eid);
+        gaps.push({comp, start:ts[i-1], end:ts[i], duration:gap, zscore:st.std>0?(gap-st.mean)/st.std:0, baseline:st.mean, baselineStr:fDelta(st.mean), beforeRule:before.rule, beforeEid:before.eid, afterRule:after.rule, afterEid:after.eid, kind});
       }
     }
   }
@@ -726,15 +749,19 @@ function runGapAnalysis() {
 }
 
 function renderGapResults(gaps) {
+  const KIND_LABEL = {unexplained:'UNEXPLAINED', dirty:'DIRTY-SHUTDOWN', power:'POWER-OFF', wake:'SLEEP/WAKE'};
+  const KIND_COL   = {unexplained:'var(--crit)', dirty:'var(--warn)', power:'var(--text-dim)', wake:'var(--text-dim)'};
   const longest = gaps[0];
   const hostCounts = {};
   gaps.forEach(g => hostCounts[g.comp] = (hostCounts[g.comp]||0)+1);
   const topHost = Object.entries(hostCounts).sort((a,b) => b[1]-a[1])[0];
+  const unexplained = gaps.filter(g => g.kind === 'unexplained');
+  const longestUnexp = unexplained[0] || longest;
   document.getElementById('gapCards').innerHTML = `
-    <div class="card" style="border-left:3px solid var(--warn)"><div class="card-label">Gaps Found</div><div class="card-value" style="color:var(--warn)">${gaps.length.toLocaleString()}</div></div>
+    <div class="card" style="border-left:3px solid var(--crit)"><div class="card-label">Unexplained Gaps</div><div class="card-value" style="color:var(--crit)">${unexplained.length.toLocaleString()}</div><div class="card-sub">No power/sleep event bracketing</div></div>
+    <div class="card" style="border-left:3px solid var(--warn)"><div class="card-label">Power Cycles</div><div class="card-value" style="color:var(--text-dim)">${gaps.filter(g=>g.kind==='power'||g.kind==='wake'||g.kind==='dirty').length.toLocaleString()}</div><div class="card-sub">Shutdown/sleep/wake bracketed</div></div>
     <div class="card"><div class="card-label">Hosts Analyzed</div><div class="card-value">${new Set(gaps.map(g=>g.comp)).size}</div></div>
-    <div class="card" style="border-left:3px solid var(--orange)"><div class="card-label">Longest Gap</div><div class="card-value" style="font-size:16px">${longest?fDelta(longest.duration):'N/A'}</div><div class="card-sub">${longest?longest.comp:''}</div></div>
-    <div class="card"><div class="card-label">Most Gaps</div><div class="card-value" style="font-size:16px">${topHost?topHost[1]:'N/A'}</div><div class="card-sub">${topHost?topHost[0]:''}</div></div>`;
+    <div class="card" style="border-left:3px solid var(--orange)"><div class="card-label">Longest Unexplained</div><div class="card-value" style="font-size:16px">${longestUnexp?fDelta(longestUnexp.duration):'N/A'}</div><div class="card-sub">${longestUnexp?longestUnexp.comp:''}</div></div>`;
 
   const wrap = document.getElementById('gapChartWrap');
   const topList = document.getElementById('gapTopList');
@@ -747,8 +774,8 @@ function renderGapResults(gaps) {
   // Build canvas gap chart
   const hosts = [...new Set(gaps.map(g => g.comp))].sort();
   const allRows = getFR().filter(r => !isNaN(r.ts));
-  const tMin = allRows.length ? Math.min(...allRows.map(r=>r.ts)) : gaps[0].start;
-  const tMax = allRows.length ? Math.max(...allRows.map(r=>r.ts)) : gaps[gaps.length-1].end;
+  const tMin = allRows.length ? tsMin(allRows) : gaps[0].start;
+  const tMax = allRows.length ? tsMax(allRows) : gaps[gaps.length-1].end;
   const tSpan = tMax - tMin || 1;
 
   const PAD_L = 160, PAD_R = 24, PAD_T = 32, PAD_B = 28;
@@ -757,7 +784,17 @@ function renderGapResults(gaps) {
   const dpr = window.devicePixelRatio || 1;
   const cw = Math.max(800, (wrap.clientWidth || window.innerWidth - 80));
 
-  wrap.innerHTML = `<canvas id="gapCanvas" style="display:block"></canvas>`;
+  wrap.innerHTML =
+    `<div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-bottom:6px">` +
+    `Each row = one computer's logging activity. Dark holes = machine stopped producing events. ` +
+    `<strong style="color:var(--text)">Unexplained gaps (no shutdown/sleep EID) are the finding.</strong>` +
+    `&nbsp;&nbsp;&nbsp;` +
+    `<span style="display:inline-block;width:10px;height:10px;border:1px solid #2a4a66;background:#050e17;vertical-align:middle;border-radius:2px"></span> power-off&nbsp;` +
+    `<span style="display:inline-block;width:10px;height:10px;border:1px solid #1e5a44;background:#050e17;vertical-align:middle;border-radius:2px"></span> sleep/wake&nbsp;` +
+    `<span style="display:inline-block;width:10px;height:10px;border:1px solid #f0a830;background:#050e17;vertical-align:middle;border-radius:2px"></span> dirty shutdown&nbsp;` +
+    `<span style="display:inline-block;width:10px;height:10px;border:2px solid #DC551F;background:#050e17;vertical-align:middle;border-radius:2px"></span> <strong style="color:var(--text)">unexplained</strong>` +
+    `</div>` +
+    `<canvas id="gapCanvas" style="display:block"></canvas>`;
   const cvs = document.getElementById('gapCanvas');
   cvs.width  = cw * dpr;
   cvs.height = totalH * dpr;
@@ -795,26 +832,41 @@ function renderGapResults(gaps) {
     const lbl = comp.length > 22 ? comp.substring(0, 20) + '…' : comp;
     ctx.fillText(lbl, PAD_L - 8, cy + 4);
 
-    // Baseline track
-    ctx.strokeStyle = '#1a3a55';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(PAD_L, cy);
-    ctx.lineTo(cw - PAD_R, cy);
-    ctx.stroke();
+    // Activity bar — solid track showing "machine was logging"
+    const BAR_T = y + 9, BAR_H = ROW_H - 18;
+    ctx.fillStyle = '#1e3a52';
+    ctx.fillRect(PAD_L, BAR_T, chartW, BAR_H);
 
-    // Gap blocks
+    // Silence blocks — punch them out as dark voids, overlay border by kind
     for (const g of gaps.filter(g => g.comp === comp)) {
-      const x1  = tX(g.start);
-      const x2  = tX(g.end);
-      const bW  = Math.max(3, x2 - x1);
-      const col = g.zscore > 6 ? '#ff3a3a' : g.zscore > 3 ? '#DC551F' : '#f0a830';
-      ctx.fillStyle = col;
-      ctx.globalAlpha = 0.75;
-      ctx.fillRect(x1, y + 5, bW, ROW_H - 10);
+      const x1 = tX(g.start);
+      const x2 = tX(g.end);
+      const bW = Math.max(3, x2 - x1);
+      // Color by kind first, then σ for unexplained
+      let col, alpha;
+      if (g.kind === 'power') {
+        col = '#2a4a66'; alpha = 0.6;   // dim blue — expected
+      } else if (g.kind === 'wake') {
+        col = '#1e5a44'; alpha = 0.6;   // dim green — sleep/resume
+      } else if (g.kind === 'dirty') {
+        col = '#f0a830'; alpha = 0.85;  // amber — unexpected shutdown
+      } else {
+        // unexplained — σ-graded, most prominent
+        col = g.zscore > 10 ? '#ff3a3a' : g.zscore > 6 ? '#DC551F' : '#f0a830';
+        alpha = 1;
+      }
+      // Dark void
+      ctx.fillStyle = '#050e17';
+      ctx.fillRect(x1, BAR_T, bW, BAR_H);
+      // Colored border
+      ctx.strokeStyle = col;
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = g.kind === 'unexplained' ? 2 : 1;
+      ctx.strokeRect(x1 + 0.75, BAR_T + 0.75, bW - 1.5, BAR_H - 1.5);
       ctx.globalAlpha = 1;
-      if (bW > 36) {
-        ctx.fillStyle = '#fff';
+      // Duration label — only for unexplained and dirty, if wide enough
+      if (bW > 40 && (g.kind === 'unexplained' || g.kind === 'dirty')) {
+        ctx.fillStyle = col;
         ctx.font = 'bold 10px JetBrains Mono,monospace';
         ctx.textAlign = 'center';
         ctx.fillText(fDelta(g.duration), x1 + bW / 2, cy + 4);
@@ -844,27 +896,50 @@ function renderGapResults(gaps) {
     if (!hit) { hT(); return; }
     sT(e.clientX, e.clientY,
       `<strong style="color:var(--orange)">${eH(hit.comp)}</strong><br>` +
-      `Duration: <strong>${fDelta(hit.duration)}</strong> (${hit.zscore.toFixed(1)}σ)<br>` +
-      `${fDMs(new Date(hit.start))}<br>→ ${fDMs(new Date(hit.end))}<br>` +
-      `Before: EID ${hit.beforeEid} ${eH(hit.beforeRule.substring(0,50))}<br>` +
-      `After: EID ${hit.afterEid} ${eH(hit.afterRule.substring(0,50))}`);
+      `<span style="color:${KIND_COL[hit.kind]||'var(--text-dim)'}">&#9632; ${KIND_LABEL[hit.kind]||hit.kind}</span><br>` +
+      `Duration: <strong>${fDelta(hit.duration)}</strong> (${hit.zscore.toFixed(1)}&sigma;)<br>` +
+      `${fDMs(new Date(hit.start))}<br>-&gt; ${fDMs(new Date(hit.end))}<br>` +
+      `Before: EID ${hit.beforeEid} ${eH((hit.beforeRule||'').substring(0,50))}<br>` +
+      `After:  EID ${hit.afterEid} ${eH((hit.afterRule||'').substring(0,50))}`);
   };
   cvs.onmouseleave = hT;
 
-  // Top-10 list below chart
-  topList.innerHTML = `<div style="margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--text-dim)">Top gaps by duration:</div>` +
-    gaps.slice(0,10).map(g =>
+  // Top list — unexplained first, then others, capped at 20
+  const sortedList = [
+    ...gaps.filter(g => g.kind === 'unexplained'),
+    ...gaps.filter(g => g.kind === 'dirty'),
+    ...gaps.filter(g => g.kind !== 'unexplained' && g.kind !== 'dirty'),
+  ].slice(0, 20);
+  topList.innerHTML =
+    `<div style="margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--text-dim)">` +
+    `Gaps — unexplained first (no power/sleep EID on either side):` +
+    `</div>` +
+    sortedList.map(g =>
       `<div style="display:flex;gap:12px;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px">
-        <span style="color:${g.zscore>6?'var(--critical)':g.zscore>3?'var(--orange)':'var(--warn)'};min-width:60px;font-weight:700">${fDelta(g.duration)}</span>
-        <span style="color:var(--text-dim);min-width:70px">${g.zscore.toFixed(1)}σ</span>
-        <span style="color:var(--white);min-width:160px">${eH(g.comp)}</span>
+        <span style="color:${KIND_COL[g.kind]||'var(--text-dim)'};min-width:110px;font-weight:700">${KIND_LABEL[g.kind]||g.kind}</span>
+        <span style="color:${g.zscore>6?'var(--crit)':g.zscore>3?'var(--orange)':'var(--warn)'};min-width:60px">${fDelta(g.duration)}</span>
+        <span style="color:var(--text-dim);min-width:55px">${g.zscore.toFixed(1)}&sigma;</span>
+        <span style="color:var(--text);min-width:160px">${eH(g.comp)}</span>
         <span style="color:var(--text-dim)">${fDMs(new Date(g.start))}</span>
-        <span style="color:var(--text-dim)">→ ${fDMs(new Date(g.end))}</span>
+        <span style="color:var(--text-dim)">-&gt; ${fDMs(new Date(g.end))}</span>
+        <span style="color:var(--text-dim);font-size:10px">before:${g.beforeEid} after:${g.afterEid}</span>
       </div>`
     ).join('');
 }
 
-function rGaps() { popGapCompFilter(); runGapAnalysis(); }
+function rGaps() {
+  const warn = document.getElementById('gapFormatWarn');
+  if (S.format === 'hayabusa') {
+    warn.style.display = '';
+    warn.innerHTML = 'WARNING: Hayabusa data loaded. Gap view is designed for EvtxECmd (raw events). ' +
+      'Hayabusa only records rule hits — gaps between detections are not logging silences. ' +
+      'Load an EvtxECmd CSV alongside this file for meaningful gap analysis.';
+  } else {
+    warn.style.display = 'none';
+  }
+  popGapCompFilter();
+  runGapAnalysis();
+}
 
 // ── ARRIVALS ───────────────────────────────────────────────────────────────────
 
@@ -874,11 +949,11 @@ function rArrivals() {
     document.getElementById('arrivalsTable').innerHTML = '<div style="padding:20px;color:var(--text-dim);font-family:var(--mono)">No data.</div>';
     return;
   }
-  const allTs = rows.map(r => r.ts);
-  const dsMin = Math.min(...allTs), dsMax = Math.max(...allTs), dsMid = (dsMin+dsMax)/2;
+  const dsMin = tsMin(rows), dsMax = tsMax(rows), dsMid = (dsMin+dsMax)/2;
   const type     = document.getElementById('arrivalsType')?.value   || 'eid';
   const sort     = document.getElementById('arrivalsSort')?.value   || 'first';
   const lateOnly = document.getElementById('arrivalsLateBtn')?.classList.contains('active');
+  const LVL_ORDER = ['critical','high','medium','low','informational'];
   const map = new Map();
   for (const r of rows) {
     let keys = [];
@@ -888,11 +963,15 @@ function rArrivals() {
     else if (type === 'account')  keys = [...extractAccounts(r)];
     for (const k of keys) {
       if (!k) continue;
-      const e = map.get(k) || {first:Infinity, last:-Infinity, count:0};
+      if (!map.has(k)) map.set(k, {first:Infinity, last:-Infinity, count:0, comps:new Set(), eids:new Set(), maxLvlIdx:4});
+      const e = map.get(k);
       if (r.ts < e.first) e.first = r.ts;
       if (r.ts > e.last)  e.last  = r.ts;
       e.count++;
-      map.set(k, e);
+      if (r.comp) e.comps.add(r.comp);
+      if (r.eid)  e.eids.add(r.eid);
+      const li = LVL_ORDER.indexOf((r.lvl||'').toLowerCase());
+      if (li >= 0 && li < e.maxLvlIdx) e.maxLvlIdx = li;
     }
   }
   let entries = [...map.entries()].filter(([k]) => k);
@@ -911,22 +990,76 @@ function rArrivals() {
     const isLate = ts > dsMid;
     return `<div style="width:80px;height:6px;border-radius:3px;background:var(--surface3);display:inline-block;vertical-align:middle;position:relative"><div style="position:absolute;left:0;top:0;height:100%;width:${pct}%;border-radius:3px;background:${isLate?'var(--warn)':'var(--orange)'}"></div></div>`;
   }
-  const rows2 = entries.slice(0,500);
-  const rows_html = rows2.map(([k,e]) => {
-    const isLate = e.first > dsMid, span = e.last-e.first;
-    const desc = (type === 'eid' && S.eidDescs[k]) ? `<br><span style="color:var(--text-dim);font-size:10px;font-weight:400">${eH(S.eidDescs[k])}</span>` : '';
-    const kDisp = type === 'eid' ? `${eL(k)}${desc}` : eH(k);
-    return `<tr${isLate?' style="color:var(--warn)"':''}>
-      <td style="font-family:var(--mono);font-size:12px;max-width:300px;overflow:hidden">${kDisp}</td>
-      <td style="font-family:var(--mono);font-size:11px">${fDMs(new Date(e.first))}</td>
-      <td style="font-family:var(--mono);font-size:11px">${fDMs(new Date(e.last))}</td>
-      <td style="font-family:var(--mono);font-size:12px">${e.count.toLocaleString()}</td>
-      <td style="font-family:var(--mono);font-size:11px">${span>0?fDelta(span):'—'}</td>
-      <td>${posBar(e.first)}</td>
-    </tr>`;
-  }).join('');
+  function lvlDot(lvlIdx) {
+    const lvl = LVL_ORDER[lvlIdx] || 'informational';
+    return `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${lC(lvl)};vertical-align:middle" title="${lvl}"></span>`;
+  }
+  const rows2 = entries.slice(0, 500);
+  let thead, rows_html;
+  if (type === 'eid') {
+    thead = `<tr><th>Event ID</th><th>Description</th><th>Lvl</th><th>First Seen</th><th>Last Seen</th><th>Count</th><th>Computers</th><th>Span</th><th>Position</th></tr>`;
+    rows_html = rows2.map(([k,e]) => {
+      const isLate = e.first > dsMid, span = e.last-e.first;
+      const desc = S.eidDescs[k] ? eH(S.eidDescs[k]) : '<span style="color:var(--text-dim)">—</span>';
+      return `<tr${isLate?' style="color:var(--warn)"':''}>
+        <td style="font-family:var(--mono);font-size:12px;white-space:nowrap">${eL(k)}</td>
+        <td style="font-size:11px;color:var(--text-dim);max-width:320px">${desc}</td>
+        <td style="text-align:center">${lvlDot(e.maxLvlIdx)}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDMs(new Date(e.first))}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDMs(new Date(e.last))}</td>
+        <td style="font-family:var(--mono);font-size:12px">${e.count.toLocaleString()}</td>
+        <td style="font-family:var(--mono);font-size:12px;text-align:center">${e.comps.size}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${span>0?fDelta(span):'—'}</td>
+        <td>${posBar(e.first)}</td>
+      </tr>`;
+    }).join('');
+  } else if (type === 'rule') {
+    thead = `<tr><th>Rule</th><th>Lvl</th><th>First Seen</th><th>Last Seen</th><th>Count</th><th>Computers</th><th>Span</th><th>Position</th></tr>`;
+    rows_html = rows2.map(([k,e]) => {
+      const isLate = e.first > dsMid, span = e.last-e.first;
+      return `<tr${isLate?' style="color:var(--warn)"':''}>
+        <td style="font-family:var(--mono);font-size:11px;max-width:300px">${eH(k)}</td>
+        <td style="text-align:center">${lvlDot(e.maxLvlIdx)}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDMs(new Date(e.first))}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDMs(new Date(e.last))}</td>
+        <td style="font-family:var(--mono);font-size:12px">${e.count.toLocaleString()}</td>
+        <td style="font-family:var(--mono);font-size:12px;text-align:center">${e.comps.size}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${span>0?fDelta(span):'—'}</td>
+        <td>${posBar(e.first)}</td>
+      </tr>`;
+    }).join('');
+  } else if (type === 'computer') {
+    thead = `<tr><th>Computer</th><th>First Seen</th><th>Last Seen</th><th>Count</th><th>Unique EIDs</th><th>Span</th><th>Position</th></tr>`;
+    rows_html = rows2.map(([k,e]) => {
+      const isLate = e.first > dsMid, span = e.last-e.first;
+      return `<tr${isLate?' style="color:var(--warn)"':''}>
+        <td style="font-family:var(--mono);font-size:12px">${eH(k)}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDMs(new Date(e.first))}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDMs(new Date(e.last))}</td>
+        <td style="font-family:var(--mono);font-size:12px">${e.count.toLocaleString()}</td>
+        <td style="font-family:var(--mono);font-size:12px;text-align:center">${e.eids.size}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${span>0?fDelta(span):'—'}</td>
+        <td>${posBar(e.first)}</td>
+      </tr>`;
+    }).join('');
+  } else {
+    thead = `<tr><th>Account</th><th>First Seen</th><th>Last Seen</th><th>Count</th><th>Computers</th><th>Unique EIDs</th><th>Span</th><th>Position</th></tr>`;
+    rows_html = rows2.map(([k,e]) => {
+      const isLate = e.first > dsMid, span = e.last-e.first;
+      return `<tr${isLate?' style="color:var(--warn)"':''}>
+        <td style="font-family:var(--mono);font-size:12px">${eH(k)}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDMs(new Date(e.first))}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDMs(new Date(e.last))}</td>
+        <td style="font-family:var(--mono);font-size:12px">${e.count.toLocaleString()}</td>
+        <td style="font-family:var(--mono);font-size:12px;text-align:center">${e.comps.size}</td>
+        <td style="font-family:var(--mono);font-size:12px;text-align:center">${e.eids.size}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${span>0?fDelta(span):'—'}</td>
+        <td>${posBar(e.first)}</td>
+      </tr>`;
+    }).join('');
+  }
   document.getElementById('arrivalsTable').innerHTML =
-    `<table class="data-table"><thead><tr><th>${type==='eid'?'Event ID':type==='rule'?'Rule':type==='computer'?'Computer':'Account'}</th><th>First Seen</th><th>Last Seen</th><th>Count</th><th>Span</th><th>Position in Dataset</th></tr></thead><tbody>${rows_html}</tbody></table>`;
+    `<table class="data-table"><thead>${thead}</thead><tbody>${rows_html}</tbody></table>`;
 }
 
 // ── MULTI-SESSION & LATERAL ────────────────────────────────────────────────────
@@ -1090,7 +1223,33 @@ function renderLateral() {
 
 // ── TAB SWITCHER ───────────────────────────────────────────────────────────────
 
+// Tabs that require raw EvtxECmd data (all events, not just rule hits)
+const EVTXECMD_ONLY_TABS = new Set(['gaps']);
+
+function applyFormatTabRestrictions() {
+  const hayabusa = S.format === 'hayabusa';
+  // Has the user already loaded an EvtxECmd session alongside Hayabusa?
+  const hasEvtx = S.sessions.some(s => s.format === 'evtxecmd');
+  const restricted = hayabusa && !hasEvtx;
+  document.querySelectorAll('.tab').forEach(t => {
+    const tab = t.dataset.tab;
+    if (EVTXECMD_ONLY_TABS.has(tab)) {
+      t.classList.toggle('tab-disabled', restricted);
+      t.title = restricted
+        ? 'Requires EvtxECmd CSV — click "+ Load EVTX-All" in the tab bar'
+        : '';
+    }
+  });
+  // Show the evtx load tab only in Hayabusa mode and only until evtx is loaded
+  const evtxTab = document.getElementById('tabEvtxLoad');
+  if (evtxTab) evtxTab.style.display = restricted ? '' : 'none';
+  // If active tab just got disabled, redirect to overview
+  const activeTab = document.querySelector('.tab.active')?.dataset.tab;
+  if (restricted && EVTXECMD_ONLY_TABS.has(activeTab)) switchTab('overview');
+}
+
 function switchTab(t) {
+  if (EVTXECMD_ONLY_TABS.has(t) && S.format === 'hayabusa') return;
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x.dataset.tab===t));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id==='panel-'+t));
   // Close any open inline expansion when switching tabs

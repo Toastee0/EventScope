@@ -16,3 +16,6 @@ output/
 
 # Claude internal
 .claude/
+
+# Collection & triage tools — not for public repo
+tools/
