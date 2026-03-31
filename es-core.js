@@ -103,6 +103,12 @@ function normLvl(l) {
   return 'informational';
 }
 
+// Safe min/max over large arrays — Math.min/max(...arr) blows the call stack past ~125k items
+function arrMin(arr) { let m = Infinity;  for (let i = 0; i < arr.length; i++) if (arr[i] < m) m = arr[i]; return m; }
+function arrMax(arr) { let m = -Infinity; for (let i = 0; i < arr.length; i++) if (arr[i] > m) m = arr[i]; return m; }
+function tsMin(rows) { let m = Infinity;  for (let i = 0; i < rows.length; i++) if (rows[i].ts < m) m = rows[i].ts; return m; }
+function tsMax(rows) { let m = -Infinity; for (let i = 0; i < rows.length; i++) if (rows[i].ts > m) m = rows[i].ts; return m; }
+
 // ── STATISTICAL UTILITIES ──────────────────────────────────────────────────────
 
 function cStats(v) {
@@ -222,9 +228,11 @@ function fDTz(ms) {
 }
 
 function fDelta(ms) {
-  if (ms < 1000)   return ms.toFixed(0) + 'ms';
-  if (ms < 60000)  return (ms/1000).toFixed(2) + 's';
-  return (ms/60000).toFixed(1) + 'm';
+  if (ms < 1000)      return ms.toFixed(0) + 'ms';
+  if (ms < 60000)     return (ms/1000).toFixed(1) + 's';
+  if (ms < 3600000)   return (ms/60000).toFixed(1) + 'm';
+  if (ms < 86400000)  return (ms/3600000).toFixed(1) + 'h';
+  return (ms/86400000).toFixed(1) + 'd';
 }
 
 // ── HTML / DISPLAY UTILITIES ───────────────────────────────────────────────────
