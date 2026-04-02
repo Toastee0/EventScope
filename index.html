@@ -609,6 +609,7 @@
     <div class="tab" data-tab="frequency">Frequency</div>
     <div class="tab" data-tab="anomalies">Anomalies</div>
     <div class="tab" data-tab="raw">Raw Data</div>
+    <div class="tab" data-tab="logons">Logons</div>
     <div class="tab" data-tab="lateral">Lateral Movement</div>
     <div class="tab" data-tab="eidfocus" id="tabEidFocus" style="display:none">EID Focus</div>
     <div class="tab" id="tabEvtxLoad" style="display:none;margin-left:auto;color:var(--orange);border-bottom-color:transparent" title="Load EvtxECmd CSV to enable raw-event tabs">+ Load EVTX-All</div>
@@ -844,6 +845,35 @@
         </div>
       </div>
       <div class="data-table-wrap" id="rawTableWrap"></div>
+    </div>
+  </div>
+
+  <!-- LOGONS VIEW (4624 / 4625) -->
+  <div class="panel" id="panel-logons">
+    <div class="chart-box">
+      <div class="chart-header">
+        <span class="chart-title">Logon Events — 4624 / 4625</span>
+        <span class="chart-title" id="logonsCount" style="font-weight:400;color:var(--text-dim)"></span>
+        <div style="display:flex;gap:6px;margin-left:auto;align-items:center">
+          <button class="copy-btn" onclick="copyLogonCsv()" title="Copy as CSV to clipboard">Copy CSV</button>
+          <button class="copy-btn" onclick="downloadLogonCsv()" title="Download as CSV file">↓ CSV</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 0 12px;align-items:center">
+        <select class="filter-input" id="logonsResult" onchange="rLogons()" style="min-width:160px">
+          <option value="">All Results</option>
+          <option value="4624">Success (4624)</option>
+          <option value="4625">Failure (4625)</option>
+        </select>
+        <input class="filter-input" id="logonsUser" placeholder="Target user…" oninput="rLogons()" style="min-width:160px" autocomplete="off">
+        <input class="filter-input" id="logonsIP" placeholder="Source IP…" oninput="rLogons()" style="min-width:160px" autocomplete="off">
+        <input class="filter-input" id="logonsComp" placeholder="Computer…" oninput="rLogons()" style="min-width:140px" autocomplete="off">
+        <select class="filter-input" id="logonsLogonType" onchange="rLogons()" style="min-width:160px">
+          <option value="">All Logon Types</option>
+        </select>
+        <button class="filter-reset" onclick="clearLogonsFilters()">Reset</button>
+      </div>
+      <div class="data-table-wrap" id="logonsTableWrap"></div>
     </div>
   </div>
 

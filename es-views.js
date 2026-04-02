@@ -7,43 +7,80 @@ let _lastExpandedIdx = null;
 let _lastExpandedCtx = null;
 let _detailRowIndex  = null;
 
+// Parse EvtxECmd Payload JSON into a flat key:value object
+function parseEvtxPayload(extra) {
+  if (!extra || extra === '-') return null;
+  try {
+    const obj = JSON.parse(extra);
+    const ed = obj?.EventData?.Data;
+    if (!ed) return null;
+    const fields = {};
+    if (Array.isArray(ed)) {
+      for (const item of ed) {
+        if (item && item['@Name']) fields[item['@Name']] = String(item['#text'] ?? '');
+      }
+    } else if (ed && typeof ed === 'object' && ed['@Name']) {
+      fields[ed['@Name']] = String(ed['#text'] ?? '');
+    }
+    return Object.keys(fields).length ? fields : null;
+  } catch(e) { return null; }
+}
+
 function buildDetailHTML(r) {
   const isEvtx = S.format === 'evtxecmd';
   const p = parseDet(r.det);
-  const pl = Object.entries(p).map(([k,v]) =>
-    `<span class="detail-key">${eH(k)}</span>: <span class="detail-val">${eH(v)}</span>`
-  ).join('\n');
+
+  const mkField = (k, v) =>
+    `<div class="detail-field"><span class="detail-key">${eH(k)}</span><span class="detail-val">${eH(v)}</span></div>`;
+
+  const pl = Object.entries(p).map(([k,v]) => mkField(k,v)).join('')
+    || '<span style="color:var(--text-dim);font-size:11px">No parsed details</span>';
+
   const srcField = isEvtx && r.src
-    ? `<div class="detail-field"><span class="detail-key">Source File</span>: <span class="detail-val" style="word-break:break-all;white-space:normal">${eH(r.src)}</span></div>`
+    ? mkField('Source File', r.src)
     : '';
-  const ruleSection = `<div class="detail-section"><div class="detail-section-title">${isEvtx?'Event Description':'Rule'}</div><div class="detail-field"><span class="detail-key">${isEvtx?'Description':'Rule Title'}</span>: <span class="detail-val">${eH(r.rule)}</span></div><div class="detail-field"><span class="detail-key">${isEvtx?'Provider':'Rule ID'}</span>: <span class="detail-val">${eH(r.rid)}</span></div></div>`;
-  const extraTitle = isEvtx ? 'Raw Payload (JSON)' : 'Extra Field Info';
+
+  const ruleSection = `<div class="detail-section">
+      <div class="detail-section-title">${isEvtx?'Event Description':'Rule'}</div>
+      ${mkField(isEvtx?'Description':'Rule Title', r.rule)}
+      ${mkField(isEvtx?'Provider':'Rule ID', r.rid)}
+    </div>`;
+
+  // For EvtxECmd try to parse full EventData JSON; show extra fields not already in det
+  let extraSection = '';
+  if (isEvtx && r.extra && r.extra !== '-') {
+    const evtxFields = parseEvtxPayload(r.extra);
+    if (evtxFields) {
+      const extraPl = Object.entries(evtxFields).map(([k,v]) => mkField(k,v)).join('');
+      extraSection = `<div class="detail-section"><div class="detail-section-title">EventData (full)</div>${extraPl}</div>`;
+    } else {
+      extraSection = `<div class="detail-section"><div class="detail-section-title">Raw Payload</div><div class="detail-payload-block" style="max-height:200px">${eH(r.extra)}</div></div>`;
+    }
+  } else if (!isEvtx && r.extra && r.extra !== '-') {
+    extraSection = `<div class="detail-section"><div class="detail-section-title">Extra Field Info</div><div class="detail-payload-block" style="max-height:200px">${eH(r.extra)}</div></div>`;
+  }
+
   return `<div class="detail-inline">
     <div>
       <div class="detail-section"><div class="detail-section-title">Event Metadata</div>
-        <div class="detail-field"><span class="detail-key">Timestamp</span>: <span class="detail-val">${!isNaN(r.ts)?fDTz(r.ts):'N/A'}</span></div>
-        <div class="detail-field"><span class="detail-key">Event ID</span>: <span class="detail-val">${eL(r.eid)}</span></div>
-        <div class="detail-field"><span class="detail-key">Level</span>: ${lB(r.lvl)}</div>
-        <div class="detail-field"><span class="detail-key">Computer</span>: <span class="detail-val">${eH(r.comp)}</span></div>
-        <div class="detail-field"><span class="detail-key">Channel</span>: <span class="detail-val">${eH(r.chan)}</span></div>
-        <div class="detail-field"><span class="detail-key">Record ID</span>: <span class="detail-val">${eH(r.rec)}</span></div>
+        ${mkField('Timestamp', !isNaN(r.ts)?fDTz(r.ts):'N/A')}
+        <div class="detail-field"><span class="detail-key">Event ID</span>${eL(r.eid)}</div>
+        <div class="detail-field"><span class="detail-key">Level</span>${lB(r.lvl)}</div>
+        ${mkField('Computer', r.comp)}
+        ${mkField('Channel',  r.chan)}
+        ${mkField('Record ID',r.rec)}
         ${srcField}
       </div>
       ${ruleSection}
     </div>
     <div>
       <div class="detail-section"><div class="detail-section-title">Payload (Details)</div>
-        <div class="detail-payload-block">${pl||'<span style="color:var(--text-dim)">No parsed details</span>'}</div>
+        ${pl}
       </div>
-      ${r.extra && r.extra !== '-' ? `<div class="detail-section"><div class="detail-section-title">${extraTitle}</div><div class="detail-payload-block">${eH(r.extra)}</div></div>` : ''}
+      ${extraSection}
     </div>
-    <div class="detail-inline-full">
-      <div class="detail-section"><div class="detail-section-title">Raw Details String</div>
-        <div class="detail-payload-block" style="font-size:10px;color:var(--text-dim)">${eH(r.det)}</div>
-      </div>
-      <div style="margin-top:8px;display:flex;gap:8px">
-        <button class="copy-btn" onclick="copyDetailEvent()">Copy Event</button>
-      </div>
+    <div class="detail-inline-full" style="margin-top:4px;display:flex;gap:8px">
+      <button class="copy-btn" onclick="copyDetailEvent()">Copy Event</button>
     </div>
   </div>`;
 }
@@ -51,8 +88,9 @@ function buildDetailHTML(r) {
 function openDP(i, navCtx) {
   _detailRowIndex = i;
 
-  // Find target row BEFORE any DOM changes — needed to anchor position
-  const tr = document.querySelector(`tr[data-nav-idx="${i}"]`);
+  // Find target row BEFORE any DOM changes — prefer active panel to avoid collisions
+  const tr = document.querySelector('.panel.active tr[data-nav-idx="'+i+'"]')
+          || document.querySelector('tr[data-nav-idx="'+i+'"]');
   const anchorTop = tr ? tr.getBoundingClientRect().top : null;
 
   // Close existing expansion, restoring the previously-selected row's position
@@ -1268,7 +1306,152 @@ function switchTab(t) {
     case 'frequency': rFR();          break;
     case 'anomalies': rAN();          break;
     case 'raw':       rRW();          break;
+    case 'logons':    rLogons();      break;
     case 'eidfocus':  renderEF();     break;
     case 'lateral':   renderLateral();break;
   }
+}
+
+// ── LOGONS VIEW (4624 / 4625) ──────────────────────────────────────────────────
+
+let _logonsSortCol = 'ts';
+let _logonsSortDir = 1;
+
+function rLogons() {
+  const LOGON_EIDS = new Set(['4624', '4625']);
+  const allFiltered = getFR();
+
+  // Read local filter controls
+  const resultF = (document.getElementById('logonsResult')?.value     || '').trim();
+  const userF   = (document.getElementById('logonsUser')?.value       || '').trim().toLowerCase();
+  const ipF     = (document.getElementById('logonsIP')?.value         || '').trim().toLowerCase();
+  const compF   = (document.getElementById('logonsComp')?.value       || '').trim().toLowerCase();
+  const ltF     = (document.getElementById('logonsLogonType')?.value  || '').trim();
+
+  const ltSet = new Set();
+  const rows  = [];
+
+  for (let fi = 0; fi < allFiltered.length; fi++) {
+    const r = allFiltered[fi];
+    if (!LOGON_EIDS.has(String(r.eid))) continue;
+    const p = parseDet(r.det);
+    const lt = p['LogonType'] || '';
+    if (lt) ltSet.add(lt);
+    if (resultF && String(r.eid) !== resultF) continue;
+    const usr = (p['TargetUserName'] || p['UserName'] || '').toLowerCase();
+    if (userF && !usr.includes(userF)
+              && !(p['SubjectUserName']||'').toLowerCase().includes(userF)) continue;
+    const ip = (p['IpAddress'] || p['RemoteHost'] || '').toLowerCase();
+    if (ipF   && !ip.includes(ipF)) continue;
+    if (compF && !(r.comp||'').toLowerCase().includes(compF)) continue;
+    if (ltF   && lt !== ltF) continue;
+    rows.push({r, fi, p});
+  }
+
+  // Repopulate logon type dropdown (preserve selection)
+  const ltSel = document.getElementById('logonsLogonType');
+  if (ltSel) {
+    const curLt = ltSel.value;
+    const sorted = [...ltSet].sort();
+    ltSel.innerHTML = '<option value="">All Logon Types</option>'
+      + sorted.map(lt => `<option value="${eH(lt)}"${lt===curLt?' selected':''}>${eH(lt)}</option>`).join('');
+  }
+
+  // Sort
+  rows.sort((a, b) => {
+    let av, bv;
+    switch (_logonsSortCol) {
+      case 'ts':     av = a.r.ts;  bv = b.r.ts;  break;
+      case 'eid':    av = String(a.r.eid); bv = String(b.r.eid); break;
+      case 'user':   av = (a.p['TargetUserName']||a.p['UserName']||'').toLowerCase();
+                     bv = (b.p['TargetUserName']||b.p['UserName']||'').toLowerCase(); break;
+      case 'domain': av = (a.p['TargetDomainName']||'').toLowerCase();
+                     bv = (b.p['TargetDomainName']||'').toLowerCase(); break;
+      case 'lt':     av = a.p['LogonType']||''; bv = b.p['LogonType']||''; break;
+      case 'ip':     av = a.p['IpAddress']||a.p['RemoteHost']||'';
+                     bv = b.p['IpAddress']||b.p['RemoteHost']||''; break;
+      case 'ws':     av = (a.p['WorkstationName']||'').toLowerCase();
+                     bv = (b.p['WorkstationName']||'').toLowerCase(); break;
+      case 'comp':   av = (a.r.comp||'').toLowerCase(); bv = (b.r.comp||'').toLowerCase(); break;
+      case 'auth':   av = (a.p['AuthenticationPackageName']||'').toLowerCase();
+                     bv = (b.p['AuthenticationPackageName']||'').toLowerCase(); break;
+      default:       av = a.r.ts;  bv = b.r.ts;
+    }
+    if (av < bv) return -_logonsSortDir;
+    if (av > bv) return  _logonsSortDir;
+    return 0;
+  });
+
+  // Summary
+  const nSuccess = rows.filter(x => String(x.r.eid) === '4624').length;
+  const nFail    = rows.length - nSuccess;
+  document.getElementById('logonsCount').textContent =
+    `${rows.length.toLocaleString()} events — `
+    + `${nSuccess.toLocaleString()} success · ${nFail.toLocaleString()} failure`;
+
+  // Sort header helper
+  const sh = (col, label) => {
+    const active = _logonsSortCol === col;
+    const arrow  = active ? (_logonsSortDir === 1 ? ' ▲' : ' ▼') : '';
+    return `<th style="cursor:pointer;user-select:none${active?';color:var(--orange)':''}" `
+         + `onclick="setLogonsSort('${col}')">${label}${arrow}</th>`;
+  };
+
+  const hdr = [
+    sh('ts',     'Timestamp'),
+    sh('eid',    'Result'),
+    sh('user',   'Target User'),
+    sh('domain', 'Domain'),
+    sh('lt',     'Logon Type'),
+    sh('ip',     'Source IP'),
+    sh('ws',     'Source WS'),
+    sh('comp',   'Dest Computer'),
+    sh('auth',   'Auth Package'),
+    '<th>Rec</th>',
+  ].join('');
+
+  const tbody = rows.map(({r, fi, p}) => {
+    const ip      = p['IpAddress'] || p['RemoteHost'] || '';
+    const usr     = p['TargetUserName'] || p['UserName'] || '';
+    const dom     = p['TargetDomainName'] || '';
+    const lt      = p['LogonType'] || '';
+    const ws      = p['WorkstationName'] || '';
+    const auth    = p['AuthenticationPackageName'] || '';
+    const success = String(r.eid) === '4624';
+    const badge   = success
+      ? `<span style="color:var(--success);font-weight:600">✓ 4624</span>`
+      : `<span style="color:var(--high);font-weight:600">✗ 4625</span>`;
+    const ipColor = ip && ip !== '-' ? 'var(--orange)' : 'var(--text-dim)';
+    return `<tr style="cursor:pointer" data-nav-idx="${fi}" onclick="openDP(${fi},'logons')">
+      <td>${!isNaN(r.ts)?fDTz(r.ts):'N/A'}</td>
+      <td>${badge}</td>
+      <td style="font-weight:600;color:var(--white)">${eH(usr)}</td>
+      <td>${eH(dom)}</td>
+      <td>${eH(lt)}</td>
+      <td style="color:${ipColor}">${eH(ip)}</td>
+      <td>${eH(ws)}</td>
+      <td>${eH(r.comp)}</td>
+      <td style="color:var(--text-dim)">${eH(auth)}</td>
+      <td style="color:var(--text-dim)">${eH(r.rec)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('logonsTableWrap').innerHTML = rows.length
+    ? `<table class="data-table"><thead><tr>${hdr}</tr></thead><tbody>${tbody}</tbody></table>`
+    : `<div style="padding:40px;text-align:center;color:var(--text-dim);font-family:var(--mono)">No 4624/4625 events match current filters</div>`;
+}
+
+function setLogonsSort(col) {
+  _logonsSortCol === col ? (_logonsSortDir *= -1) : (_logonsSortCol = col, _logonsSortDir = 1);
+  rLogons();
+}
+
+function clearLogonsFilters() {
+  ['logonsResult','logonsLogonType'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.selectedIndex = 0;
+  });
+  ['logonsUser','logonsIP','logonsComp'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  rLogons();
 }
