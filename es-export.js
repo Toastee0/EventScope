@@ -92,6 +92,71 @@ function copyCluster(ci) {
   copyRows(c.events);
 }
 
+// ── LOGON EXPORT (EID 4624 / 4625) ────────────────────────────────────────────
+
+const LOGON_COLS = [
+  'Timestamp', 'EID', 'Result', 'Level', 'Dest Computer',
+  'Target User', 'Target Domain', 'Logon Type',
+  'Source Workstation', 'Source IP', 'Source Port',
+  'Logon Process', 'Auth Package',
+  'Subject User', 'Subject Domain', 'Logon ID',
+  'Failure Reason', 'Status', 'SubStatus',
+  'Rule / Description',
+];
+
+function buildLogonCsv() {
+  const rows = getFR().filter(r => r.eid == 4624 || r.eid == 4625);
+  if (!rows.length) { showToast('No 4624/4625 events in current filter'); return null; }
+  const lines = [LOGON_COLS.map(c => '"' + c + '"').join(',')];
+  for (const r of rows) {
+    const p = parseDet(r.det);
+    const cells = [
+      !isNaN(r.ts) ? fDTz(r.ts) : '',
+      r.eid,
+      r.eid == 4624 ? 'Success' : 'Failure',
+      r.lvl,
+      r.comp,
+      p['TargetUserName']             || p['UserName']   || '',
+      p['TargetDomainName']           || '',
+      p['LogonType']                  || '',
+      p['WorkstationName']            || '',
+      p['IpAddress']                  || p['RemoteHost'] || '',
+      p['IpPort']                     || '',
+      p['LogonProcessName']           || '',
+      p['AuthenticationPackageName']  || '',
+      p['SubjectUserName']            || '',
+      p['SubjectDomainName']          || '',
+      p['TargetLogonId']              || '',
+      p['FailureReason']              || '',
+      p['Status']                     || '',
+      p['SubStatus']                  || '',
+      r.rule                          || '',
+    ];
+    lines.push(cells.map(v => esc_csv(String(v ?? ''), ',')).join(','));
+  }
+  return { csv: lines.join('\r\n'), count: rows.length };
+}
+
+function copyLogonCsv() {
+  const result = buildLogonCsv();
+  if (!result) return;
+  navigator.clipboard.writeText(result.csv)
+    .then(() => showToast(`Copied ${result.count} logon event${result.count !== 1 ? 's' : ''}`))
+    .catch(() => showToast('Clipboard write failed'));
+}
+
+function downloadLogonCsv() {
+  const result = buildLogonCsv();
+  if (!result) return;
+  const blob = new Blob([result.csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'logon-events-4624-4625.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast(`Downloaded ${result.count} logon event${result.count !== 1 ? 's' : ''}`);
+}
+
 // ── COLUMN CONFIG MODAL ────────────────────────────────────────────────────────
 
 function openColCfg() {
