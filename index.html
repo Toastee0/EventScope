@@ -286,8 +286,9 @@
   .anomaly-item.warn    {border-left-color:var(--warn)}
   .anomaly-item.info    {border-left-color:var(--low)}
   .anomaly-item.critical{border-left-color:var(--critical)}
-  .anomaly-title {font-size:13px;font-weight:600;color:var(--white);margin-bottom:4px}
+  .anomaly-title {font-size:13px;font-weight:600;color:var(--white);margin-bottom:4px;display:flex;align-items:center;gap:8px}
   .anomaly-detail{font-family:var(--mono);font-size:12px;color:var(--text-dim);line-height:1.6}
+  .spike-ctx     {font-family:var(--mono);border-top:1px solid var(--border);margin-top:8px;padding-top:4px}
 
   .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   @media(max-width:900px){.two-col{grid-template-columns:1fr}.filter-bar{padding:12px 16px}.panel{padding:16px}.tabs{padding:12px 16px 0}.header{padding:16px}}
@@ -745,6 +746,7 @@
           <button class="chart-btn"        data-bucket="minute" data-target="timelineFiltered">1m</button>
           <button class="chart-btn"        data-bucket="hour"   data-target="timelineFiltered">1h</button>
           <button class="chart-btn"        data-bucket="day"    data-target="timelineFiltered">1d</button>
+          <button class="chart-btn" id="btnTLLogScale" onclick="toggleTLLogScale()" title="Log scale — preserves baseline visibility when spike dwarfs normal activity">Log</button>
         </div>
       </div>
       <canvas class="chart-canvas" id="canvasTimelineFiltered" style="height:300px"></canvas>

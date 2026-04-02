@@ -6,6 +6,7 @@
 let _lastExpandedIdx = null;
 let _lastExpandedCtx = null;
 let _detailRowIndex  = null;
+let _tlLogScale      = false;
 
 // Parse EvtxECmd Payload JSON into a flat key:value object
 function parseEvtxPayload(extra) {
@@ -394,26 +395,135 @@ function rOV() {
   drawHBC(document.getElementById('canvasChannels'), cs.map(s=>s[0]), cs.map(s=>s[1]));
 }
 
+function toggleTLLogScale() {
+  _tlLogScale = !_tlLogScale;
+  const btn = document.getElementById('btnTLLogScale');
+  if (btn) btn.classList.toggle('active', _tlLogScale);
+  rTL();
+}
+
 function rTL() {
   const rows = getFR().filter(r => !isNaN(r.ts));
   const tMin = rows.length ? tsMin(rows) : S.timeMin;
   const tMax = rows.length ? tsMax(rows) : S.timeMax;
   const bMs = gBMs(S.bucketPref['timelineFiltered'], tMin, tMax);
   const tl = bTL(rows, bMs);
-  drawBC(document.getElementById('canvasTimelineFiltered'), tl.labels, tl.values);
-  aCT(document.getElementById('canvasTimelineFiltered'));
+
+  // auto-enable log scale when spike dwarfs baseline (ratio > 20×)
+  const tlSt = cStats(tl.values);
+  const spikeRatio = tlSt.mean > 0 ? Math.max(...tl.values, 0) / tlSt.mean : 1;
+  if (spikeRatio > 20 && !_tlLogScale) {
+    _tlLogScale = true;
+    const btn = document.getElementById('btnTLLogScale');
+    if (btn) btn.classList.add('active');
+  }
+
+  // dynamic canvas height — taller chart for dramatic spikes, capped at 600px
+  const canvasTL = document.getElementById('canvasTimelineFiltered');
+  const dynH = Math.min(600, Math.max(300, Math.round(300 * Math.min(spikeRatio / 15, 2))));
+  canvasTL.style.height = dynH + 'px';
+
+  drawBC(canvasTL, tl.labels, tl.values, {logScale: _tlLogScale, baseline: tlSt.mean});
+  aCT(canvasTL);
   const sv = bTLSev(rows, bMs);
   drawSBC(document.getElementById('canvasSevTimeline'), sv.labels, sv.series);
   const bu = dBursts(rows, bMs);
   document.getElementById('burstList').innerHTML = bu.length
     ? bu.map(b => {
         const startMs = b.start.getTime(), endMs = b.end.getTime();
-        return `<div class="anomaly-item ${b.zscore>6?'':'warn'}" style="cursor:pointer" title="Click to jump to first event in this burst" onclick="jumpToBurst(${startMs},${endMs})">
-          <div class="anomaly-title"><span class="badge ${b.zscore>6?'badge-danger':'badge-warn'}">${b.zscore.toFixed(1)}σ</span> ${b.count.toLocaleString()} det <span style="font-size:10px;color:var(--text-dim);font-weight:400;margin-left:8px">▶ jump to raw</span></div>
-          <div class="anomaly-detail">${fDF(b.start)} → ${fDF(b.end)}<br>Baseline: ${b.baseline.toFixed(1)}/window</div>
+        const sev = b.zscore > 6 ? 'badge-danger' : 'badge-warn';
+        const cls = b.zscore > 6 ? '' : 'warn';
+        return `<div class="anomaly-item ${cls}">
+          <div class="anomaly-title">
+            <span class="badge ${sev}">${b.zscore.toFixed(1)}σ</span>
+            ${b.count.toLocaleString()} events &nbsp;
+            <span style="font-size:10px;color:var(--text-dim)">${fDF(b.start)} → ${fDF(b.end)} &nbsp; baseline ${b.baseline.toFixed(1)}/window</span>
+            <span style="margin-left:auto;display:flex;gap:6px">
+              <button class="chart-btn" style="font-size:10px;padding:2px 7px" onclick="toggleSpikeCtx(${startMs},${endMs},this)">▼ context</button>
+              <button class="chart-btn" style="font-size:10px;padding:2px 7px" onclick="jumpToBurst(${startMs},${endMs})">▶ raw</button>
+            </span>
+          </div>
+          <div class="spike-ctx" style="display:none"></div>
         </div>`;
       }).join('')
     : '<div class="anomaly-item info"><div class="anomaly-title">No bursts detected</div></div>';
+}
+
+function buildSpikePattern(rows, startMs, endMs) {
+  const win = rows.filter(r => r.ts >= startMs && r.ts <= endMs).sort((a,b) => a.ts - b.ts);
+  if (!win.length) return null;
+  const ruleCounts = {};
+  win.forEach(r => { const k = r.rule || 'Unknown'; ruleCounts[k] = (ruleCounts[k]||0)+1; });
+  const sortedRules = Object.entries(ruleCounts).sort((a,b) => b[1]-a[1]);
+  const t0 = win[0].ts;
+  const seq = win.slice(0, 40).map(r => {
+    const dt = r.ts - t0;
+    let rel;
+    if (dt < 1000)        rel = 'T+0';
+    else if (dt < 60000)  rel = `T+${Math.round(dt/1000)}s`;
+    else                  rel = `T+${Math.floor(dt/60000)}m${String(Math.round((dt%60000)/1000)).padStart(2,'0')}s`;
+    return {rel, eid: r.eid, rule: r.rule||'Unknown', lvl: r.lvl};
+  });
+  return {total: win.length, rules: sortedRules, seq, t0, startMs, endMs};
+}
+
+function toggleSpikeCtx(startMs, endMs, btn) {
+  const ctxDiv = btn.closest('.anomaly-item').querySelector('.spike-ctx');
+  if (ctxDiv.style.display !== 'none') { ctxDiv.style.display = 'none'; btn.textContent = '▼ context'; return; }
+  btn.textContent = '▲ context';
+  const rows = getFR().filter(r => !isNaN(r.ts));
+  const pat = buildSpikePattern(rows, startMs, endMs);
+  if (!pat) { ctxDiv.innerHTML = '<em style="color:var(--text-dim)">No events in window</em>'; ctxDiv.style.display = ''; return; }
+  const ruleMax = pat.rules[0]?.[1] || 1;
+  const ruleRows = pat.rules.map(([rule,cnt]) => {
+    const pct = Math.round((cnt/ruleMax)*100);
+    return `<tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:var(--text-dim);font-size:11px">${cnt.toLocaleString()}</td>
+      <td style="padding:2px 0;width:100%;font-size:11px">${eH(rule)}<div style="margin-top:2px;height:4px;width:${pct}%;background:var(--orange);opacity:0.6;border-radius:2px"></div></td></tr>`;
+  }).join('');
+  const seqRows = pat.seq.map(e =>
+    `<tr><td style="color:var(--text-dim);font-size:10px;padding:1px 8px 1px 0;white-space:nowrap">${e.rel}</td>
+     <td style="color:var(--text-dim);font-size:10px;padding:1px 8px 1px 0">EID ${e.eid}</td>
+     <td style="font-size:10px;padding:1px 0">${eH(e.rule)}</td></tr>`
+  ).join('');
+  const more = pat.total > 40 ? `<div style="font-size:10px;color:var(--text-dim);margin-top:4px">… ${pat.total-40} more events not shown</div>` : '';
+  ctxDiv.innerHTML = `
+    <div style="padding:10px 0 4px;display:flex;gap:32px;align-items:flex-start">
+      <div style="flex:1">
+        <div style="font-size:10px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Rule Breakdown</div>
+        <table style="border-collapse:collapse;width:100%">${ruleRows}</table>
+      </div>
+      <div style="flex:2">
+        <div style="font-size:10px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Sequence (first ${Math.min(40,pat.total)})</div>
+        <table style="border-collapse:collapse">${seqRows}</table>
+        ${more}
+      </div>
+    </div>
+    <div style="margin-top:8px">
+      <button class="copy-btn" onclick="copySpikePattern(${startMs},${endMs})">Copy Pattern</button>
+    </div>`;
+  ctxDiv.style.display = '';
+}
+
+function copySpikePattern(startMs, endMs) {
+  const rows = getFR().filter(r => !isNaN(r.ts));
+  const pat = buildSpikePattern(rows, startMs, endMs);
+  if (!pat) return;
+  const start = new Date(startMs), end = new Date(endMs);
+  const durMs = endMs - startMs;
+  const dur = durMs < 60000 ? `${Math.round(durMs/1000)}s` : `${Math.round(durMs/60000)}m`;
+  const ruleLines = pat.rules.map(([r,c]) => `  ${String(c).padStart(6)}x  ${anonIPs(r)}`).join('\n');
+  const seqLines = pat.seq.map(e => `  ${e.rel.padEnd(10)}  EID ${String(e.eid).padEnd(6)}  ${anonIPs(e.rule)}`).join('\n');
+  const more = pat.total > 40 ? `\n  … ${pat.total-40} more events` : '';
+  const text = [
+    `SPIKE PATTERN — ${fDF(start)} (+${dur}, ${pat.total.toLocaleString()} events)`,
+    '─'.repeat(60),
+    'Rule breakdown:',
+    ruleLines,
+    '',
+    `Sequence (T+0 = ${fDF(start)}, first ${Math.min(40,pat.total)} of ${pat.total}):`,
+    seqLines + more,
+  ].join('\n');
+  navigator.clipboard.writeText(text).then(() => showToast('Pattern copied'));
 }
 
 function rRU() {

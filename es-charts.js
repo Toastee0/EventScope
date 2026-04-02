@@ -17,7 +17,10 @@ function sC(el) {
 function drawBC(el, labels, values, opt = {}) {
   const {ctx,w,h} = sC(el);
   const pL=60,pR=20,pT=20,pB=50,cW=w-pL-pR,cH=h-pT-pB;
-  const mx = Math.max(...values, 1);
+  const logScale = opt.logScale || false;
+  const xfm = v => logScale ? Math.log1p(v) : v;
+  const mxRaw = Math.max(...values, 1);
+  const mx = xfm(mxRaw);
   const bW = Math.max(1, (cW/values.length) - 1);
   ctx.clearRect(0,0,w,h);
   ctx.strokeStyle = '#1a3a55';
@@ -28,13 +31,24 @@ function drawBC(el, labels, values, opt = {}) {
     ctx.fillStyle = '#6e7f90';
     ctx.font = '11px JetBrains Mono,monospace';
     ctx.textAlign = 'right';
-    ctx.fillText(Math.round(mx*(1-i/4)).toLocaleString(), pL-8, y+4);
+    const rawVal = logScale ? Math.round(Math.expm1(mx*(1-i/4))) : Math.round(mx*(1-i/4));
+    ctx.fillText(rawVal.toLocaleString(), pL-8, y+4);
+  }
+  // dashed baseline indicator
+  if (opt.baseline > 0) {
+    const by = pT + cH - (xfm(opt.baseline)/mx)*cH;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(110,127,144,0.45)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(pL,by); ctx.lineTo(w-pR,by); ctx.stroke();
+    ctx.restore();
   }
   const bc = opt.baseColor || 'rgba(220,85,31,0.55)';
   const st = cStats(values), th = st.mean + 2.5*st.std;
   for (let i = 0; i < values.length; i++) {
     const x = pL + (i/values.length)*cW;
-    const bH = (values[i]/mx)*cH;
+    const bH = (xfm(values[i])/mx)*cH;
     ctx.fillStyle = (values[i] > th && values[i] > 5) ? 'rgba(255,58,58,0.85)' : bc;
     ctx.fillRect(x, pT+cH-bH, bW, bH);
   }

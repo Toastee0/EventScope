@@ -246,6 +246,27 @@ Analyst builds the report by tagging as they investigate. Export produces the Ex
 
 ---
 
+### [ ] Timeline Auto-Scale
+- Canvas height scales dynamically based on spike/median ratio — a 1000× spike gets a taller chart, not a taller bar in a fixed box
+- Log scale toggle button on Filtered Timeline chart — preserves baseline visibility when spike dwarfs normal activity
+- Auto-enable log scale when max/median ratio exceeds 20×
+- Dashed baseline indicator line on chart (mean of all buckets)
+- **Motivation:** Credential Manager Enumerated dump (2761/min vs 2/min baseline) — linear scale makes baseline invisible; log scale shows both layers simultaneously
+
+---
+
+### [ ] Spike Context Panel
+- Burst list items (Timeline tab) expand inline on click — no modal, no tab switch
+- Expansion shows:
+  - Rule title breakdown for that window (name + count + inline CSS bar, sorted desc)
+  - Chronological sequence: first 40 events with relative timestamps (T+0, T+1m30s …), EID, rule title
+  - "Copy Pattern" button — formats structured text ready to paste to analyst/AI for rule writing
+- Jump to Raw button retained alongside expand toggle
+- Pattern copy format: spike metadata + rule breakdown + sequence — no hostnames, no IPs, no raw payload
+- **Motivation:** enables rule development workflow — analyst identifies pattern in EventScope, copies structured summary, sends to AI without sharing raw evidence data
+
+---
+
 ### [ ] Sequence Analysis — Window Parameter Clarification
 The window parameter is currently labelled ambiguously. It means:
 

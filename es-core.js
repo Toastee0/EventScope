@@ -258,6 +258,56 @@ function mFT(h, r) {
   return `<table class="data-table"><thead><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${r.map(x=>`<tr>${x.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 }
 
+// ── IP ANONYMISATION ───────────────────────────────────────────────────────────
+// Salt is generated once per page load via CSPRNG — never stored, never disclosed.
+// Same IP always maps to the same token within a session; reload = new mapping.
+// Output ranges are RFC 5737 documentation addresses (can never be real hosts):
+//   Internal IPs  → 203.0.113.x  (TEST-NET-3)
+//   External IPs  → 198.51.100.x (TEST-NET-2)
+//   IPv6          → 2001:db8::x  (RFC 3849)
+
+const _anonSalt = crypto.getRandomValues(new Uint32Array(1))[0];
+const _anonIPCache = new Map();  // original → token
+const _anonIPUsed  = new Set();  // tokens already assigned (collision guard)
+
+function _ipHash(ip) {
+  let h = _anonSalt;
+  for (let i = 0; i < ip.length; i++)
+    h = Math.imul(h ^ ip.charCodeAt(i), 0x9e3779b9) >>> 0;
+  return h;
+}
+
+const _reInternal = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/;
+const _reIPv4     = /\b(\d{1,3}\.){3}\d{1,3}\b/g;
+const _reIPv6     = /\b([0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{1,4}\b/g;
+
+function anonIP(ip) {
+  if (_anonIPCache.has(ip)) return _anonIPCache.get(ip);
+  const isV6       = ip.includes(':');
+  const isInternal = !isV6 && _reInternal.test(ip);
+  const prefix     = isV6 ? null : (isInternal ? '203.0.113' : '198.51.100');
+  let token;
+  if (isV6) {
+    const n = (_ipHash(ip) % 65534) + 1;
+    token = `2001:db8::${n.toString(16)}`;
+  } else {
+    let slot = (_ipHash(ip) % 253) + 1;
+    token = `${prefix}.${slot}`;
+    while (_anonIPUsed.has(token)) { slot = (slot % 253) + 1; token = `${prefix}.${slot}`; }
+  }
+  _anonIPUsed.add(token);
+  _anonIPCache.set(ip, token);
+  return token;
+}
+
+// Replace all IPs in a string with anonymised tokens
+function anonIPs(str) {
+  if (!str) return str;
+  return str
+    .replace(_reIPv6, m => anonIP(m))
+    .replace(_reIPv4, m => anonIP(m));
+}
+
 // ── TOAST NOTIFICATION ─────────────────────────────────────────────────────────
 
 function showToast(msg) {
