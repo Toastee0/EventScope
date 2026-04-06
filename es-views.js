@@ -7,6 +7,9 @@ let _lastExpandedIdx = null;
 let _lastExpandedCtx = null;
 let _detailRowIndex  = null;
 let _tlLogScale      = false;
+let _lastTab         = null;  // last tab visited before raw
+let _rawRuleFilter   = null;  // rule title to pre-filter raw view (set by rules tab clicks)
+let _rulesExpanded   = null;  // currently expanded rule title in rules view
 
 // Parse EvtxECmd Payload JSON into a flat key:value object
 function parseEvtxPayload(extra) {
@@ -522,10 +525,11 @@ function copySpikePattern(startMs, endMs) {
 
 function rRU() {
   const rows = getFR(), ra = {};
-  rows.forEach(r => {
+  rows.forEach((r, fi) => {
     if (!r.rule) return;
-    if (!ra[r.rule]) ra[r.rule] = {rule:r.rule, rid:r.rid, lvl:r.lvl, count:0, eids:new Set(), chans:new Set(), comps:new Set()};
+    if (!ra[r.rule]) ra[r.rule] = {rule:r.rule, rid:r.rid, lvl:r.lvl, count:0, eids:new Set(), chans:new Set(), comps:new Set(), indices:[]};
     ra[r.rule].count++;
+    ra[r.rule].indices.push(fi);
     if (r.eid)  ra[r.rule].eids.add(r.eid);
     if (r.chan)  ra[r.rule].chans.add(r.chan);
     if (r.comp)  ra[r.rule].comps.add(r.comp);
@@ -535,11 +539,75 @@ function rRU() {
     const w = (LW[b.lvl]||0) - (LW[a.lvl]||0);
     return w !== 0 ? w : b.count - a.count;
   });
+
+  const tbody = s.map((entry, ri) => {
+    const enc = encodeURIComponent(entry.rule);
+    const isOpen = _rulesExpanded === entry.rule;
+    const arrow = isOpen ? '&#9660;' : '&#9658;';
+    const ruleRow = `<tr class="rules-summary-row${isOpen?' rules-row-open':''}" style="cursor:pointer" data-rule-idx="${ri}" onclick="toggleRuleExpand(${ri})">
+      <td style="width:18px;color:var(--text-dim);font-size:10px;padding-right:0">${arrow}</td>
+      <td>${lB(entry.lvl)}</td>
+      <td style="white-space:normal;max-width:350px">${eH(entry.rule)}</td>
+      <td>${entry.count.toLocaleString()}</td>
+      <td>${[...entry.eids].slice(0,5).map(e=>eL(e)).join(', ')}${entry.eids.size>5?' …':''}</td>
+      <td>${[...entry.chans].slice(0,2).join(', ')}${entry.chans.size>2?' …':''}</td>
+      <td>${[...entry.comps].slice(0,3).join(', ')}${entry.comps.size>3?' …':''}</td>
+      <td style="font-size:10px;color:var(--text-dim)" title="${eH(entry.rid)}">${entry.rid.substring(0,8)}…</td>
+      <td><button class="copy-btn" style="font-size:10px" onclick="event.stopPropagation();_rawRuleFilter=${JSON.stringify(entry.rule)};switchTab('raw')" title="Open in Raw Data view">Raw &#8599;</button></td>
+    </tr>`;
+
+    let expandRow = '';
+    if (isOpen) {
+      const sample = entry.indices.slice(0, 100);
+      const isEvtx = S.format === 'evtxecmd';
+      const evtRows = sample.map(fi => {
+        const r = rows[fi];
+        return `<tr style="cursor:pointer;background:var(--surface)" data-nav-idx="${fi}" onclick="openDP(${fi},'rules')">
+          <td colspan="2"></td>
+          <td>${!isNaN(r.ts)?fDTz(r.ts):'N/A'}</td>
+          <td>${lB(r.lvl)}</td>
+          <td>${eL(r.eid)}</td>
+          <td style="color:var(--text-dim);font-family:var(--mono);font-size:11px">${eH(r.comp)}</td>
+          <td style="color:var(--text-dim);font-family:var(--mono);font-size:11px" colspan="3">${eH(r.chan.length>30?r.chan.substring(0,28)+'…':r.chan)}</td>
+        </tr>`;
+      }).join('');
+      const more = entry.indices.length > 100
+        ? `<tr><td colspan="9" style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--text-dim);padding:8px">… ${(entry.indices.length-100).toLocaleString()} more — <button class="copy-btn" onclick="_rawRuleFilter=${JSON.stringify(entry.rule)};switchTab('raw')">View all in Raw Data</button></td></tr>`
+        : '';
+      expandRow = `<tr class="rules-expand-row"><td colspan="9" style="padding:0;background:var(--surface2);border-top:2px solid var(--orange);border-bottom:1px solid var(--border)">
+        <table class="data-table" style="margin:0;border:none">
+          <thead><tr style="background:var(--surface3)">
+            <th colspan="2"></th><th>Timestamp</th><th>Level</th><th>EID</th><th>Computer</th><th colspan="3">Channel</th>
+          </tr></thead>
+          <tbody>${evtRows}${more}</tbody>
+        </table>
+      </td></tr>`;
+    }
+    return ruleRow + expandRow;
+  }).join('');
+
+  // Store indices per rule title for toggleRuleExpand
+  window._rulesData = s;
+
   document.getElementById('ruleTable').innerHTML =
-    `<table class="data-table"><thead><tr><th>Level</th><th>Rule Title</th><th>Count</th><th>Event IDs</th><th>Channels</th><th>Computers</th><th>Rule ID</th></tr></thead><tbody>${
-      s.map(r => `<tr><td>${lB(r.lvl)}</td><td style="white-space:normal;max-width:350px">${eH(r.rule)}</td><td>${r.count.toLocaleString()}</td><td>${[...r.eids].slice(0,5).map(e=>eL(e)).join(', ')}${r.eids.size>5?' …':''}</td><td>${[...r.chans].slice(0,2).join(', ')}${r.chans.size>2?' …':''}</td><td>${[...r.comps].slice(0,3).join(', ')}${r.comps.size>3?' …':''}</td><td style="font-size:10px;color:var(--text-dim)" title="${eH(r.rid)}">${r.rid.substring(0,8)}…</td></tr>`)
-      .join('')
-    }</tbody></table>`;
+    `<table class="data-table"><thead><tr>
+      <th style="width:18px"></th>
+      <th>Level</th><th>Rule Title</th><th>Count</th><th>Event IDs</th><th>Channels</th><th>Computers</th><th>Rule ID</th><th></th>
+    </tr></thead><tbody>${tbody}</tbody></table>`;
+}
+
+function toggleRuleExpand(ri) {
+  const entry = window._rulesData?.[ri];
+  if (!entry) return;
+  _rulesExpanded = (_rulesExpanded === entry.rule) ? null : entry.rule;
+  rRU();
+  // Scroll the opened row into view
+  if (_rulesExpanded) {
+    requestAnimationFrame(() => {
+      const openRow = document.querySelector('.rules-row-open');
+      if (openRow) openRow.scrollIntoView({block:'nearest', behavior:'smooth'});
+    });
+  }
 }
 
 function rFR() {
@@ -624,7 +692,7 @@ function updateRawSelectionUI() {
   });
   const allCb = document.getElementById('rawSelectAll');
   if (allCb) {
-    const total = Math.min(2000, getFR().length);
+    const total = Math.min(2000, _rawDisplayRows.length);
     allCb.checked = _rawSelection.size === total && total > 0;
     allCb.indeterminate = _rawSelection.size > 0 && _rawSelection.size < total;
   }
@@ -646,33 +714,55 @@ function onRawCheck(i, el, event) {
 function rawSelectAll(el) {
   _rawSelection.clear();
   if (el.checked) {
-    const total = Math.min(2000, getFR().length);
+    const total = Math.min(2000, _rawDisplayRows.length);
     for (let i = 0; i < total; i++) _rawSelection.add(i);
   }
   updateRawSelectionUI();
 }
 
 function copySelectedRows() {
-  const rows = getFR().slice(0, 2000);
-  const selected = [..._rawSelection].sort((a,b) => a-b).map(i => rows[i]).filter(Boolean);
+  const selected = [..._rawSelection].sort((a,b) => a-b).map(i => _rawDisplayRows[i]).filter(Boolean);
   copyRows(selected);
 }
+
+// Rows currently displayed in raw view (may be rule-filtered). Used by selection copy.
+let _rawDisplayRows = [];
 
 function rRW() {
   _rawSelection.clear();
   updateRawSelectionUI();
-  const rows = getFR(), mx = 2000, sh = rows.slice(0, mx);
+
+  // Apply rule pre-filter if set (e.g. from Rules tab "Raw ↗" button)
+  const allFR = getFR();
+  const ruleCtx = _rawRuleFilter;
+  // Build pairs {r, fi} preserving original getFR() index for openDP
+  let pairs = allFR.map((r, fi) => ({r, fi}));
+  if (ruleCtx) pairs = pairs.filter(({r}) => r.rule === ruleCtx);
+
+  const rawTitle = document.getElementById('rawDataTitle');
+  if (rawTitle) {
+    if (ruleCtx) {
+      rawTitle.innerHTML = `Filtered Detections &mdash; <span style="color:var(--orange);font-family:var(--mono);font-size:12px">${eH(ruleCtx)}</span> &nbsp;<button class="copy-btn" onclick="_rawRuleFilter=null;rRW()" title="Clear rule filter">&#10005; Clear</button>`;
+    } else {
+      rawTitle.textContent = 'Filtered Detections';
+    }
+  }
+
+  const mx = 2000;
+  const sh = pairs.slice(0, mx);
+  _rawDisplayRows = sh.map(({r}) => r);
+
   document.getElementById('rawCount').textContent =
-    `Showing ${Math.min(mx,rows.length).toLocaleString()} of ${rows.length.toLocaleString()}`;
+    `Showing ${Math.min(mx, pairs.length).toLocaleString()} of ${pairs.length.toLocaleString()}`;
   const isEvtx = S.format === 'evtxecmd';
   const hdr = `<th style="width:28px;padding:6px 8px"><input type="checkbox" id="rawSelectAll" onchange="rawSelectAll(this)" style="accent-color:var(--orange);cursor:pointer"></th><th>Timestamp</th><th>Level</th><th>EID</th><th>${isEvtx?'Description':'Rule Title'}</th><th>Computer</th><th>Channel</th><th>Record</th>${isEvtx?'<th>Source</th>':''}`;
   document.getElementById('rawTableWrap').innerHTML =
     `<table class="data-table"><thead><tr>${hdr}</tr></thead><tbody>${
-      sh.map((r,i) => {
+      sh.map(({r, fi}, i) => {
         const srcCell = isEvtx
           ? `<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis" title="${eH(r.src||'')}">${eH((r.src||'').split(/[/\\]/).pop())}</td>`
           : '';
-        return `<tr style="cursor:pointer" data-nav-idx="${i}" onclick="openDP(${i},'raw')">
+        return `<tr style="cursor:pointer" data-nav-idx="${fi}" onclick="openDP(${fi},'raw')">
           <td style="padding:6px 8px" onclick="event.stopPropagation()"><input type="checkbox" class="row-check" data-idx="${i}" style="accent-color:var(--orange);cursor:pointer" onchange="onRawCheck(${i},this,event)" onclick="event.stopPropagation()"></td>
           <td>${!isNaN(r.ts)?fDTz(r.ts):'N/A'}</td>
           <td>${lB(r.lvl)}</td>
@@ -1392,6 +1482,11 @@ function applyFormatTabRestrictions() {
 
 function switchTab(t) {
   if (EVTXECMD_ONLY_TABS.has(t) && S.format === 'hayabusa') return;
+  // Track last meaningful tab so raw view can inherit context
+  if (t !== 'raw') _lastTab = t;
+  // Clear rules expansion when leaving rules tab; clear raw rule filter when leaving raw tab
+  if (t !== 'rules') _rulesExpanded = null;
+  if (t !== 'raw' && t !== 'rules') _rawRuleFilter = null;
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x.dataset.tab===t));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id==='panel-'+t));
   // Close any open inline expansion when switching tabs
