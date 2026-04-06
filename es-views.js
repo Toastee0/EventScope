@@ -1414,6 +1414,7 @@ function switchTab(t) {
     case 'eidfocus':  renderEF();     break;
     case 'lateral':   renderLateral();break;
     case 'srum':      rSRUM();        break;
+    case 'netconfig': rNetconfig();   break;
   }
 }
 

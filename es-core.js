@@ -43,7 +43,8 @@ const S = {
   focusEid: null,
   _seqClusters: null,
   nav: { ctx: null, idx: null, clusterIdx: null, evtIdx: null },
-  srum: null,   // loaded by es-srum.js: { networkUsages[], timeMin, timeMax, loaded, fileName }
+  srum: null,      // loaded by es-srum.js: { networkUsages[], timeMin, timeMax, loaded, fileName }
+  netconfig: null, // loaded by es-netconfig.js: { adapters[], profiles[], loaded }
 };
 
 // ── CSV PARSING ────────────────────────────────────────────────────────────────
