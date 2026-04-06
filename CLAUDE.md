@@ -28,13 +28,13 @@ EventScope is a browser-based DFIR (Digital Forensics & Incident Response) event
 ## File structure
 ```
 index.html              Shell, layout, tab skeleton, CSS (no external styles)
-es-core.js              State object S, constants, low-level utilities
+es-core.js              State object S, constants, low-level utilities, IP anonymisation
 es-parsers.js           CSV ingestion, format detection, row processors
 es-filters.js           Filter logic, filter cache, DOM reads
 es-charts.js            Canvas 2D chart drawing (all charts)
-es-views.js             All tab render functions + inline row expansion
+es-views.js             All tab render functions + inline row expansion, spike context
 es-dedup.js             PLACEHOLDER — Phase 7 (dedup & outlier detection)
-es-export.js            Copy-to-clipboard system, column config modal
+es-export.js            Copy-to-clipboard, logon CSV export, column config modal
 es-prefs.js             PLACEHOLDER — Phase 5 (preferences load/save)
 es-data/
   win-security-eids.json    Windows Security Event ID reference data
@@ -91,8 +91,10 @@ S = {
 - Render functions prefixed `r`: `rOV` (render Overview), `rTL` (render Timeline)
 - Complex analytical functions use full names: `runSeq`, `buildLateralGraph`
 - Canvas functions: `drawBC` (bar chart), `drawHBC` (horizontal bar chart), `drawSBC` (stacked bar chart)
+  - `drawBC` options: `logScale` (bool), `baseline` (number, draws dashed mean line), `baseColor` (string)
 - HiDPI canvas: always use `sC(el)` helper which applies `devicePixelRatio`
 - Filter cache: always call `invF()` to invalidate before re-render, never set `S.filtered` directly
+- IP anonymisation: `anonIP(ip)` maps a single IP to an RFC-5737 documentation token; `anonIPs(str)` replaces all IPs in a string. Mapping is per-session (CSPRNG salt, never stored). Use for any user-facing copy output that should not expose raw evidence IPs.
 
 ## Three-band timing model
 Inter-event interval classification (used in Sequence tab):
@@ -105,7 +107,7 @@ The Fast band is the primary anomaly detection zone. Highlight it.
 ## UI design rules
 - Wide scrollable table is the primary view
 - Charts/summary ABOVE the table
-- Detail panel expands full-width BELOW selected row (not a side panel, not a modal)
+- Detail panel expands full-width ABOVE the selected row (not a side panel, not a modal) — inserted before the row so it scrolls into view cleanly
 - Filter bar collapses to reclaim horizontal space
 - No modals. No slide-ins. No popups (except the column config overlay)
 - All severity colors from CSS variables: `--crit`, `--high`, `--med`, `--low`, `--info`
@@ -122,6 +124,11 @@ The Fast band is the primary anomaly detection zone. Highlight it.
 
 ## Current status
 **Phase 1 — COMPLETE:** Clipboard copy, heatmap calendar, arrivals tracker, gap analysis, time-of-day profiling, periodicity detection.
+
+**Recently shipped:**
+- Timeline Auto-Scale — log scale toggle (`_tlLogScale`), dynamic canvas height, auto-enable at 20× spike/mean ratio, dashed baseline mean line
+- Spike Context Panel — burst list items expand inline with rule breakdown + chronological sequence (first 40 events); "Copy Pattern" button exports structured text with IPs anonymised via `anonIPs`
+- Logon Event CSV Export — `buildLogonCsv` / `copyLogonCsv` / `downloadLogonCsv` in `es-export.js`; filters to EID 4624/4625 and extracts all logon fields from `det`
 
 **Phase 2 — IN PROGRESS:** Network graph (lateral movement), temporal swim lanes, credential spread matrix, source IP correlation.
 

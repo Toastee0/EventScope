@@ -62,7 +62,7 @@ function buildDetailHTML(r) {
   }
 
   return `<div class="detail-inline">
-    <div>
+    <div class="detail-inline-meta">
       <div class="detail-section"><div class="detail-section-title">Event Metadata</div>
         ${mkField('Timestamp', !isNaN(r.ts)?fDTz(r.ts):'N/A')}
         <div class="detail-field"><span class="detail-key">Event ID</span>${eL(r.eid)}</div>
@@ -74,12 +74,10 @@ function buildDetailHTML(r) {
       </div>
       ${ruleSection}
     </div>
-    <div>
-      <div class="detail-section"><div class="detail-section-title">Payload (Details)</div>
-        ${pl}
-      </div>
-      ${extraSection}
+    <div class="detail-section"><div class="detail-section-title">Payload (Details)</div>
+      ${pl}
     </div>
+    ${extraSection}
     <div class="detail-inline-full" style="margin-top:4px;display:flex;gap:8px">
       <button class="copy-btn" onclick="copyDetailEvent()">Copy Event</button>
     </div>
@@ -135,13 +133,9 @@ function openDP(i, navCtx) {
   td.className = 'inline-expansion-cell';
   td.innerHTML = buildDetailHTML(r);
   expansion.appendChild(td);
-  tr.parentNode.insertBefore(expansion, tr.nextSibling);
+  tr.parentNode.insertBefore(expansion, tr);  // insert ABOVE row
 
-  // Restore the clicked row to its original viewport position — no jump
-  if (anchorTop !== null) {
-    const delta = tr.getBoundingClientRect().top - anchorTop;
-    if (Math.abs(delta) > 1) window.scrollBy(0, delta);
-  }
+  expansion.scrollIntoView({block: 'nearest', behavior: 'smooth'});
 
   showNavHint();
 }
