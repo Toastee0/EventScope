@@ -521,6 +521,58 @@
     border:1px solid var(--border-bright);border-radius:3px;
     background:var(--surface2);color:var(--stone);font-size:10px;margin:0 2px;
   }
+
+  /* ── THEME TOGGLE ─────────────────────────────── */
+  .theme-toggle{
+    font-family:var(--mono);font-size:10px;padding:2px 8px;
+    border:1px solid var(--border);border-radius:3px;
+    background:none;color:var(--text-dim);cursor:pointer;
+    transition:all .15s;margin-left:auto;white-space:nowrap;
+  }
+  .theme-toggle:hover{border-color:var(--orange);color:var(--orange)}
+
+  /* ── LIGHT MODE ───────────────────────────────── */
+  html.light {
+    --bg:           #edf0f5;
+    --surface:      #f7f8fb;
+    --surface2:     #edf0f5;
+    --surface3:     #e3e8f0;
+    --border:       #c8d2e0;
+    --border-bright:#9aaabb;
+    --text:         #2c3e50;
+    --text-dim:     #5a6a7a;
+    --text-bright:  #0a1825;
+    --white:        #0a1825;
+    --stone:        #2c3e50;
+    --stone-dim:    rgba(44,62,80,0.4);
+    --navy:         #dce6f0;
+    --navy-mid:     #d0dce8;
+    --orange-dim:   rgba(220,85,31,0.12);
+    --orange-glow:  rgba(220,85,31,0.25);
+    --accent-dim:   rgba(220,85,31,0.10);
+    --accent-glow:  rgba(220,85,31,0.20);
+    --warn-dim:     rgba(200,120,20,0.12);
+    --danger-dim:   rgba(180,60,20,0.12);
+    --success-dim:  rgba(30,120,80,0.12);
+    --critical-dim: rgba(180,30,30,0.12);
+  }
+  html.light body{background:var(--bg);color:var(--text)}
+  html.light .tz-bar{color:var(--text-dim);background:var(--surface2);border-bottom-color:var(--border)}
+  html.light .tz-bar select{background:var(--surface);color:var(--text);border-color:var(--border)}
+  html.light .header{box-shadow:0 2px 12px rgba(220,85,31,0.10)}
+  html.light .logo{text-shadow:none}
+  html.light .tab.tab-disabled{color:var(--border)}
+  html.light .copy-toast{background:var(--surface3);box-shadow:0 4px 24px rgba(220,85,31,0.15)}
+  html.light .tooltip{box-shadow:0 8px 32px rgba(0,0,0,.15)}
+  html.light .col-cfg-overlay{background:rgba(0,0,0,.35)}
+  html.light .col-cfg-modal{box-shadow:0 20px 60px rgba(0,0,0,.2)}
+  html.light .dropzone:hover,.dropzone.dragover{box-shadow:0 0 24px rgba(220,85,31,0.10)}
+  html.light .progress-bar-fill{box-shadow:none}
+  html.light ::-webkit-scrollbar-track{background:var(--surface2)}
+  html.light ::-webkit-scrollbar-thumb{background:var(--border-bright);border-color:var(--surface2)}
+  html.light select.filter-input{
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%235a6a7a'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  }
 </style>
 </head>
 <body>
@@ -554,6 +606,7 @@
     <option value="660">UTC+11</option>
     <option value="720">UTC+12</option>
   </select>
+  <button class="theme-toggle" id="themeToggle" title="Toggle light/dark mode">&#9788; Light</button>
 </div>
 
 <div class="header">
@@ -1358,6 +1411,10 @@ if (netconfigDZ) {
 // ── EID DESCRIPTIONS ───────────────────────────────────────────────────────────
 
 fetch('es-data/win-security-eids.json').then(r => r.json()).then(d => { S.eidDescs = d; }).catch(() => {});
+
+// ── PREFERENCES (theme etc.) ────────────────────────────────────────────────────
+
+initPrefs();
 
 // ── RESIZE HANDLER ─────────────────────────────────────────────────────────────
 

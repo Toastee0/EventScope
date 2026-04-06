@@ -222,7 +222,7 @@ function _drawSrumCanvas() {
 
   const bucketKeys = Object.keys(_srumBuckets).map(Number).sort((a, b) => a - b);
   if (!bucketKeys.length) {
-    ctx.fillStyle = '#6e7f90';
+    ctx.fillStyle = themeC('#6e7f90','#4a5a6a');
     ctx.font = '13px JetBrains Mono,monospace';
     ctx.textAlign = 'center';
     ctx.fillText('No data matches current filter', w / 2, h / 2);
@@ -258,17 +258,17 @@ function _drawSrumCanvas() {
     { v: 107374182400, l: '100 GB'  },
   ].filter(yl => yl.v <= maxBucket * 1.5)) {
     const y = pT + cH - (Math.log1p(yl.v) / logMax) * cH;
-    ctx.strokeStyle = 'rgba(26,58,85,0.55)';
+    ctx.strokeStyle = themeC('rgba(26,58,85,0.55)','rgba(180,195,215,0.7)');
     ctx.lineWidth   = 1;
     ctx.setLineDash([3, 3]);
     ctx.beginPath(); ctx.moveTo(pL, y); ctx.lineTo(w - pR, y); ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = '#6e7f90';
+    ctx.fillStyle = themeC('#6e7f90','#4a5a6a');
     ctx.fillText(yl.l, pL - 6, y + 3);
   }
 
   // Chart border
-  ctx.strokeStyle = '#1a3a55';
+  ctx.strokeStyle = themeC('#1a3a55','rgba(180,195,215,0.8)');
   ctx.lineWidth   = 1;
   ctx.strokeRect(pL, pT, cW, cH);
 
@@ -313,7 +313,7 @@ function _drawSrumCanvas() {
   }
 
   // X axis date labels
-  ctx.fillStyle  = '#6e7f90';
+  ctx.fillStyle  = themeC('#6e7f90','#4a5a6a');
   ctx.font       = '10px JetBrains Mono,monospace';
   ctx.textAlign  = 'center';
   const rangeDays      = Math.ceil(tRange / 86400000);

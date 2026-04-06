@@ -23,12 +23,12 @@ function drawBC(el, labels, values, opt = {}) {
   const mx = xfm(mxRaw);
   const bW = Math.max(1, (cW/values.length) - 1);
   ctx.clearRect(0,0,w,h);
-  ctx.strokeStyle = '#1a3a55';
+  ctx.strokeStyle = themeC('#1a3a55','rgba(180,195,215,0.8)');
   ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) {
     const y = pT + (cH/4)*i;
     ctx.beginPath(); ctx.moveTo(pL,y); ctx.lineTo(w-pR,y); ctx.stroke();
-    ctx.fillStyle = '#6e7f90';
+    ctx.fillStyle = themeC('#6e7f90','#4a5a6a');
     ctx.font = '11px JetBrains Mono,monospace';
     ctx.textAlign = 'right';
     const rawVal = logScale ? Math.round(Math.expm1(mx*(1-i/4))) : Math.round(mx*(1-i/4));
@@ -54,7 +54,7 @@ function drawBC(el, labels, values, opt = {}) {
   }
   if (labels.length) {
     const step = Math.max(1, Math.floor(labels.length/8));
-    ctx.fillStyle = '#6e7f90';
+    ctx.fillStyle = themeC('#6e7f90','#4a5a6a');
     ctx.font = '10px JetBrains Mono,monospace';
     ctx.textAlign = 'center';
     for (let i = 0; i < labels.length; i += step)
@@ -75,12 +75,12 @@ function drawSBC(el, labels, sm) {
   for (const l of lvls) for (let i = 0; i < bc; i++) tots[i] += (sm[l]?.[i] || 0);
   const mx = Math.max(...tots, 1);
   ctx.clearRect(0,0,w,h);
-  ctx.strokeStyle = '#1a3a55';
+  ctx.strokeStyle = themeC('#1a3a55','rgba(180,195,215,0.8)');
   ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) {
     const y = pT + (cH/4)*i;
     ctx.beginPath(); ctx.moveTo(pL,y); ctx.lineTo(w-pR,y); ctx.stroke();
-    ctx.fillStyle = '#6e7f90';
+    ctx.fillStyle = themeC('#6e7f90','#4a5a6a');
     ctx.font = '10px JetBrains Mono,monospace';
     ctx.textAlign = 'right';
     ctx.fillText(Math.round(mx*(1-i/4)).toLocaleString(), pL-8, y+4);
@@ -99,7 +99,7 @@ function drawSBC(el, labels, sm) {
   }
   if (labels.length) {
     const step = Math.max(1, Math.floor(bc/8));
-    ctx.fillStyle = '#6e7f90';
+    ctx.fillStyle = themeC('#6e7f90','#4a5a6a');
     ctx.font = '10px JetBrains Mono,monospace';
     ctx.textAlign = 'center';
     for (let i = 0; i < bc; i += step)
@@ -123,11 +123,11 @@ function drawHBC(el, labels, values, bc) {
     ctx.globalAlpha = 0.8;
     ctx.fillRect(pL, y, bw, bH);
     ctx.globalAlpha = 1;
-    ctx.fillStyle = '#C8C2BD';
+    ctx.fillStyle = themeC('#C8C2BD','#2c3e50');
     ctx.font = '11px JetBrains Mono,monospace';
     ctx.textAlign = 'right';
     ctx.fillText(labels[i].length > 22 ? labels[i].substring(0,20)+'…' : labels[i], pL-8, y+bH/2+4);
-    ctx.fillStyle = '#6e7f90';
+    ctx.fillStyle = themeC('#6e7f90','#4a5a6a');
     ctx.textAlign = 'left';
     ctx.fillText(values[i].toLocaleString(), pL+bw+6, y+bH/2+4);
   }
@@ -148,7 +148,7 @@ const HM_GRAD = [
 ];
 
 function hmColor(v, mx) {
-  if (mx === 0 || v === 0) return 'rgba(5,14,23,1)';
+  if (mx === 0 || v === 0) return themeC('rgba(5,14,23,1)','rgba(228,232,240,1)');
   const t = Math.min(1, v/mx);
   let lo = HM_GRAD[0], hi = HM_GRAD[HM_GRAD.length-1];
   for (let i = 0; i < HM_GRAD.length-1; i++) {
@@ -210,14 +210,14 @@ function _renderHeatmap() {
   const ctx = cvs.getContext('2d');
   ctx.scale(dpr, dpr);
   ctx.clearRect(0,0,cw,ch);
-  ctx.fillStyle = '#6e7f90';
+  ctx.fillStyle = themeC('#6e7f90','#4a5a6a');
   ctx.font = '10px JetBrains Mono,monospace';
   ctx.textAlign = 'center';
   for (let h = 0; h < 24; h++)
     ctx.fillText(String(h).padStart(2,'0'), PAD_L+h*CELL_W+CELL_W/2, PAD_T-8);
   days.forEach((dk, di) => {
     const arr = dataMap.get(dk);
-    ctx.fillStyle = '#6e7f90';
+    ctx.fillStyle = themeC('#6e7f90','#4a5a6a');
     ctx.font = '11px JetBrains Mono,monospace';
     ctx.textAlign = 'right';
     ctx.fillText(dk.slice(5), PAD_L-6, PAD_T+di*CELL_H+CELL_H/2+4);
@@ -284,7 +284,7 @@ function renderTOD() {
     if (peakHours.has(h)) return 'rgba(220,85,31,0.65)';
     const z = st.std > 0 ? (v-st.mean)/st.std : 0;
     if (z > 2) return 'rgba(240,168,48,0.85)';
-    return 'rgba(9,55,95,0.6)';
+    return themeC('rgba(9,55,95,0.6)','rgba(60,120,190,0.45)');
   });
   const cvs = document.getElementById('canvasTOD');
   const {ctx,w,h} = sC(cvs);
@@ -292,11 +292,11 @@ function renderTOD() {
   const mx = Math.max(...hc, 1);
   const bW = Math.max(2, (cW/24) - 2);
   ctx.clearRect(0,0,w,h);
-  ctx.strokeStyle = '#1a3a55'; ctx.lineWidth = 1;
+  ctx.strokeStyle = themeC('#1a3a55','rgba(180,195,215,0.8)'); ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) {
     const y = pT+(cH/4)*i;
     ctx.beginPath(); ctx.moveTo(pL,y); ctx.lineTo(w-pR,y); ctx.stroke();
-    ctx.fillStyle = '#6e7f90';
+    ctx.fillStyle = themeC('#6e7f90','#4a5a6a');
     ctx.font = '10px JetBrains Mono,monospace';
     ctx.textAlign = 'right';
     ctx.fillText(Math.round(mx*(1-i/4)).toLocaleString(), pL-6, y+4);
@@ -305,7 +305,7 @@ function renderTOD() {
     const x = pL+(h2/24)*cW, bH = (hc[h2]/mx)*cH;
     ctx.fillStyle = colors[h2];
     ctx.fillRect(x, pT+cH-bH, bW, bH);
-    ctx.fillStyle = '#6e7f90';
+    ctx.fillStyle = themeC('#6e7f90','#4a5a6a');
     ctx.font = '9px JetBrains Mono,monospace';
     ctx.textAlign = 'center';
     ctx.fillText(labels[h2], x+bW/2, h-5);

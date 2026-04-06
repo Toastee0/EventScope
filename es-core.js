@@ -47,6 +47,14 @@ const S = {
   netconfig: null, // loaded by es-netconfig.js: { adapters[], profiles[], loaded }
 };
 
+// ── THEME ──────────────────────────────────────────────────────────────────────
+
+// Returns dark value normally, light value when light mode is active.
+// Used by canvas drawing code which can't use CSS variables directly.
+function themeC(dark, light) {
+  return document.documentElement.classList.contains('light') ? light : dark;
+}
+
 // ── CSV PARSING ────────────────────────────────────────────────────────────────
 
 function parseCSVLine(l) {

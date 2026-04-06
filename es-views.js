@@ -931,10 +931,10 @@ function renderGapResults(gaps) {
     `Each row = one computer's logging activity. Dark holes = machine stopped producing events. ` +
     `<strong style="color:var(--text)">Unexplained gaps (no shutdown/sleep EID) are the finding.</strong>` +
     `&nbsp;&nbsp;&nbsp;` +
-    `<span style="display:inline-block;width:10px;height:10px;border:1px solid #2a4a66;background:#050e17;vertical-align:middle;border-radius:2px"></span> power-off&nbsp;` +
-    `<span style="display:inline-block;width:10px;height:10px;border:1px solid #1e5a44;background:#050e17;vertical-align:middle;border-radius:2px"></span> sleep/wake&nbsp;` +
-    `<span style="display:inline-block;width:10px;height:10px;border:1px solid #f0a830;background:#050e17;vertical-align:middle;border-radius:2px"></span> dirty shutdown&nbsp;` +
-    `<span style="display:inline-block;width:10px;height:10px;border:2px solid #DC551F;background:#050e17;vertical-align:middle;border-radius:2px"></span> <strong style="color:var(--text)">unexplained</strong>` +
+    `<span style="display:inline-block;width:10px;height:10px;border:1px solid #2a4a66;background:var(--surface3);vertical-align:middle;border-radius:2px"></span> power-off&nbsp;` +
+    `<span style="display:inline-block;width:10px;height:10px;border:1px solid #1e5a44;background:var(--surface3);vertical-align:middle;border-radius:2px"></span> sleep/wake&nbsp;` +
+    `<span style="display:inline-block;width:10px;height:10px;border:1px solid #f0a830;background:var(--surface3);vertical-align:middle;border-radius:2px"></span> dirty shutdown&nbsp;` +
+    `<span style="display:inline-block;width:10px;height:10px;border:2px solid #DC551F;background:var(--surface3);vertical-align:middle;border-radius:2px"></span> <strong style="color:var(--text)">unexplained</strong>` +
     `</div>` +
     `<canvas id="gapCanvas" style="display:block"></canvas>`;
   const cvs = document.getElementById('gapCanvas');
@@ -950,16 +950,16 @@ function renderGapResults(gaps) {
   function tX(ts) { return PAD_L + ((ts - tMin) / tSpan) * chartW; }
 
   // Time axis ticks
-  ctx.fillStyle = '#6e7f90';
+  ctx.fillStyle = themeC('#6e7f90','#4a5a6a');
   ctx.font = '10px JetBrains Mono,monospace';
   ctx.textAlign = 'center';
   const tickCount = Math.min(8, Math.floor(chartW / 80));
   for (let i = 0; i <= tickCount; i++) {
     const ts = tMin + (tSpan / tickCount) * i;
     const x = tX(ts);
-    ctx.fillStyle = '#1a3a55';
+    ctx.fillStyle = themeC('#1a3a55','rgba(180,195,215,0.8)');
     ctx.fillRect(x, PAD_T - 8, 1, hosts.length * ROW_H + 8);
-    ctx.fillStyle = '#6e7f90';
+    ctx.fillStyle = themeC('#6e7f90','#4a5a6a');
     ctx.fillText(fDS(new Date(ts)), x, PAD_T - 12);
   }
 
@@ -968,7 +968,7 @@ function renderGapResults(gaps) {
     const cy = y + ROW_H / 2;
 
     // Host label
-    ctx.fillStyle = '#6e7f90';
+    ctx.fillStyle = themeC('#6e7f90','#4a5a6a');
     ctx.font = '11px JetBrains Mono,monospace';
     ctx.textAlign = 'right';
     const lbl = comp.length > 22 ? comp.substring(0, 20) + '…' : comp;
@@ -976,7 +976,7 @@ function renderGapResults(gaps) {
 
     // Activity bar — solid track showing "machine was logging"
     const BAR_T = y + 9, BAR_H = ROW_H - 18;
-    ctx.fillStyle = '#1e3a52';
+    ctx.fillStyle = themeC('#1e3a52','rgba(100,140,185,0.25)');
     ctx.fillRect(PAD_L, BAR_T, chartW, BAR_H);
 
     // Silence blocks — punch them out as dark voids, overlay border by kind
@@ -998,7 +998,7 @@ function renderGapResults(gaps) {
         alpha = 1;
       }
       // Dark void
-      ctx.fillStyle = '#050e17';
+      ctx.fillStyle = themeC('#050e17','rgba(215,222,232,1)');
       ctx.fillRect(x1, BAR_T, bW, BAR_H);
       // Colored border
       ctx.strokeStyle = col;
@@ -1017,7 +1017,7 @@ function renderGapResults(gaps) {
   });
 
   // Bottom time label
-  ctx.fillStyle = '#6e7f90';
+  ctx.fillStyle = themeC('#6e7f90','#4a5a6a');
   ctx.font = '10px JetBrains Mono,monospace';
   ctx.textAlign = 'left';
   ctx.fillText(fDS(new Date(tMin)), PAD_L, totalH - 6);
@@ -1248,7 +1248,7 @@ const LAT_SKIP = new Set(['','system','local service','network service','-','ano
 
 function extractAccounts(r) {
   const p = parseDet(r.det), out = new Set();
-  for (const k of ['TargetUserName','SubjectUserName','AccountName','UserName','SamAccountName','RemoteUserName']) {
+  for (const k of ['TargetUserName','TgtUser','SubjectUserName','SrcUser','AccountName','UserName','SamAccountName','RemoteUserName']) {
     let v = (p[k]||'').trim();
     if (!v || v === '-') continue;
     if (v.includes('\\')) v = v.split('\\').pop();
@@ -1266,7 +1266,7 @@ function buildLateralGraph() {
       if (!accounts.has(acct)) accounts.set(acct,[]);
       const p = parseDet(r.det);
       const lt    = p['LogonType'] || p['Logon Type'] || '';
-      const srcIp = p['IpAddress'] || p['IPAddress'] || p['RemoteHost'] || p['WorkstationName'] || '';
+      const srcIp = p['IpAddress'] || p['SrcIP'] || p['IPAddress'] || p['RemoteHost'] || p['WorkstationName'] || '';
       accounts.get(acct).push({ts:r.ts, comp:r.comp, eid:r.eid, sessionIdx:r.sessionIdx??0, logonType:lt, srcIp, lvl:r.lvl, rule:r.rule});
     }
   }
@@ -1347,7 +1347,7 @@ function renderLateral() {
     return `<div class="lat-chain${isCross?' cross':''}"><div class="lat-chain-hdr"><span class="lat-chain-name">${eH(acct)}</span>${flags}<span style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">${evts.length} events · ${comps.size} system${comps.size!==1?'s':''}</span></div><div class="lat-hops">${hopHtml}</div></div>`;
   }).join('');
   document.getElementById('latChains').innerHTML = chains ||
-    '<div class="anomaly-item info"><div class="anomaly-title">No accounts extracted from loaded data</div><div class="anomaly-detail" style="font-family:var(--mono);font-size:11px">Accounts are extracted from Details fields: TargetUserName, SubjectUserName, UserName, AccountName. Ensure events like 4624, 4648, 4625, 5140 are present.</div></div>';
+    '<div class="anomaly-item info"><div class="anomaly-title">No accounts extracted from loaded data</div><div class="anomaly-detail" style="font-family:var(--mono);font-size:11px">Accounts are extracted from Details fields: TargetUserName/TgtUser, SubjectUserName/SrcUser, UserName, AccountName. Ensure events like 4624, 4648, 4625, 5140 are present.</div></div>';
   if (g.crossSession.size > 0) {
     document.getElementById('latCrossSession').innerHTML = mFT(['Account','Sessions','Computers','Events'],
       [...g.crossSession].sort((a,b) => g.accounts.get(b).length-g.accounts.get(a).length).map(acct => {
@@ -1441,13 +1441,13 @@ function rLogons() {
     const r = allFiltered[fi];
     if (!LOGON_EIDS.has(String(r.eid))) continue;
     const p = parseDet(r.det);
-    const lt = p['LogonType'] || '';
+    const lt = p['LogonType'] || p['Type'] || '';
     if (lt) ltSet.add(lt);
     if (resultF && String(r.eid) !== resultF) continue;
-    const usr = (p['TargetUserName'] || p['UserName'] || '').toLowerCase();
+    const usr = (p['TargetUserName'] || p['TgtUser'] || p['UserName'] || '').toLowerCase();
     if (userF && !usr.includes(userF)
-              && !(p['SubjectUserName']||'').toLowerCase().includes(userF)) continue;
-    const ip = (p['IpAddress'] || p['RemoteHost'] || '').toLowerCase();
+              && !(p['SubjectUserName']||p['SrcUser']||'').toLowerCase().includes(userF)) continue;
+    const ip = (p['IpAddress'] || p['SrcIP'] || p['RemoteHost'] || '').toLowerCase();
     if (ipF   && !ip.includes(ipF)) continue;
     if (compF && !(r.comp||'').toLowerCase().includes(compF)) continue;
     if (ltF   && lt !== ltF) continue;
@@ -1469,18 +1469,18 @@ function rLogons() {
     switch (_logonsSortCol) {
       case 'ts':     av = a.r.ts;  bv = b.r.ts;  break;
       case 'eid':    av = String(a.r.eid); bv = String(b.r.eid); break;
-      case 'user':   av = (a.p['TargetUserName']||a.p['UserName']||'').toLowerCase();
-                     bv = (b.p['TargetUserName']||b.p['UserName']||'').toLowerCase(); break;
+      case 'user':   av = (a.p['TargetUserName']||a.p['TgtUser']||a.p['UserName']||'').toLowerCase();
+                     bv = (b.p['TargetUserName']||b.p['TgtUser']||b.p['UserName']||'').toLowerCase(); break;
       case 'domain': av = (a.p['TargetDomainName']||'').toLowerCase();
                      bv = (b.p['TargetDomainName']||'').toLowerCase(); break;
       case 'lt':     av = a.p['LogonType']||''; bv = b.p['LogonType']||''; break;
-      case 'ip':     av = a.p['IpAddress']||a.p['RemoteHost']||'';
-                     bv = b.p['IpAddress']||b.p['RemoteHost']||''; break;
-      case 'ws':     av = (a.p['WorkstationName']||'').toLowerCase();
-                     bv = (b.p['WorkstationName']||'').toLowerCase(); break;
+      case 'ip':     av = a.p['IpAddress']||a.p['SrcIP']||a.p['RemoteHost']||'';
+                     bv = b.p['IpAddress']||b.p['SrcIP']||b.p['RemoteHost']||''; break;
+      case 'ws':     av = (a.p['WorkstationName']||a.p['SrcComp']||'').toLowerCase();
+                     bv = (b.p['WorkstationName']||b.p['SrcComp']||'').toLowerCase(); break;
       case 'comp':   av = (a.r.comp||'').toLowerCase(); bv = (b.r.comp||'').toLowerCase(); break;
-      case 'auth':   av = (a.p['AuthenticationPackageName']||'').toLowerCase();
-                     bv = (b.p['AuthenticationPackageName']||'').toLowerCase(); break;
+      case 'auth':   av = (a.p['AuthenticationPackageName']||a.p['AuthPkg']||'').toLowerCase();
+                     bv = (b.p['AuthenticationPackageName']||b.p['AuthPkg']||'').toLowerCase(); break;
       default:       av = a.r.ts;  bv = b.r.ts;
     }
     if (av < bv) return -_logonsSortDir;
@@ -1517,12 +1517,12 @@ function rLogons() {
   ].join('');
 
   const tbody = rows.map(({r, fi, p}) => {
-    const ip      = p['IpAddress'] || p['RemoteHost'] || '';
-    const usr     = p['TargetUserName'] || p['UserName'] || '';
+    const ip      = p['IpAddress'] || p['SrcIP'] || p['RemoteHost'] || '';
+    const usr     = p['TargetUserName'] || p['TgtUser'] || p['UserName'] || '';
     const dom     = p['TargetDomainName'] || '';
-    const lt      = p['LogonType'] || '';
-    const ws      = p['WorkstationName'] || '';
-    const auth    = p['AuthenticationPackageName'] || '';
+    const lt      = p['LogonType'] || p['Type'] || '';
+    const ws      = p['WorkstationName'] || p['SrcComp'] || '';
+    const auth    = p['AuthenticationPackageName'] || p['AuthPkg'] || '';
     const success = String(r.eid) === '4624';
     const badge   = success
       ? `<span style="color:var(--success);font-weight:600">✓ 4624</span>`
