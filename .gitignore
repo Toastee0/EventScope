@@ -19,3 +19,6 @@ output/
 
 # Collection & triage tools — not for public repo
 tools/
+
+# Local test collection script — machine-specific, not for repo
+collect-local.ps1
