@@ -290,6 +290,32 @@
   .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   @media(max-width:900px){.two-col{grid-template-columns:1fr}.filter-bar{padding:12px 16px}.panel{padding:16px}.tabs{padding:12px 16px 0}.header{padding:16px}}
 
+  /* ── SRUM ────────────────────────────────────── */
+  .srum-dz{
+    border:2px dashed var(--border-bright);border-radius:var(--radius);
+    padding:40px 24px;text-align:center;
+    background:var(--surface);margin-bottom:24px;
+    transition:border-color .2s;
+  }
+  .srum-dz:hover{border-color:var(--orange)}
+  .srum-leg{
+    display:inline-flex;align-items:center;
+    padding:3px 8px;border-radius:4px;
+    background:var(--surface2);border:1px solid var(--border);
+    white-space:nowrap;
+  }
+  .srum-total-row{
+    display:grid;grid-template-columns:220px 1fr 260px;
+    align-items:center;gap:12px;
+    padding:5px 0;border-bottom:1px solid var(--border);
+    cursor:pointer;
+  }
+  .srum-total-row:hover{background:var(--surface2)}
+  .srum-total-exe{display:flex;align-items:center;min-width:0;overflow:hidden;padding-left:4px}
+  .srum-total-bar-wrap{height:12px;background:var(--surface2);border-radius:2px;overflow:hidden}
+  .srum-total-bar{height:100%;border-radius:2px;transition:width .3s}
+  .srum-total-nums{display:flex;gap:16px;justify-content:flex-end;font-size:11px}
+
   /* ── TOOLTIP ──────────────────────────────────── */
   .tooltip{
     position:fixed;background:var(--surface3);
@@ -564,6 +590,7 @@
 <input type="file" id="fileInput" accept=".csv,.tsv,.txt" style="display:none">
 <input type="file" id="sessionFileInput" accept=".csv,.tsv,.txt" style="display:none">
 <input type="file" id="evtxLoadInput" accept=".csv,.tsv,.txt" style="display:none">
+<input type="file" id="srumFileInput" accept=".csv" style="display:none">
 
 <div class="dashboard" id="dashboard">
   <!-- FILTER BAR with collapse toggle and level checkboxes -->
@@ -610,6 +637,7 @@
     <div class="tab" data-tab="logons">Logons</div>
     <div class="tab" data-tab="lateral">Lateral Movement</div>
     <div class="tab" data-tab="eidfocus" id="tabEidFocus" style="display:none">EID Focus</div>
+    <div class="tab" data-tab="srum">SRUM</div>
     <div class="tab" id="tabEvtxLoad" style="display:none;margin-left:auto;color:var(--orange);border-bottom-color:transparent" title="Load EvtxECmd CSV to enable raw-event tabs">+ Load EVTX-All</div>
   </div>
 
@@ -915,6 +943,61 @@
       <div class="lat-matrix-wrap"><div id="latMatrix"></div></div>
     </div>
   </div>
+
+  <!-- SRUM -->
+  <div class="panel" id="panel-srum">
+    <!-- drop zone shown until file is loaded -->
+    <div id="srumDropzone" class="srum-dz">
+      <div style="font-size:36px;opacity:.4;color:var(--orange);margin-bottom:12px">&#9636;</div>
+      <div style="font-size:16px;font-weight:600;color:var(--white);margin-bottom:6px">Drop SrumECmd NetworkUsages CSV</div>
+      <div style="color:var(--text-dim);font-size:13px;margin-bottom:16px">
+        Run: <code style="background:var(--surface2);padding:2px 6px;border-radius:3px;font-family:var(--mono);font-size:12px">SrumECmd.exe -f SRUDB.dat --csv output\</code>
+        then load <code style="background:var(--surface2);padding:2px 6px;border-radius:3px;font-family:var(--mono);font-size:12px">*_NetworkUsages_Output.csv</code>
+      </div>
+      <button class="chart-btn" style="padding:8px 20px;font-size:13px" onclick="document.getElementById('srumFileInput').click()">Browse File…</button>
+    </div>
+    <div id="srumProgress" style="display:none;padding:12px 0">
+      <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim)" id="srumProgressText">Loading…</div>
+    </div>
+
+    <!-- content shown after load -->
+    <div id="srumContent" style="display:none">
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-bottom:12px" id="srumFileName"></div>
+
+      <!-- timeline canvas -->
+      <div class="chart-box">
+        <div class="chart-header">
+          <span class="chart-title">Network Transfers — Application Timeline</span>
+          <div class="chart-controls">
+            <input class="filter-input" id="srumExeSearch" placeholder="Filter app…" oninput="rSRUM()" style="min-width:180px" autocomplete="off">
+            <button class="chart-btn" onclick="document.getElementById('srumExeSearch').value='';rSRUM()">Reset</button>
+            <button class="chart-btn" onclick="downloadSrumCsv()">Export All CSV</button>
+            <button class="chart-btn" onclick="document.getElementById('srumFileInput').click()">Load New…</button>
+          </div>
+        </div>
+        <p style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-bottom:10px">
+          Bar height = total bytes transferred (log scale). Colors = application. Click any block to see the hour breakdown.
+          <span style="color:#ff3a3a;margin-left:12px">&#9632; Known exfil tools</span>
+          <span style="color:#DC551F;margin-left:8px">&#9632; RMM / remote access</span>
+        </p>
+        <canvas class="chart-canvas" id="canvasSrum" style="height:400px;cursor:crosshair"></canvas>
+        <div id="srumLegend" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-family:var(--mono);font-size:11px"></div>
+      </div>
+
+      <!-- totals table (top apps by total bytes) -->
+      <div class="chart-box">
+        <div class="chart-header">
+          <span class="chart-title">Transfer Totals by Application</span>
+          <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim)">Click a row to filter the timeline</span>
+        </div>
+        <div id="srumTotals" style="font-family:var(--mono);font-size:12px"></div>
+      </div>
+
+      <!-- click detail pane (populated by showSrumDetail) -->
+      <div id="srumDetail"></div>
+    </div>
+  </div>
+
 </div><!-- /.dashboard -->
 
 <div class="tooltip" id="tooltip"></div>
@@ -957,6 +1040,7 @@
 <script src="es-dedup.js"></script>
 <script src="es-export.js"></script>
 <script src="es-prefs.js"></script>
+<script src="es-srum.js"></script>
 
 <!-- Initialization -->
 <script>
@@ -1183,6 +1267,26 @@ document.addEventListener('keydown', function(e) {
     return;
   }
 });
+
+// ── SRUM FILE INPUT ────────────────────────────────────────────────────────────
+
+const srumFI = document.getElementById('srumFileInput');
+srumFI.addEventListener('change', () => {
+  if (srumFI.files.length) { loadSrumFile(srumFI.files[0]); srumFI.value = ''; }
+});
+
+// Also support drag-drop onto the SRUM dropzone
+const srumDZ = document.getElementById('srumDropzone');
+if (srumDZ) {
+  srumDZ.addEventListener('click',    () => srumFI.click());
+  srumDZ.addEventListener('dragover', e  => { e.preventDefault(); srumDZ.style.borderColor = 'var(--orange)'; });
+  srumDZ.addEventListener('dragleave', () => { srumDZ.style.borderColor = ''; });
+  srumDZ.addEventListener('drop', e => {
+    e.preventDefault();
+    srumDZ.style.borderColor = '';
+    if (e.dataTransfer.files.length) loadSrumFile(e.dataTransfer.files[0]);
+  });
+}
 
 // ── EID DESCRIPTIONS ───────────────────────────────────────────────────────────
 

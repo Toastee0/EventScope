@@ -1413,6 +1413,7 @@ function switchTab(t) {
     case 'logons':    rLogons();      break;
     case 'eidfocus':  renderEF();     break;
     case 'lateral':   renderLateral();break;
+    case 'srum':      rSRUM();        break;
   }
 }
 

@@ -42,7 +42,8 @@ const S = {
   bucketPref: {},
   focusEid: null,
   _seqClusters: null,
-  nav: { ctx: null, idx: null, clusterIdx: null, evtIdx: null }
+  nav: { ctx: null, idx: null, clusterIdx: null, evtIdx: null },
+  srum: null,   // loaded by es-srum.js: { networkUsages[], timeMin, timeMax, loaded, fileName }
 };
 
 // ── CSV PARSING ────────────────────────────────────────────────────────────────
