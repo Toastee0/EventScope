@@ -104,8 +104,11 @@ async function loadSrumFile(file) {
       if (!hp) {
         parseCSVLine(rec).forEach((h, i) => { ci[h.trim()] = i; });
         hp = true;
-        if (!('BytesReceived' in ci && 'BytesSent' in ci)) {
-          if (prog) prog.textContent = 'Not a NetworkUsages CSV — expected columns BytesReceived, BytesSent.';
+        const hasSent = 'BytesSent' in ci;
+        const hasRecv = 'BytesRecvd' in ci || 'BytesReceived' in ci;
+        const hasApp  = 'App' in ci || 'ExeInfo' in ci;
+        if (!hasSent || !hasRecv || !hasApp) {
+          if (prog) prog.textContent = 'Not a SRUM NetworkUsages CSV — expected BytesSent, BytesRecvd/BytesReceived, App/ExeInfo columns.';
           return;
         }
         continue;
@@ -117,27 +120,31 @@ async function loadSrumFile(file) {
         return '';
       };
 
-      const ts = parseTS(g('Timestamp'));
+      const ts = parseTS(g('TimeStamp', 'Timestamp'));
       if (isNaN(ts)) continue;
 
-      const recv = parseInt(g('BytesReceived'), 10) || 0;
-      const sent = parseInt(g('BytesSent'),     10) || 0;
+      const recv = parseInt(g('BytesRecvd', 'BytesReceived'), 10) || 0;
+      const sent = parseInt(g('BytesSent'),                  10) || 0;
       if (recv === 0 && sent === 0) continue;
 
+      // InterfaceLuid arrives in scientific notation from SrumECmd (e.g. 1.6894E+15)
+      const luidRaw = g('InterfaceLuid');
+      const ifType  = luidRaw ? String(Math.round(parseFloat(luidRaw))) : g('InterfaceType');
+
       const bucketTs = Math.floor(ts / 3600000) * 3600000;
-      const exeRaw   = g('ExeInfo');
+      const exeRaw   = g('App', 'ExeInfo');
       rows.push({
         ts, bucketTs,
         exeRaw,
         exeShort:  normExe(exeRaw),
         exeDesc:   g('ExeInfoDescription'),
-        userName:  g('UserName'),
-        sid:       g('Sid'),
+        userName:  g('User', 'UserName'),
+        sid:       g('UserId', 'Sid'),
         sidType:   g('SidType'),
         bytesRecv: recv,
         bytesSent: sent,
-        ifType:    g('InterfaceType'),
-        profile:   g('ProfileName'),
+        ifType,
+        profile:   g('L2ProfileId', 'ProfileName'),
       });
       rc++;
     }

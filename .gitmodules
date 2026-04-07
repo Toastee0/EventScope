@@ -1,3 +1,3 @@
-[submodule "modules/evtx"]
-	path = modules/evtx
-	url = https://github.com/EricZimmerman/evtx
+[submodule "eventscopecypfer"]
+	path = eventscopecypfer
+	url = https://github.com/toastee0/eventscopecypfer
