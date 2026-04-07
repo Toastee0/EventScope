@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EventScope v5.7 — Forensic Event Log Analyzer</title>
+<title>EventScope v5.8 — Forensic Event Log Analyzer</title>
 <style>
   :root {
     /* ── Core palette ─────────────────────────────── */
@@ -611,7 +611,7 @@
 
 <div class="header">
   <div class="header-left">
-    <div class="logo">EventScope <span>/ v5.7</span></div>
+    <div class="logo">EventScope <span>/ v5.8</span></div>
   </div>
   <div class="header-stats" id="headerStats"></div>
 </div>
@@ -690,6 +690,7 @@
     <div class="tab" data-tab="raw">Raw Data</div>
     <div class="tab" data-tab="logons">Logons</div>
     <div class="tab" data-tab="lateral">Lateral Movement</div>
+    <div class="tab" data-tab="peers">Remote Hosts</div>
     <div class="tab" data-tab="eidfocus" id="tabEidFocus" style="display:none">EID Focus</div>
     <div class="tab" data-tab="srum">SRUM</div>
     <div class="tab" data-tab="netconfig">Network</div>
@@ -1097,6 +1098,41 @@
     </div>
   </div>
 
+  <!-- REMOTE HOSTS (Peers) -->
+  <div class="panel" id="panel-peers">
+    <div class="chart-box">
+      <div class="chart-header">
+        <span class="chart-title">Remote Hosts &mdash; IP Contact Map</span>
+        <span class="chart-title" id="peersStats" style="font-weight:400;color:var(--text-dim)"></span>
+        <div style="display:flex;gap:14px;margin-left:auto;align-items:center;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer">
+            <input type="checkbox" id="peersIncPriv" checked onchange="togglePeersFilter('priv',this)" style="accent-color:var(--orange);cursor:pointer">
+            include private (RFC1918)
+          </label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer">
+            <input type="checkbox" id="peersOnlyFails" onchange="togglePeersFilter('fail',this)" style="accent-color:var(--orange);cursor:pointer">
+            failures only
+          </label>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text-dim);font-family:var(--mono);margin-bottom:14px;line-height:1.6">
+        Inbound = remote IPs that touched this host (logons, share access, SMB rejects, RDP, Kerberos).
+        Outbound = remote IPs this host touched (Sysmon NetConnect, WFP outbound).
+        Click an IP to see the underlying events. Public IPs highlighted.
+      </div>
+      <div class="two-col">
+        <div>
+          <div style="font-family:var(--mono);font-size:12px;color:var(--high);font-weight:600;margin-bottom:6px">&larr; INBOUND &mdash; Who touched me</div>
+          <div class="data-table-wrap" id="peersInWrap"></div>
+        </div>
+        <div>
+          <div style="font-family:var(--mono);font-size:12px;color:var(--info);font-weight:600;margin-bottom:6px">OUTBOUND &mdash; Who I touched &rarr;</div>
+          <div class="data-table-wrap" id="peersOutWrap"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /.dashboard -->
 
 <div class="tooltip" id="tooltip"></div>
@@ -1141,6 +1177,7 @@
 <script src="es-prefs.js"></script>
 <script src="es-srum.js"></script>
 <script src="es-netconfig.js"></script>
+<script src="es-peers.js"></script>
 
 <!-- Initialization -->
 <script>

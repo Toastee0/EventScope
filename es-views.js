@@ -1510,6 +1510,7 @@ function switchTab(t) {
     case 'lateral':   renderLateral();break;
     case 'srum':      rSRUM();        break;
     case 'netconfig': rNetconfig();   break;
+    case 'peers':     rPeers();       break;
   }
 }
 
