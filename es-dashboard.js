@@ -44,8 +44,11 @@ function _extractBootEvents(rows) {
 
 function _extractAccounts(rows) {
   // Aggregate logon activity per user (4624 success, 4625 fail, 4648 explicit)
-  const users = new Map();    // normalised user -> { successes, failures, explicit, firstTs, lastTs, ips:Set, types:Set, domains:Set }
-  for (const r of rows) {
+  // Stores firstFi/lastFi (indices into the filtered-rows array) so a click
+  // can jump to the originating event via openDP().
+  const users = new Map();
+  for (let fi = 0; fi < rows.length; fi++) {
+    const r = rows[fi];
     const eid = String(r.eid);
     if (eid !== '4624' && eid !== '4625' && eid !== '4648') continue;
     const p = parseDet(r.det);
@@ -56,6 +59,7 @@ function _extractAccounts(rows) {
     if (!users.has(lo)) users.set(lo, {
       name: u, successes:0, failures:0, explicit:0,
       firstTs: Infinity, lastTs: -Infinity,
+      firstFi: fi, lastFi: fi,
       ips: new Set(), types: new Set(), domains: new Set()
     });
     const e = users.get(lo);
@@ -63,8 +67,8 @@ function _extractAccounts(rows) {
     else if (eid === '4625') e.failures++;
     else if (eid === '4648') e.explicit++;
     if (!isNaN(r.ts)) {
-      if (r.ts < e.firstTs) e.firstTs = r.ts;
-      if (r.ts > e.lastTs)  e.lastTs  = r.ts;
+      if (r.ts < e.firstTs) { e.firstTs = r.ts; e.firstFi = fi; }
+      if (r.ts > e.lastTs)  { e.lastTs  = r.ts; e.lastFi  = fi; }
     }
     const ip = p.IpAddress || p.SrcIP || p.RemoteHost;
     if (ip && ip !== '-') e.ips.add(ip);
@@ -74,6 +78,22 @@ function _extractAccounts(rows) {
     if (dom && dom !== '-') e.domains.add(dom);
   }
   return [...users.values()].sort((a, b) => (b.successes + b.failures) - (a.successes + a.failures));
+}
+
+// Per-channel log span — separate first/last per Windows event channel so
+// "Log Span" doesn't lie when Security rolled at 30 days but Application
+// has years of garbage. Returns sorted array.
+function _extractChannelSpans(rows) {
+  const map = new Map();
+  for (const r of rows) {
+    if (!r.chan || isNaN(r.ts)) continue;
+    if (!map.has(r.chan)) map.set(r.chan, { chan: r.chan, first: r.ts, last: r.ts, count: 0 });
+    const e = map.get(r.chan);
+    if (r.ts < e.first) e.first = r.ts;
+    if (r.ts > e.last)  e.last  = r.ts;
+    e.count++;
+  }
+  return [...map.values()].sort((a, b) => b.count - a.count);
 }
 
 function _extractNetwork(rows) {
@@ -178,6 +198,9 @@ function rDashboard() {
   for (const r of rows) ec[r.eid] = (ec[r.eid]||0) + 1;
   const topEids = Object.entries(ec).sort((a,b) => b[1]-a[1]).slice(0, 10);
 
+  // ── Channel spans (for the Log Span breakdown) ───────────────────────────
+  const chanSpans = _extractChannelSpans(rows);
+
   // ── BUILD DOM ────────────────────────────────────────────────────────────
 
   const card = (label, value, sub, borderColor) =>
@@ -194,17 +217,20 @@ function rDashboard() {
          osLine ? 'from EID 6009 / 12' : 'no boot record in logs') +
     card('Domain / Workgroup', eH(topDomain),
          net.domains.size > 1 ? `${net.domains.size} distinct` : '') +
-    card('Log Span', span, `${fDF(new Date(tMin))} &rarr; ${fDF(new Date(tMax))}`, 'var(--orange)') +
+    card('Total Span', span, `${chanSpans.length} channel${chanSpans.length===1?'':'s'} &mdash; see breakdown below`, 'var(--orange)') +
     card('Boots / Shutdowns', `${boots.boots} / ${boots.shutdowns}`,
          boots.lastBoot ? 'last boot ' + fDTz(boots.lastBoot) : '') +
     card('Total Events', rows.length.toLocaleString(),
          `<span class="sev-pip sev-critical"></span>${lc.critical} <span class="sev-pip sev-high"></span>${lc.high} <span class="sev-pip sev-medium"></span>${lc.medium}`);
 
-  // Accounts table
-  const userRows = users.slice(0, 10).map(u => {
+  // Accounts table -- show ALL accounts, click jumps to first-seen event
+  const userRows = users.map(u => {
     const totalLogon = u.successes + u.failures;
     const failPct = totalLogon > 0 ? (u.failures / totalLogon * 100).toFixed(0) : '0';
-    return `<tr>
+    const navAttr = isFinite(u.firstTs)
+      ? `style="cursor:pointer" data-nav-idx="${u.firstFi}" onclick="openDP(${u.firstFi},'dashboard')" title="Jump to first-seen event for ${eH(u.name)}"`
+      : 'style="cursor:default"';
+    return `<tr ${navAttr}>
       <td style="font-weight:600">${eH(u.name)}</td>
       <td style="font-family:var(--mono);font-size:11px">${[...u.domains].slice(0,2).join(', ') || '—'}</td>
       <td style="text-align:right;font-family:var(--mono);color:var(--success)">${u.successes}</td>
@@ -212,7 +238,7 @@ function rDashboard() {
       <td style="text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim)">${u.failures>0?failPct+'%':'—'}</td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${[...u.types].slice(0,3).join(', ')}</td>
       <td style="text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim)">${u.ips.size}</td>
-      <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${isFinite(u.firstTs)?fDTz(u.firstTs):'—'}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--orange)">${isFinite(u.firstTs)?fDTz(u.firstTs):'—'}</td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${isFinite(u.lastTs)?fDTz(u.lastTs):'—'}</td>
     </tr>`;
   }).join('');
@@ -227,8 +253,7 @@ function rDashboard() {
         <th style="text-align:right">Src IPs</th>
         <th>First Seen</th>
         <th>Last Seen</th>
-      </tr></thead><tbody>${userRows}</tbody></table>
-      ${users.length > 10 ? `<div style="padding:8px;font-family:var(--mono);font-size:11px;color:var(--text-dim);text-align:center">\u2026 ${users.length-10} more accounts</div>` : ''}`
+      </tr></thead><tbody>${userRows}</tbody></table>`
     : '<div style="padding:16px;color:var(--text-dim);font-family:var(--mono);font-size:12px">No 4624/4625/4648 logon events in current filter.</div>';
 
   // Network section
@@ -263,16 +288,39 @@ function rDashboard() {
       ${usb.length > 15 ? `<div style="padding:8px;font-family:var(--mono);font-size:11px;color:var(--text-dim);text-align:center">\u2026 ${usb.length-15} more devices</div>` : ''}`
     : '<div style="padding:16px;color:var(--text-dim);font-family:var(--mono);font-size:12px">No USB VID/PID patterns found in event details. Enable Microsoft-Windows-DriverFrameworks-UserMode/Operational or Security EID 6416 for full device telemetry.</div>';
 
-  // Top EIDs list
+  // Top EIDs list -- includes friendly description from win-security-eids.json
   const topEidRows = topEids.map(([eid, count]) => {
     const pct = (count / rows.length * 100).toFixed(1);
     const barW = Math.max(2, (count / topEids[0][1]) * 100);
-    return `<div style="display:grid;grid-template-columns:80px 1fr 80px;align-items:center;gap:10px;padding:3px 0">
+    const desc = S.eidDescs?.[eid] || '';
+    return `<div style="display:grid;grid-template-columns:70px 1fr 70px 95px;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--border)" title="${eH(desc)}">
       <div style="font-family:var(--mono);font-size:11px">${eL(eid)}</div>
-      <div style="height:12px;background:var(--surface2);border-radius:2px;overflow:hidden"><div style="width:${barW}%;height:100%;background:var(--orange);opacity:0.7"></div></div>
+      <div style="font-size:11px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${eH(desc) || '<span style="color:var(--text-dim);font-style:italic">no description</span>'}</div>
+      <div style="height:10px;background:var(--surface2);border-radius:2px;overflow:hidden"><div style="width:${barW}%;height:100%;background:var(--orange);opacity:0.7"></div></div>
       <div style="font-family:var(--mono);font-size:11px;text-align:right;color:var(--text-dim)">${count.toLocaleString()} (${pct}%)</div>
     </div>`;
   }).join('');
+
+  // Channel-span breakdown table
+  const chanSpanRows = chanSpans.map(c => {
+    const span = c.last - c.first;
+    return `<tr>
+      <td style="font-family:var(--mono);font-size:11px">${eH(c.chan)}</td>
+      <td style="text-align:right;font-family:var(--mono);font-size:11px">${c.count.toLocaleString()}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim);white-space:nowrap">${fDTz(c.first)}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim);white-space:nowrap">${fDTz(c.last)}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--orange);white-space:nowrap">${span > 0 ? fDelta(span) : '\u2014'}</td>
+    </tr>`;
+  }).join('');
+  const chanSpanSection = chanSpans.length
+    ? `<table class="data-table"><thead><tr>
+        <th>Channel</th>
+        <th style="text-align:right">Events</th>
+        <th>First Event</th>
+        <th>Last Event</th>
+        <th>Span</th>
+      </tr></thead><tbody>${chanSpanRows}</tbody></table>`
+    : '<div style="padding:16px;color:var(--text-dim);font-family:var(--mono);font-size:12px">No channel data.</div>';
 
   document.getElementById('dashboardContent').innerHTML = `
     <div style="margin-bottom:18px;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
@@ -282,6 +330,14 @@ function rDashboard() {
     <div class="chart-box" style="margin-bottom:14px">
       <div class="chart-header"><span class="chart-title">Host Identity</span></div>
       <div class="card-grid">${identityCards}</div>
+    </div>
+
+    <div class="chart-box" style="margin-bottom:14px">
+      <div class="chart-header">
+        <span class="chart-title">Log Span by Channel</span>
+        <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim);margin-left:auto">each channel rolls independently &mdash; the dataset's outermost timestamps lie about Security if Application has older garbage</span>
+      </div>
+      <div class="data-table-wrap">${chanSpanSection}</div>
     </div>
 
     <div class="two-col">

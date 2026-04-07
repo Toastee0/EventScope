@@ -1,6 +1,24 @@
 // es-filters.js — EventScope v5 — Filter logic
 'use strict';
 
+// ── TIME FILTER PARSING ────────────────────────────────────────────────────────
+// Time inputs accept ISO-ish strings without zone info. Treat them as UTC so
+// the on-screen UTC display matches the filter exactly. Minute precision.
+function _parseFilterTime(s, isEnd) {
+  if (!s) return NaN;
+  s = s.trim().replace(' ', 'T');
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    // bare date -> end of day for the end input, start of day for start
+    s += isEnd ? 'T23:59:59' : 'T00:00:00';
+  } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) {
+    // datetime-local picker output (no seconds) -> tail with :59 for end
+    s += isEnd ? ':59' : ':00';
+  }
+  // Force UTC
+  if (!/[zZ]|[+-]\d{2}:?\d{2}$/.test(s)) s += 'Z';
+  return new Date(s).getTime();
+}
+
 // ── LEVEL CHECKBOX HELPERS ─────────────────────────────────────────────────────
 
 function getSelectedLevels() {
@@ -38,11 +56,16 @@ function getFR() {
     r = r.filter(x => x.det.toLowerCase().includes(s));
   }
   if (f.timeStart) {
-    const t = new Date(f.timeStart).getTime();
+    // Parse as UTC. Accepts:
+    //  YYYY-MM-DDTHH:MM   (datetime-local picker)
+    //  YYYY-MM-DD HH:MM   (manual)
+    //  YYYY-MM-DD         (date only -> 00:00 UTC)
+    const t = _parseFilterTime(f.timeStart, false);
     if (!isNaN(t)) r = r.filter(x => x.ts >= t);
   }
   if (f.timeEnd) {
-    const t = new Date(f.timeEnd + 'T23:59:59Z').getTime();
+    // End is inclusive: a bare date becomes 23:59:59 UTC, a HH:MM becomes :59
+    const t = _parseFilterTime(f.timeEnd, true);
     if (!isNaN(t)) r = r.filter(x => x.ts <= t);
   }
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EventScope v5.17 — Forensic Event Log Analyzer</title>
+<title>EventScope v5.18 — Forensic Event Log Analyzer</title>
 <style>
   :root {
     /* ── Core palette ─────────────────────────────── */
@@ -613,7 +613,7 @@
 
 <div class="header">
   <div class="header-left">
-    <div class="logo">EventScope <span>/ v5.17</span></div>
+    <div class="logo">EventScope <span>/ v5.18</span></div>
   </div>
   <div class="header-stats" id="headerStats"></div>
 </div>
@@ -671,8 +671,8 @@
         <select class="filter-input" id="filterSource"><option value="">All Sources</option></select>
       </span>
       <input class="filter-input" id="filterDetails" placeholder="Details contains..." style="min-width:180px" autocomplete="off">
-      <input class="filter-input" id="filterTimeStart" placeholder="Start (yyyy-mm-dd)" autocomplete="off">
-      <input class="filter-input" id="filterTimeEnd"   placeholder="End (yyyy-mm-dd)"   autocomplete="off">
+      <input class="filter-input" id="filterTimeStart" type="datetime-local" step="60" title="Start (UTC, minute precision)" autocomplete="off" style="min-width:180px">
+      <input class="filter-input" id="filterTimeEnd"   type="datetime-local" step="60" title="End (UTC, minute precision)"   autocomplete="off" style="min-width:180px">
       <button class="filter-reset" id="filterReset">Reset</button>
     </div>
   </div>
