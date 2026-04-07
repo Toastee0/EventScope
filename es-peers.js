@@ -115,6 +115,28 @@ function _getUser(p) {
   ]);
 }
 
+// Extract a remote hostname from event details. Different EIDs use different
+// keys; ClientName is sometimes the same as the IP, so filter that case out.
+function _getSrcHost(p) {
+  const v = _firstField(p, [
+    'SrcComp','WorkstationName','ClientName','Workstation',
+    'SourceHostname','RemoteHost','Source Workstation'
+  ]);
+  if (!v) return '';
+  // ClientName fields occasionally hold the IP itself; ignore those
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(v)) return '';
+  return v.replace(/\\$/, '');   // strip trailing slash NetBIOS artefact
+}
+
+function _getDstHost(p) {
+  const v = _firstField(p, [
+    'DestinationHostname','TgtComp','TargetServerName','TgtSvr','TargetInfo'
+  ]);
+  if (!v) return '';
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(v)) return '';
+  return v;
+}
+
 // ── STATE ─────────────────────────────────────────────────────────────────────
 
 let _peersExpanded = null;        // 'in:1.2.3.4' or 'out:5.6.7.8'
@@ -132,12 +154,13 @@ function _buildPeers() {
     if (!m.has(ip)) m.set(ip, {
       ip, count:0, fail:0,
       eids: new Set(), users: new Set(), comps: new Set(),
+      remoteHosts: new Set(),
       first: Infinity, last: -Infinity, indices: []
     });
     return m.get(ip);
   };
 
-  const record = (m, ipRaw, r, fi) => {
+  const record = (m, ipRaw, r, fi, dirHint) => {
     if (_isUselessIP(ipRaw)) return;
     const ip = _normIP(ipRaw);
     if (!_peersIncludePrivate && _isPrivateIP(ip)) return;
@@ -150,8 +173,13 @@ function _buildPeers() {
     if (isFail) e.fail++;
     e.eids.add(String(r.eid));
     if (r.comp) e.comps.add(r.comp);
-    const u = _getUser(parseDet(r.det));
+    const det = parseDet(r.det);
+    const u = _getUser(det);
     if (u) e.users.add(u);
+    // Capture the remote hostname seen in this event (from WorkstationName,
+    // SrcComp, ClientName, etc.) -- only meaningful for inbound peers
+    const rh = (dirHint === 'in') ? _getSrcHost(det) : _getDstHost(det);
+    if (rh && rh.toLowerCase() !== ip.toLowerCase()) e.remoteHosts.add(rh);
     if (!isNaN(r.ts)) {
       if (r.ts < e.first) e.first = r.ts;
       if (r.ts > e.last)  e.last  = r.ts;
@@ -168,23 +196,23 @@ function _buildPeers() {
 
     if (cfg.dir === 'in') {
       const ip = _firstField(p, cfg.src);
-      record(inMap, ip, r, fi);
+      record(inMap, ip, r, fi, 'in');
     } else if (cfg.dir === 'out') {
       const ip = _firstField(p, cfg.dst || cfg.src);
-      record(outMap, ip, r, fi);
+      record(outMap, ip, r, fi, 'out');
     } else if (cfg.dir === 'wfp') {
       const dir = _wfpDir(p[cfg.dirField] || '');
-      if (dir === 'in')  record(inMap,  _firstField(p, cfg.src), r, fi);
-      else if (dir === 'out') record(outMap, _firstField(p, cfg.dst), r, fi);
+      if (dir === 'in')  record(inMap,  _firstField(p, cfg.src), r, fi, 'in');
+      else if (dir === 'out') record(outMap, _firstField(p, cfg.dst), r, fi, 'out');
       else { // unknown direction -- record both
-        record(inMap,  _firstField(p, cfg.src), r, fi);
-        record(outMap, _firstField(p, cfg.dst), r, fi);
+        record(inMap,  _firstField(p, cfg.src), r, fi, 'in');
+        record(outMap, _firstField(p, cfg.dst), r, fi, 'out');
       }
     } else if (cfg.dir === 'sysmon') {
       const initiated = (p[cfg.dirField] || '').toLowerCase();
-      if (initiated === 'true')       record(outMap, _firstField(p, cfg.dst), r, fi);
-      else if (initiated === 'false') record(inMap,  _firstField(p, cfg.src), r, fi);
-      else { record(outMap, _firstField(p, cfg.dst), r, fi); }
+      if (initiated === 'true')       record(outMap, _firstField(p, cfg.dst), r, fi, 'out');
+      else if (initiated === 'false') record(inMap,  _firstField(p, cfg.src), r, fi, 'in');
+      else { record(outMap, _firstField(p, cfg.dst), r, fi, 'out'); }
     }
   }
 
@@ -244,11 +272,14 @@ function _renderPeerTable(map, direction) {
                   + (p.eids.size > 6 ? ' \u2026' : '');
     const userList = [...p.users].slice(0, 3).join(', ')
                    + (p.users.size > 3 ? ` +${p.users.size-3}` : '');
+    const hostList = [...p.remoteHosts].slice(0, 2).join(', ')
+                   + (p.remoteHosts.size > 2 ? ` +${p.remoteHosts.size-2}` : '');
     const span = (p.last - p.first) > 0 ? fDelta(p.last - p.first) : '\u2014';
 
     let summary = `<tr class="peer-summary-row${isOpen?' peer-row-open':''}" style="cursor:pointer" onclick="togglePeerExpand('${eH(id)}')">
       <td style="width:18px;color:var(--text-dim);font-size:10px;padding-right:0">${arrow}</td>
       <td style="font-family:var(--mono);${ipStyle}">${eH(p.ip)}${badge}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--info);max-width:170px;overflow:hidden;text-overflow:ellipsis" title="${eH([...p.remoteHosts].join(', '))}">${eH(hostList) || '<span style="color:var(--text-dim)">\u2014</span>'}</td>
       <td style="text-align:right;font-family:var(--mono)">${failBadge}</td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${!isFinite(p.first)?'\u2014':fDTz(p.first)}</td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${!isFinite(p.last)?'\u2014':fDTz(p.last)}</td>
@@ -264,21 +295,22 @@ function _renderPeerTable(map, direction) {
         if (!r) return '';
         const det = parseDet(r.det);
         const u   = _getUser(det) || '\u2014';
+        const rh  = (direction === 'in' ? _getSrcHost(det) : _getDstHost(det)) || '\u2014';
         return `<tr style="cursor:pointer" data-nav-idx="${fi}" onclick="event.stopPropagation();openDP(${fi},'peers')">
           <td colspan="2"></td>
           <td style="font-family:var(--mono);font-size:11px">${!isNaN(r.ts)?fDTz(r.ts):'N/A'}</td>
           <td>${lB(r.lvl)}</td>
           <td>${eL(r.eid)}</td>
-          <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${eH(r.comp)}</td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--info)">${eH(rh)}</td>
           <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)" colspan="2">${eH(u)}</td>
         </tr>`;
       }).join('');
       const more = p.indices.length > 60
-        ? `<tr><td colspan="8" style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--text-dim);padding:6px">\u2026 ${(p.indices.length-60).toLocaleString()} more (truncated)</td></tr>`
+        ? `<tr><td colspan="9" style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--text-dim);padding:6px">\u2026 ${(p.indices.length-60).toLocaleString()} more (truncated)</td></tr>`
         : '';
-      summary += `<tr class="peer-expand-row"><td colspan="8" style="padding:0;background:var(--surface2);border-top:2px solid var(--orange);border-bottom:1px solid var(--border)">
+      summary += `<tr class="peer-expand-row"><td colspan="9" style="padding:0;background:var(--surface2);border-top:2px solid var(--orange);border-bottom:1px solid var(--border)">
         <table class="data-table" style="margin:0;border:none">
-          <thead><tr style="background:var(--surface3)"><th colspan="2"></th><th>Time</th><th>Lvl</th><th>EID</th><th>Computer</th><th colspan="2">Account</th></tr></thead>
+          <thead><tr style="background:var(--surface3)"><th colspan="2"></th><th>Time</th><th>Lvl</th><th>EID</th><th>Hostname</th><th colspan="2">Account</th></tr></thead>
           <tbody>${evtRows}${more}</tbody>
         </table>
       </td></tr>`;
@@ -289,6 +321,7 @@ function _renderPeerTable(map, direction) {
   return `<table class="data-table"><thead><tr>
     <th style="width:18px"></th>
     <th>${dirLabel}</th>
+    <th>Hostname</th>
     <th style="text-align:right">Hits / Fails</th>
     <th>First Seen</th>
     <th>Last Seen</th>
@@ -312,7 +345,7 @@ function togglePeerExpand(id) {
 // ── CSV EXPORT ────────────────────────────────────────────────────────────────
 
 const PEER_CSV_COLS = [
-  'Direction','RemoteIP','Classification','Hits','Failures',
+  'Direction','RemoteIP','RemoteHostnames','Classification','Hits','Failures',
   'FirstSeen_UTC','LastSeen_UTC','Span',
   'EventIDs','Accounts','Computers'
 ];
@@ -333,6 +366,7 @@ function _peerToCsvRow(p, direction) {
   return [
     direction === 'in' ? 'Inbound' : 'Outbound',
     p.ip,
+    [...p.remoteHosts].sort().join('; '),
     cls,
     p.count,
     p.fail,
