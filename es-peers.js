@@ -56,16 +56,29 @@ function _isUselessIP(ip) {
   return false;
 }
 
-// Strip IPv4-mapped IPv6 prefix and brackets so range checks work uniformly.
-// Examples normalised: "::ffff:192.168.18.25" -> "192.168.18.25",
-// "[fe80::1]" -> "fe80::1", "192.168.1.1%eth0" -> "192.168.1.1".
+// Normalise an IP value pulled from event details so RFC1918 checks work.
+// Handles: brackets [::1], zone ids %eth0, CIDR /24, ports :445,
+// IPv4-mapped IPv6 in collapsed (::ffff:1.2.3.4) and expanded
+// (0:0:0:0:0:ffff:1.2.3.4 / 0000:...) forms, and any wrapper text by
+// extracting the first embedded IPv4 substring as a final fallback.
 function _normIP(ip) {
   if (!ip) return '';
   let s = ip.trim().toLowerCase();
+  // Strip surrounding brackets ([::1] -> ::1)
   if (s.startsWith('[') && s.endsWith(']')) s = s.slice(1, -1);
-  s = s.replace(/^::ffff:/, '');
+  // Strip zone id (fe80::1%eth0 -> fe80::1)
   const pct = s.indexOf('%');
   if (pct !== -1) s = s.slice(0, pct);
+  // Strip CIDR mask (192.168.1.0/24 -> 192.168.1.0)
+  const slash = s.indexOf('/');
+  if (slash !== -1) s = s.slice(0, slash);
+  // Strip IPv4-mapped IPv6 prefix variants
+  s = s.replace(/^::ffff:/, '');
+  s = s.replace(/^(?:0+:){5}ffff:/, '');
+  // If there's any IPv4 substring anywhere, prefer that.
+  // Catches "1.2.3.4:445", "1.2.3.4 (foo)", "ipv4:1.2.3.4", etc.
+  const v4 = s.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
+  if (v4) return v4[1];
   return s;
 }
 
