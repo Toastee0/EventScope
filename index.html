@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EventScope v5.14 — Forensic Event Log Analyzer</title>
+<title>EventScope v5.15 — Forensic Event Log Analyzer</title>
 <style>
   :root {
     /* ── Core palette ─────────────────────────────── */
@@ -423,6 +423,8 @@
     background:none;color:var(--orange);cursor:pointer;transition:all .15s;white-space:nowrap;
   }
   .session-add-btn:hover{background:var(--orange-dim)}
+  .session-merge-btn{font-family:var(--mono);transition:all .15s}
+  .session-merge-btn:hover{border-color:var(--orange) !important;color:var(--orange) !important}
   .session-badge{
     display:inline-block;padding:1px 5px;border-radius:3px;
     font-size:9px;font-family:var(--mono);font-weight:700;
@@ -611,7 +613,7 @@
 
 <div class="header">
   <div class="header-left">
-    <div class="logo">EventScope <span>/ v5.14</span></div>
+    <div class="logo">EventScope <span>/ v5.15</span></div>
   </div>
   <div class="header-stats" id="headerStats"></div>
 </div>
@@ -1207,7 +1209,7 @@ async function loadF(file) {
   if (!c) { document.getElementById('progressText').textContent = 'No detections. Check CSV format.'; return; }
 
   if (S.format === 'hayabusa') S.hayabusaFileName = file.name;
-  S.sessions.push({idx:0, label:file.name.replace(/\.[^.]+$/, ''), color:SESSION_COLORS[0], format:S.format, count:S.rows.length, timeMin:S.timeMin, timeMax:S.timeMax});
+  S.sessions.push({idx:0, label:file.name.replace(/\.[^.]+$/, ''), color:SESSION_COLORS[0], format:S.format, count:S.rows.length, timeMin:S.timeMin, timeMax:S.timeMax, primaryHost:_primaryHost(S.rows), formats:[S.format]});
   document.getElementById('dropzoneOverlay').style.display = 'none';
   document.getElementById('dashboard').style.display = 'block';
   renderSessionBar();

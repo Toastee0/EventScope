@@ -1293,12 +1293,107 @@ function rFirstSeen() {
 
 // ── MULTI-SESSION & LATERAL ────────────────────────────────────────────────────
 
+// Reduce a hostname to its primary form for matching: lowercase, drop domain.
+// "WIN-D9JKQKLKSJL.adrian.local" -> "win-d9jkqklksjl"
+function _normHost(h) {
+  if (!h) return '';
+  return String(h).trim().toLowerCase().split('.')[0];
+}
+
+// Pick the most-common Computer name from a slice of rows.
+function _primaryHost(rows) {
+  const counts = {};
+  for (const r of rows) {
+    if (!r.comp) continue;
+    const k = _normHost(r.comp);
+    if (!k) continue;
+    counts[k] = (counts[k] || 0) + 1;
+  }
+  let best = '', mx = 0;
+  for (const [k, v] of Object.entries(counts)) {
+    if (v > mx) { mx = v; best = k; }
+  }
+  return best;
+}
+
+// Find an existing session whose primary host matches the supplied normalised
+// hostname. Returns the matching S.sessions[] entry or null.
+function _findSessionByHost(normHost) {
+  if (!normHost) return null;
+  for (const s of S.sessions) {
+    if (s.primaryHost && s.primaryHost === normHost) return s;
+  }
+  return null;
+}
+
+// Merge new rows (already pushed to S.rows) into an existing session, then
+// drop the temporary session record. This is the auto-merge path used when
+// two CSVs come from the same physical host.
+function _mergeSessionInto(newSessionIdx, targetIdx, newRows) {
+  // Re-stamp new rows
+  for (const r of newRows) r.sessionIdx = targetIdx;
+
+  // Update the target session's bookkeeping
+  const target = S.sessions.find(s => s.idx === targetIdx);
+  if (target) {
+    const tMin = newRows.reduce((m,r) => !isNaN(r.ts) ? Math.min(m,r.ts) : m, target.timeMin);
+    const tMax = newRows.reduce((m,r) => !isNaN(r.ts) ? Math.max(m,r.ts) : m, target.timeMax);
+    target.count   += newRows.length;
+    target.timeMin  = Math.min(target.timeMin, tMin);
+    target.timeMax  = Math.max(target.timeMax, tMax);
+    if (!Array.isArray(target.formats)) target.formats = [target.format];
+    if (!target.formats.includes(S.format)) target.formats.push(S.format);
+  }
+
+  // Remove the placeholder session entry (if it was added before the merge)
+  S.sessions = S.sessions.filter(s => s.idx !== newSessionIdx);
+  S.sessionCurrent = targetIdx;
+}
+
 function renderSessionBar() {
   const bar = document.getElementById('sessionBar');
-  document.getElementById('sessionChips').innerHTML = S.sessions.map(s =>
-    `<span class="session-chip"><span class="session-chip-dot" style="background:${s.color}"></span><span title="${eH(s.label)}">${eH(s.label.length>30?s.label.substring(0,28)+'…':s.label)}</span><span style="color:var(--text-dim);margin-left:4px">(${s.count.toLocaleString()})</span></span>`
-  ).join('');
+  document.getElementById('sessionChips').innerHTML = S.sessions.map(s => {
+    const formats = (s.formats || [s.format]).join('+');
+    const host    = s.primaryHost ? `<span style="color:var(--orange);font-weight:600;margin-right:5px">${eH(s.primaryHost)}</span>` : '';
+    const mergeBtn = S.sessions.length > 1
+      ? ` <span class="session-merge-btn" title="Merge this session into another (same physical host)" onclick="event.stopPropagation();promptSessionMerge(${s.idx})" style="color:var(--text-dim);cursor:pointer;margin-left:6px;font-size:11px;border:1px solid var(--border);border-radius:3px;padding:0 5px">merge\u2026</span>`
+      : '';
+    return `<span class="session-chip" title="${eH(s.label)}\n${formats} \u2022 ${s.count.toLocaleString()} events">
+      <span class="session-chip-dot" style="background:${s.color}"></span>
+      ${host}<span>${eH(s.label.length>26?s.label.substring(0,24)+'\u2026':s.label)}</span>
+      <span style="color:var(--text-dim);margin-left:4px">(${s.count.toLocaleString()})</span>
+      ${mergeBtn}
+    </span>`;
+  }).join('');
   bar.style.display = '';
+}
+
+// Manual merge: prompt the user for a target session and merge `srcIdx` into it.
+function promptSessionMerge(srcIdx) {
+  const candidates = S.sessions.filter(s => s.idx !== srcIdx);
+  if (!candidates.length) return;
+  const lines = candidates.map((s, i) =>
+    `${i+1}. ${s.primaryHost || s.label} (${(s.formats||[s.format]).join('+')}, ${s.count.toLocaleString()} events)`
+  );
+  const choice = prompt(
+    'Merge this session into which existing session?\n\n' +
+    lines.join('\n') +
+    '\n\nEnter the number (or Cancel):'
+  );
+  if (!choice) return;
+  const n = parseInt(choice, 10);
+  if (isNaN(n) || n < 1 || n > candidates.length) return;
+  const target = candidates[n - 1];
+  const srcRows = S.rows.filter(r => r.sessionIdx === srcIdx);
+  _mergeSessionInto(srcIdx, target.idx, srcRows);
+  renderSessionBar();
+  popF();
+  invF();
+  const at = document.querySelector('.tab.active');
+  if (at) switchTab(at.dataset.tab);
+  if (typeof showToast === 'function') {
+    showToast(`Merged into ${target.primaryHost || target.label}`);
+  }
 }
 
 async function loadAdditionalSession(file) {
@@ -1309,12 +1404,29 @@ async function loadAdditionalSession(file) {
   S.sessionCurrent = idx;
   const c = await streamParse(file);
   if (!c) return;
-  const newRows = S.rows.slice(before);
-  const tMin = newRows.reduce((m,r) => !isNaN(r.ts) ? Math.min(m,r.ts) : m, Infinity);
-  const tMax = newRows.reduce((m,r) => !isNaN(r.ts) ? Math.max(m,r.ts) : m, -Infinity);
-  S.sessions.push({idx, label, color, format:S.format, count:newRows.length, timeMin:tMin, timeMax:tMax});
-  if (tMin < S.timeMin) S.timeMin = tMin;
-  if (tMax > S.timeMax) S.timeMax = tMax;
+  const newRows  = S.rows.slice(before);
+  const newHost  = _primaryHost(newRows);
+  const existing = _findSessionByHost(newHost);
+
+  if (existing) {
+    // Auto-merge: same physical host as an existing session
+    _mergeSessionInto(idx, existing.idx, newRows);
+    if (typeof showToast === 'function') {
+      showToast(`Merged "${label}" into ${existing.primaryHost} (${S.format})`);
+    }
+  } else {
+    const tMin = newRows.reduce((m,r) => !isNaN(r.ts) ? Math.min(m,r.ts) : m, Infinity);
+    const tMax = newRows.reduce((m,r) => !isNaN(r.ts) ? Math.max(m,r.ts) : m, -Infinity);
+    S.sessions.push({
+      idx, label, color, format:S.format, count:newRows.length,
+      timeMin:tMin, timeMax:tMax,
+      primaryHost: newHost,
+      formats: [S.format]
+    });
+    if (tMin < S.timeMin) S.timeMin = tMin;
+    if (tMax > S.timeMax) S.timeMax = tMax;
+  }
+
   renderSessionBar();
   popF();
   // Reset filter inputs
