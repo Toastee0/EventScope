@@ -48,22 +48,34 @@ function _wfpDir(d) {
 
 function _isUselessIP(ip) {
   if (!ip) return true;
-  const s = ip.trim().toLowerCase();
+  const s = _normIP(ip);
   if (!s || s === '-' || s === '::' || s === '::1' || s === '0.0.0.0') return true;
   if (s.startsWith('127.')) return true;
   if (s.startsWith('fe80:')) return true;       // link-local IPv6
   if (s.startsWith('169.254.')) return true;    // APIPA
-  // Filter out NetBIOS-style names by checking if it has any digit-dot or hex-colon pattern
-  // (allow plain hostnames through too — useful for ClientName field)
   return false;
 }
 
+// Strip IPv4-mapped IPv6 prefix and brackets so range checks work uniformly.
+// Examples normalised: "::ffff:192.168.18.25" -> "192.168.18.25",
+// "[fe80::1]" -> "fe80::1", "192.168.1.1%eth0" -> "192.168.1.1".
+function _normIP(ip) {
+  if (!ip) return '';
+  let s = ip.trim().toLowerCase();
+  if (s.startsWith('[') && s.endsWith(']')) s = s.slice(1, -1);
+  s = s.replace(/^::ffff:/, '');
+  const pct = s.indexOf('%');
+  if (pct !== -1) s = s.slice(0, pct);
+  return s;
+}
+
 function _isPrivateIP(ip) {
-  if (!ip) return false;
-  if (/^10\./.test(ip)) return true;
-  if (/^192\.168\./.test(ip)) return true;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return true;
-  if (/^fc/i.test(ip) || /^fd/i.test(ip)) return true;  // ULA IPv6
+  const s = _normIP(ip);
+  if (!s) return false;
+  if (/^10\./.test(s)) return true;
+  if (/^192\.168\./.test(s)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(s)) return true;
+  if (/^fc/i.test(s) || /^fd/i.test(s)) return true;  // ULA IPv6
   return false;
 }
 
@@ -104,8 +116,9 @@ function _buildPeers() {
     return m.get(ip);
   };
 
-  const record = (m, ip, r, fi) => {
-    if (_isUselessIP(ip)) return;
+  const record = (m, ipRaw, r, fi) => {
+    if (_isUselessIP(ipRaw)) return;
+    const ip = _normIP(ipRaw);
     if (!_peersIncludePrivate && _isPrivateIP(ip)) return;
     const isFail = String(r.eid) === '4625' || String(r.eid) === '4771'
                 || String(r.eid) === '4776' || String(r.eid) === '551'
