@@ -228,7 +228,7 @@ function rDashboard() {
         <th>First Seen</th>
         <th>Last Seen</th>
       </tr></thead><tbody>${userRows}</tbody></table>
-      ${users.length > 10 ? `<div style="padding:8px;font-family:var(--mono);font-size:11px;color:var(--text-dim);text-align:center">\u2026 ${users.length-10} more accounts &mdash; see Arrivals tab</div>` : ''}`
+      ${users.length > 10 ? `<div style="padding:8px;font-family:var(--mono);font-size:11px;color:var(--text-dim);text-align:center">\u2026 ${users.length-10} more accounts</div>` : ''}`
     : '<div style="padding:16px;color:var(--text-dim);font-family:var(--mono);font-size:12px">No 4624/4625/4648 logon events in current filter.</div>';
 
   // Network section

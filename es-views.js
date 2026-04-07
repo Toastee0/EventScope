@@ -1175,123 +1175,120 @@ function rGaps() {
 
 // ── ARRIVALS ───────────────────────────────────────────────────────────────────
 
-function rArrivals() {
+// ── FIRST SEEN ───────────────────────────────────────────────────────────────
+// One row per unique EID showing the calendar date it first appeared.
+// Group/sort by that date so a "what's new on day X" question is one click.
+
+function rFirstSeen() {
   const rows = getFR().filter(r => !isNaN(r.ts));
   if (!rows.length) {
-    document.getElementById('arrivalsTable').innerHTML = '<div style="padding:20px;color:var(--text-dim);font-family:var(--mono)">No data.</div>';
+    document.getElementById('firstSeenWrap').innerHTML =
+      '<div style="padding:20px;color:var(--text-dim);font-family:var(--mono)">No data.</div>';
     return;
   }
-  const dsMin = tsMin(rows), dsMax = tsMax(rows), dsMid = (dsMin+dsMax)/2;
-  const type     = document.getElementById('arrivalsType')?.value   || 'eid';
-  const sort     = document.getElementById('arrivalsSort')?.value   || 'first';
-  const lateOnly = document.getElementById('arrivalsLateBtn')?.classList.contains('active');
+
+  const sinceVal = (document.getElementById('firstSeenSince')?.value || '').trim();
+  const sinceMs  = sinceVal ? Date.parse(sinceVal + 'T00:00:00Z') : null;
+
+  const map = new Map();   // eid -> { eid, first, last, count, comps:Set, lvlIdx, sampleRule, firstFi }
   const LVL_ORDER = ['critical','high','medium','low','informational'];
-  const map = new Map();
-  for (const r of rows) {
-    let keys = [];
-    if      (type === 'eid')      keys = [r.eid||''];
-    else if (type === 'rule')     keys = [r.rule||''];
-    else if (type === 'computer') keys = [r.comp||''];
-    else if (type === 'account')  keys = [...extractAccounts(r)];
-    for (const k of keys) {
-      if (!k) continue;
-      if (!map.has(k)) map.set(k, {first:Infinity, last:-Infinity, count:0, comps:new Set(), eids:new Set(), maxLvlIdx:4});
-      const e = map.get(k);
-      if (r.ts < e.first) e.first = r.ts;
-      if (r.ts > e.last)  e.last  = r.ts;
-      e.count++;
-      if (r.comp) e.comps.add(r.comp);
-      if (r.eid)  e.eids.add(r.eid);
-      const li = LVL_ORDER.indexOf((r.lvl||'').toLowerCase());
-      if (li >= 0 && li < e.maxLvlIdx) e.maxLvlIdx = li;
-    }
+
+  for (let fi = 0; fi < rows.length; fi++) {
+    const r = rows[fi];
+    const eid = String(r.eid || '');
+    if (!eid) continue;
+    if (!map.has(eid)) map.set(eid, {
+      eid, first: r.ts, last: r.ts, count: 0,
+      comps: new Set(), lvlIdx: 4, sampleRule: r.rule || '',
+      firstFi: fi, firstComp: r.comp || ''
+    });
+    const e = map.get(eid);
+    if (r.ts < e.first) { e.first = r.ts; e.firstFi = fi; e.firstComp = r.comp || ''; }
+    if (r.ts > e.last)  e.last  = r.ts;
+    e.count++;
+    if (r.comp) e.comps.add(r.comp);
+    if (!e.sampleRule && r.rule) e.sampleRule = r.rule;
+    const li = LVL_ORDER.indexOf((r.lvl || '').toLowerCase());
+    if (li >= 0 && li < e.lvlIdx) e.lvlIdx = li;
   }
-  let entries = [...map.entries()].filter(([k]) => k);
-  if (lateOnly) entries = entries.filter(([,e]) => e.first > dsMid);
-  if      (sort === 'first') entries.sort((a,b) => a[1].first-b[1].first);
-  else if (sort === 'last')  entries.sort((a,b) => a[1].last -b[1].last);
-  else                        entries.sort((a,b) => b[1].count-a[1].count);
-  const lateCount = entries.filter(([,e]) => e.first > dsMid).length;
-  const dsSpan = dsMax - dsMin || 1;
-  document.getElementById('arrivalsCards').innerHTML = `
-    <div class="card"><div class="card-label">Unique ${type==='eid'?'Event IDs':type==='rule'?'Rules':type==='computer'?'Computers':'Accounts'}</div><div class="card-value">${map.size.toLocaleString()}</div></div>
-    <div class="card" style="border-left:3px solid var(--warn)"><div class="card-label">Late Arrivals</div><div class="card-value" style="color:var(--warn)">${lateCount.toLocaleString()}</div><div class="card-sub">First seen after dataset midpoint</div></div>
-    <div class="card"><div class="card-label">Dataset Midpoint</div><div class="card-value" style="font-size:13px">${fDF(new Date(dsMid))}</div></div>`;
-  function posBar(ts) {
-    const pct = Math.round(((ts-dsMin)/dsSpan)*100);
-    const isLate = ts > dsMid;
-    return `<div style="width:80px;height:6px;border-radius:3px;background:var(--surface3);display:inline-block;vertical-align:middle;position:relative"><div style="position:absolute;left:0;top:0;height:100%;width:${pct}%;border-radius:3px;background:${isLate?'var(--warn)':'var(--orange)'}"></div></div>`;
+
+  // Group by ISO date (UTC)
+  const dayKey = ts => {
+    const d = new Date(ts);
+    return d.getUTCFullYear() + '-' + String(d.getUTCMonth()+1).padStart(2,'0') + '-' + String(d.getUTCDate()).padStart(2,'0');
+  };
+
+  let entries = [...map.values()];
+  if (sinceMs) entries = entries.filter(e => e.first >= sinceMs);
+  entries.sort((a, b) => b.first - a.first);   // newest first appearances at top
+
+  const groups = new Map();
+  for (const e of entries) {
+    const k = dayKey(e.first);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(e);
   }
-  function lvlDot(lvlIdx) {
-    const lvl = LVL_ORDER[lvlIdx] || 'informational';
+  const groupKeys = [...groups.keys()].sort().reverse();
+
+  // Stats
+  const dsMin = S.timeMin, dsMax = S.timeMax;
+  const totalEids = map.size;
+  document.getElementById('firstSeenStats').textContent =
+    `${entries.length.toLocaleString()} of ${totalEids.toLocaleString()} unique EIDs `
+    + `\u2022 ${groupKeys.length} day${groupKeys.length===1?'':'s'} `
+    + `\u2022 dataset ${fDF(new Date(dsMin))} \u2192 ${fDF(new Date(dsMax))}`;
+
+  if (!entries.length) {
+    document.getElementById('firstSeenWrap').innerHTML =
+      `<div style="padding:24px;text-align:center;color:var(--text-dim);font-family:var(--mono);font-size:12px">No EIDs first seen on or after ${eH(sinceVal)}.</div>`;
+    return;
+  }
+
+  function lvlDot(idx) {
+    const lvl = LVL_ORDER[idx] || 'informational';
     return `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${lC(lvl)};vertical-align:middle" title="${lvl}"></span>`;
   }
-  const rows2 = entries.slice(0, 500);
-  let thead, rows_html;
-  if (type === 'eid') {
-    thead = `<tr><th>Event ID</th><th>Description</th><th>Lvl</th><th>First Seen</th><th>Last Seen</th><th>Count</th><th>Computers</th><th>Span</th><th>Position</th></tr>`;
-    rows_html = rows2.map(([k,e]) => {
-      const isLate = e.first > dsMid, span = e.last-e.first;
-      const desc = S.eidDescs[k] ? eH(S.eidDescs[k]) : '<span style="color:var(--text-dim)">—</span>';
-      return `<tr${isLate?' style="color:var(--warn)"':''}>
-        <td style="font-family:var(--mono);font-size:12px;white-space:nowrap">${eL(k)}</td>
-        <td style="font-size:11px;color:var(--text-dim);max-width:320px">${desc}</td>
-        <td style="text-align:center">${lvlDot(e.maxLvlIdx)}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDTz(e.first)}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDTz(e.last)}</td>
-        <td style="font-family:var(--mono);font-size:12px">${e.count.toLocaleString()}</td>
+
+  const sections = groupKeys.map(dk => {
+    const items = groups.get(dk);
+    const dayDate = new Date(dk + 'T00:00:00Z');
+    const weekday = dayDate.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' });
+    const rows_html = items.map(e => {
+      const desc = S.eidDescs[e.eid] ? eH(S.eidDescs[e.eid]) : '<span style="color:var(--text-dim)">\u2014</span>';
+      const span = e.last - e.first;
+      return `<tr style="cursor:pointer" data-nav-idx="${e.firstFi}" onclick="openDP(${e.firstFi},'firstseen')">
+        <td style="font-family:var(--mono);font-size:12px;white-space:nowrap">${eL(e.eid)}</td>
+        <td style="text-align:center">${lvlDot(e.lvlIdx)}</td>
+        <td style="font-size:11px;color:var(--text-dim);max-width:340px;overflow:hidden;text-overflow:ellipsis">${desc}</td>
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap;color:var(--orange)">${fDTz(e.first)}</td>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim);max-width:180px;overflow:hidden;text-overflow:ellipsis">${eH(e.firstComp) || '\u2014'}</td>
+        <td style="font-family:var(--mono);font-size:12px;text-align:right">${e.count.toLocaleString()}</td>
         <td style="font-family:var(--mono);font-size:12px;text-align:center">${e.comps.size}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${span>0?fDelta(span):'—'}</td>
-        <td>${posBar(e.first)}</td>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim);white-space:nowrap">${span>0?fDelta(span):'\u2014'}</td>
+        <td style="font-size:11px;color:var(--text-dim);max-width:280px;overflow:hidden;text-overflow:ellipsis">${eH(e.sampleRule) || '\u2014'}</td>
       </tr>`;
     }).join('');
-  } else if (type === 'rule') {
-    thead = `<tr><th>Rule</th><th>Lvl</th><th>First Seen</th><th>Last Seen</th><th>Count</th><th>Computers</th><th>Span</th><th>Position</th></tr>`;
-    rows_html = rows2.map(([k,e]) => {
-      const isLate = e.first > dsMid, span = e.last-e.first;
-      return `<tr${isLate?' style="color:var(--warn)"':''}>
-        <td style="font-family:var(--mono);font-size:11px;max-width:300px">${eH(k)}</td>
-        <td style="text-align:center">${lvlDot(e.maxLvlIdx)}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDTz(e.first)}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDTz(e.last)}</td>
-        <td style="font-family:var(--mono);font-size:12px">${e.count.toLocaleString()}</td>
-        <td style="font-family:var(--mono);font-size:12px;text-align:center">${e.comps.size}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${span>0?fDelta(span):'—'}</td>
-        <td>${posBar(e.first)}</td>
-      </tr>`;
-    }).join('');
-  } else if (type === 'computer') {
-    thead = `<tr><th>Computer</th><th>First Seen</th><th>Last Seen</th><th>Count</th><th>Unique EIDs</th><th>Span</th><th>Position</th></tr>`;
-    rows_html = rows2.map(([k,e]) => {
-      const isLate = e.first > dsMid, span = e.last-e.first;
-      return `<tr${isLate?' style="color:var(--warn)"':''}>
-        <td style="font-family:var(--mono);font-size:12px">${eH(k)}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDTz(e.first)}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDTz(e.last)}</td>
-        <td style="font-family:var(--mono);font-size:12px">${e.count.toLocaleString()}</td>
-        <td style="font-family:var(--mono);font-size:12px;text-align:center">${e.eids.size}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${span>0?fDelta(span):'—'}</td>
-        <td>${posBar(e.first)}</td>
-      </tr>`;
-    }).join('');
-  } else {
-    thead = `<tr><th>Account</th><th>First Seen</th><th>Last Seen</th><th>Count</th><th>Computers</th><th>Unique EIDs</th><th>Span</th><th>Position</th></tr>`;
-    rows_html = rows2.map(([k,e]) => {
-      const isLate = e.first > dsMid, span = e.last-e.first;
-      return `<tr${isLate?' style="color:var(--warn)"':''}>
-        <td style="font-family:var(--mono);font-size:12px">${eH(k)}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDTz(e.first)}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${fDTz(e.last)}</td>
-        <td style="font-family:var(--mono);font-size:12px">${e.count.toLocaleString()}</td>
-        <td style="font-family:var(--mono);font-size:12px;text-align:center">${e.comps.size}</td>
-        <td style="font-family:var(--mono);font-size:12px;text-align:center">${e.eids.size}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${span>0?fDelta(span):'—'}</td>
-        <td>${posBar(e.first)}</td>
-      </tr>`;
-    }).join('');
-  }
-  document.getElementById('arrivalsTable').innerHTML =
-    `<table class="data-table"><thead>${thead}</thead><tbody>${rows_html}</tbody></table>`;
+
+    return `<div style="margin-bottom:18px">
+      <div style="font-family:var(--mono);font-size:12px;color:var(--orange);font-weight:600;padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:6px">
+        ${dk} <span style="color:var(--text-dim);font-weight:400">(${weekday})</span>
+        <span style="color:var(--text-dim);font-weight:400;margin-left:8px">\u2014 ${items.length} new EID${items.length===1?'':'s'}</span>
+      </div>
+      <table class="data-table">
+        <thead><tr>
+          <th>EID</th><th>Lvl</th><th>Description</th>
+          <th>First Seen</th><th>First on Host</th>
+          <th style="text-align:right">Total Count</th>
+          <th style="text-align:center">Hosts</th>
+          <th>Span</th>
+          <th>Sample Rule</th>
+        </tr></thead>
+        <tbody>${rows_html}</tbody>
+      </table>
+    </div>`;
+  }).join('');
+
+  document.getElementById('firstSeenWrap').innerHTML = sections;
 }
 
 // ── MULTI-SESSION & LATERAL ────────────────────────────────────────────────────
@@ -1499,7 +1496,7 @@ function switchTab(t) {
     case 'overview':  rOV();          break;
     case 'timeline':  rTL();          break;
     case 'heatmap':   rHM();          break;
-    case 'arrivals':  rArrivals();    break;
+    case 'firstseen': rFirstSeen();   break;
     case 'gaps':      rGaps();        break;
     case 'periodic':  rPeriodic();    break;
     case 'rules':     rRU();          break;

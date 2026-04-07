@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EventScope v5.13 — Forensic Event Log Analyzer</title>
+<title>EventScope v5.14 — Forensic Event Log Analyzer</title>
 <style>
   :root {
     /* ── Core palette ─────────────────────────────── */
@@ -611,7 +611,7 @@
 
 <div class="header">
   <div class="header-left">
-    <div class="logo">EventScope <span>/ v5.13</span></div>
+    <div class="logo">EventScope <span>/ v5.14</span></div>
   </div>
   <div class="header-stats" id="headerStats"></div>
 </div>
@@ -681,7 +681,7 @@
     <div class="tab" data-tab="overview">Overview</div>
     <div class="tab" data-tab="timeline">Timeline</div>
     <div class="tab" data-tab="heatmap">Heatmap</div>
-    <div class="tab" data-tab="arrivals">Arrivals</div>
+    <div class="tab" data-tab="firstseen">First Seen</div>
     <div class="tab" data-tab="gaps">Gaps</div>
     <div class="tab" data-tab="periodic">Periodic</div>
     <div class="tab" data-tab="rules">Rules</div>
@@ -776,30 +776,22 @@
   </div>
 
   <!-- ARRIVALS -->
-  <div class="panel" id="panel-arrivals">
+  <div class="panel" id="panel-firstseen">
     <div class="chart-box">
       <div class="chart-header">
-        <span class="chart-title">First-Seen / Last-Seen Tracker</span>
-        <div class="chart-controls">
-          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Type:</label>
-          <select class="filter-input" id="arrivalsType" style="min-width:130px">
-            <option value="eid">Event IDs</option>
-            <option value="rule">Rules</option>
-            <option value="computer">Computers</option>
-            <option value="account">Accounts</option>
-          </select>
-          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Sort:</label>
-          <select class="filter-input" id="arrivalsSort" style="min-width:130px">
-            <option value="first">First Seen ▲</option>
-            <option value="last">Last Seen ▲</option>
-            <option value="count">Count ▼</option>
-          </select>
-          <button class="chart-btn active" id="arrivalsLateBtn" title="Show only items first appearing in second half of dataset">Late Only</button>
+        <span class="chart-title">Event IDs &mdash; first seen on date</span>
+        <span class="chart-title" id="firstSeenStats" style="font-weight:400;color:var(--text-dim)"></span>
+        <div class="chart-controls" style="margin-left:auto">
+          <label style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">Show only first appearances on or after:</label>
+          <input class="filter-input" type="date" id="firstSeenSince" style="min-width:140px" onchange="rFirstSeen()">
+          <button class="chart-btn" onclick="document.getElementById('firstSeenSince').value='';rFirstSeen()">Clear</button>
         </div>
       </div>
-      <p style="font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:12px">Items first appearing after the dataset midpoint are highlighted <span style="color:var(--warn)">amber</span> — these are inherently more interesting.</p>
-      <div id="arrivalsCards" class="card-grid" style="margin-bottom:16px"></div>
-      <div class="data-table-wrap" id="arrivalsTable"></div>
+      <div style="font-size:11px;color:var(--text-dim);font-family:var(--mono);margin-bottom:12px;line-height:1.6">
+        Each unique Event ID is listed under the calendar day it first appeared in the loaded data, newest day first.
+        Click a row to open the originating event in the detail panel.
+      </div>
+      <div id="firstSeenWrap"></div>
     </div>
   </div>
 
@@ -1344,16 +1336,6 @@ document.querySelectorAll('#hmWtCount,#hmWtSev').forEach(b => b.addEventListener
 }));
 
 // ── ARRIVALS BUTTONS ───────────────────────────────────────────────────────────
-
-['arrivalsType','arrivalsSort'].forEach(id =>
-  document.getElementById(id).addEventListener('change', () => {
-    if (document.querySelector('.tab.active')?.dataset.tab === 'arrivals') rArrivals();
-  })
-);
-document.getElementById('arrivalsLateBtn').addEventListener('click', function() {
-  this.classList.toggle('active');
-  if (document.querySelector('.tab.active')?.dataset.tab === 'arrivals') rArrivals();
-});
 
 // ── GAP BUTTONS ────────────────────────────────────────────────────────────────
 
