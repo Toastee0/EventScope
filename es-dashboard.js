@@ -80,6 +80,45 @@ function _extractAccounts(rows) {
   return [...users.values()].sort((a, b) => (b.successes + b.failures) - (a.successes + a.failures));
 }
 
+// EID 4672 -- Special privileges assigned to new logon. Hayabusa drops the
+// PrivilegeList field, so fall back to scanning the raw det/extra strings
+// for "Se*Privilege" tokens. Both formats stash them somewhere.
+const _PRIV_RX = /\bSe[A-Z][A-Za-z]*Privilege\b/g;
+
+function _extractPrivileged(rows) {
+  const users = new Map();   // lowercase user -> { name, count, privs:Set, firstTs, lastTs, firstFi, ... }
+  for (let fi = 0; fi < rows.length; fi++) {
+    const r = rows[fi];
+    if (String(r.eid) !== '4672') continue;
+    const p = parseDet(r.det);
+    let u = (p.SubjectUserName || p.TgtUser || p.TargetUserName || p.UserName || '').trim();
+    if (!u || u === '-' || u.endsWith('$')) continue;
+    const lo = u.toLowerCase();
+    if (LAT_SKIP && LAT_SKIP.has(lo)) continue;
+    if (!users.has(lo)) users.set(lo, {
+      name: u, count: 0, privs: new Set(),
+      firstTs: Infinity, lastTs: -Infinity,
+      firstFi: fi, domain: p.SubjectDomainName || ''
+    });
+    const e = users.get(lo);
+    e.count++;
+    if (!isNaN(r.ts)) {
+      if (r.ts < e.firstTs) { e.firstTs = r.ts; e.firstFi = fi; }
+      if (r.ts > e.lastTs)  { e.lastTs  = r.ts; }
+    }
+    // Privileges: try parsed PrivilegeList first, then regex over det+extra
+    const direct = p.PrivilegeList || p.privilegeList || '';
+    if (direct) {
+      direct.split(/[\s,;]+/).forEach(t => { if (/^Se[A-Z][A-Za-z]*Privilege$/.test(t)) e.privs.add(t); });
+    }
+    const hay = (r.det || '') + ' ' + (r.extra || '');
+    let m;
+    _PRIV_RX.lastIndex = 0;
+    while ((m = _PRIV_RX.exec(hay)) !== null) e.privs.add(m[0]);
+  }
+  return [...users.values()].sort((a, b) => b.count - a.count);
+}
+
 // Per-channel log span — separate first/last per Windows event channel so
 // "Log Span" doesn't lie when Security rolled at 30 days but Application
 // has years of garbage. Returns sorted array.
@@ -201,6 +240,9 @@ function rDashboard() {
   // ── Channel spans (for the Log Span breakdown) ───────────────────────────
   const chanSpans = _extractChannelSpans(rows);
 
+  // ── Privileged logons (4672) ─────────────────────────────────────────────
+  const priv = _extractPrivileged(rows);
+
   // ── BUILD DOM ────────────────────────────────────────────────────────────
 
   const card = (label, value, sub, borderColor) =>
@@ -301,6 +343,45 @@ function rDashboard() {
     </div>`;
   }).join('');
 
+  // Privileged logons table (4672)
+  // Highlight the dangerous ones a separate colour: SeDebug, SeImpersonate,
+  // SeAssignPrimaryToken, SeTcb, SeBackup, SeRestore, SeLoadDriver, SeTakeOwnership
+  const _DANGER_PRIVS = new Set([
+    'SeDebugPrivilege','SeImpersonatePrivilege','SeAssignPrimaryTokenPrivilege',
+    'SeTcbPrivilege','SeBackupPrivilege','SeRestorePrivilege',
+    'SeLoadDriverPrivilege','SeTakeOwnershipPrivilege','SeCreateTokenPrivilege',
+    'SeRelabelPrivilege'
+  ]);
+  const fmtPriv = name => {
+    const isDanger = _DANGER_PRIVS.has(name);
+    const short   = name.replace(/^Se/, '').replace(/Privilege$/, '');
+    return `<span style="font-family:var(--mono);font-size:10px;padding:1px 5px;border-radius:2px;margin:0 2px 2px 0;display:inline-block;background:${isDanger?'var(--critical-dim)':'var(--surface3)'};color:${isDanger?'var(--high)':'var(--text-dim)'};font-weight:${isDanger?'600':'400'}">${eH(short)}</span>`;
+  };
+  const privRows = priv.map(u => {
+    const dangerCount = [...u.privs].filter(p => _DANGER_PRIVS.has(p)).length;
+    const privBadges  = [...u.privs].sort().map(fmtPriv).join('');
+    return `<tr style="cursor:pointer" data-nav-idx="${u.firstFi}" onclick="openDP(${u.firstFi},'dashboard')" title="Jump to first 4672 for ${eH(u.name)}">
+      <td style="font-weight:600">${eH(u.name)}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${eH(u.domain) || '\u2014'}</td>
+      <td style="text-align:right;font-family:var(--mono)">${u.count.toLocaleString()}</td>
+      <td style="text-align:right;font-family:var(--mono);font-size:11px"><span style="color:${dangerCount>0?'var(--high)':'var(--text-dim)'};font-weight:${dangerCount>0?'600':'400'}">${dangerCount}</span><span style="color:var(--text-dim)"> / ${u.privs.size}</span></td>
+      <td style="line-height:1.8;max-width:560px">${privBadges}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--orange)">${isFinite(u.firstTs)?fDTz(u.firstTs):'\u2014'}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${isFinite(u.lastTs)?fDTz(u.lastTs):'\u2014'}</td>
+    </tr>`;
+  }).join('');
+  const privSection = priv.length
+    ? `<table class="data-table"><thead><tr>
+        <th>Account</th>
+        <th>Domain</th>
+        <th style="text-align:right">4672 hits</th>
+        <th style="text-align:right" title="Privileges flagged as high-risk / many privileges">Risk / Total</th>
+        <th>Privileges</th>
+        <th>First Seen</th>
+        <th>Last Seen</th>
+      </tr></thead><tbody>${privRows}</tbody></table>`
+    : '<div style="padding:16px;color:var(--text-dim);font-family:var(--mono);font-size:12px">No EID 4672 (Special privileges assigned to new logon) events in current filter.</div>';
+
   // Channel-span breakdown table
   const chanSpanRows = chanSpans.map(c => {
     const span = c.last - c.first;
@@ -356,6 +437,13 @@ function rDashboard() {
         <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim);margin-left:auto">extracted from 4624 / 4625 / 4648</span>
       </div>
       <div class="data-table-wrap">${usersSection}</div>
+    </div>
+
+    <div class="chart-box" style="margin-bottom:14px">
+      <div class="chart-header"><span class="chart-title">Privileged Logons &mdash; admin sessions and what they got</span>
+        <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim);margin-left:auto">EID 4672 &mdash; SeDebug / SeImpersonate / SeAssignPrimaryToken etc. highlighted as high-risk</span>
+      </div>
+      <div class="data-table-wrap">${privSection}</div>
     </div>
 
     <div class="chart-box" style="margin-bottom:14px">
