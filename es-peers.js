@@ -92,6 +92,14 @@ function _isPrivateIP(ip) {
   return false;
 }
 
+// 172.16.0.0/12 is RFC1918 but in DFIR casework almost always appears
+// as a VPN concentrator range rather than on-LAN traffic. Flagged with
+// a "?" because it's a heuristic, not a confirmation.
+function _isLikelyVPN(ip) {
+  const s = _normIP(ip);
+  return /^172\.(1[6-9]|2\d|3[01])\./.test(s);
+}
+
 function _firstField(p, names) {
   for (const n of names) {
     const v = (p[n] || '').trim();
@@ -223,9 +231,15 @@ function _renderPeerTable(map, direction) {
     const failBadge = p.fail > 0
       ? `<span style="color:var(--high);font-weight:600">${p.fail}</span><span style="color:var(--text-dim)"> / ${p.count}</span>`
       : `<span>${p.count.toLocaleString()}</span>`;
-    const ipStyle = _isPrivateIP(p.ip)
-      ? 'color:var(--text);'
-      : 'color:var(--orange);font-weight:600;';
+    const isVPN    = _isLikelyVPN(p.ip);
+    const isPriv   = _isPrivateIP(p.ip);
+    const ipStyle  = isVPN  ? 'color:var(--warn);font-weight:600;'
+                   : isPriv ? 'color:var(--text);'
+                            : 'color:var(--orange);font-weight:600;';
+    const badge    = isVPN
+      ? ' <span style="font-size:9px;background:var(--warn-dim);color:var(--warn);padding:1px 4px;border-radius:2px;font-weight:600" title="172.16.0.0/12 is typically a VPN concentrator range in DFIR casework">VPN?</span>'
+      : (isPriv ? ''
+                : ' <span style="font-size:9px;background:var(--orange-dim);color:var(--orange);padding:1px 4px;border-radius:2px;font-weight:600">PUBLIC</span>');
     const eidList = [...p.eids].sort().slice(0, 6).map(e => eL(e)).join(', ')
                   + (p.eids.size > 6 ? ' \u2026' : '');
     const userList = [...p.users].slice(0, 3).join(', ')
@@ -234,7 +248,7 @@ function _renderPeerTable(map, direction) {
 
     let summary = `<tr class="peer-summary-row${isOpen?' peer-row-open':''}" style="cursor:pointer" onclick="togglePeerExpand('${eH(id)}')">
       <td style="width:18px;color:var(--text-dim);font-size:10px;padding-right:0">${arrow}</td>
-      <td style="font-family:var(--mono);${ipStyle}">${eH(p.ip)}${_isPrivateIP(p.ip)?'':' <span style="font-size:9px;background:var(--orange-dim);color:var(--orange);padding:1px 4px;border-radius:2px;font-weight:600">PUBLIC</span>'}</td>
+      <td style="font-family:var(--mono);${ipStyle}">${eH(p.ip)}${badge}</td>
       <td style="text-align:right;font-family:var(--mono)">${failBadge}</td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${!isFinite(p.first)?'\u2014':fDTz(p.first)}</td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${!isFinite(p.last)?'\u2014':fDTz(p.last)}</td>
@@ -298,7 +312,7 @@ function togglePeerExpand(id) {
 // ── CSV EXPORT ────────────────────────────────────────────────────────────────
 
 const PEER_CSV_COLS = [
-  'Direction','RemoteIP','IsPrivate','Hits','Failures',
+  'Direction','RemoteIP','Classification','Hits','Failures',
   'FirstSeen_UTC','LastSeen_UTC','Span',
   'EventIDs','Accounts','Computers'
 ];
@@ -313,10 +327,13 @@ function _csvCell(v) {
 
 function _peerToCsvRow(p, direction) {
   const fmt = ts => isFinite(ts) ? new Date(ts).toISOString().replace('T',' ').replace(/\..+$/, '') : '';
+  const cls = _isLikelyVPN(p.ip) ? 'VPN?'
+            : _isPrivateIP(p.ip) ? 'Private'
+                                 : 'Public';
   return [
     direction === 'in' ? 'Inbound' : 'Outbound',
     p.ip,
-    _isPrivateIP(p.ip) ? 'true' : 'false',
+    cls,
     p.count,
     p.fail,
     fmt(p.first),
