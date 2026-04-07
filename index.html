@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EventScope v5.12 — Forensic Event Log Analyzer</title>
+<title>EventScope v5.13 — Forensic Event Log Analyzer</title>
 <style>
   :root {
     /* ── Core palette ─────────────────────────────── */
@@ -611,7 +611,7 @@
 
 <div class="header">
   <div class="header-left">
-    <div class="logo">EventScope <span>/ v5.12</span></div>
+    <div class="logo">EventScope <span>/ v5.13</span></div>
   </div>
   <div class="header-stats" id="headerStats"></div>
 </div>
@@ -677,7 +677,8 @@
 
   <!-- TAB BAR -->
   <div class="tabs">
-    <div class="tab active" data-tab="overview">Overview</div>
+    <div class="tab active" data-tab="dashboard">Dashboard</div>
+    <div class="tab" data-tab="overview">Overview</div>
     <div class="tab" data-tab="timeline">Timeline</div>
     <div class="tab" data-tab="heatmap">Heatmap</div>
     <div class="tab" data-tab="arrivals">Arrivals</div>
@@ -697,8 +698,13 @@
     <div class="tab" id="tabEvtxLoad" style="display:none;margin-left:auto;color:var(--orange);border-bottom-color:transparent" title="Load EvtxECmd CSV to enable raw-event tabs">+ Load EVTX-All</div>
   </div>
 
+  <!-- DASHBOARD (landing page) -->
+  <div class="panel active" id="panel-dashboard">
+    <div id="dashboardContent"></div>
+  </div>
+
   <!-- OVERVIEW -->
-  <div class="panel active" id="panel-overview">
+  <div class="panel" id="panel-overview">
     <div class="card-grid" id="overviewCards"></div>
     <div class="two-col">
       <div class="chart-box">
@@ -1180,6 +1186,7 @@
 <script src="es-srum.js"></script>
 <script src="es-netconfig.js"></script>
 <script src="es-peers.js"></script>
+<script src="es-dashboard.js"></script>
 
 <!-- Initialization -->
 <script>
@@ -1223,7 +1230,7 @@ async function loadF(file) {
   document.querySelectorAll('#levelFilter input[type="checkbox"]').forEach(c => c.checked = true);
   S.filters = {};
   invF();
-  switchTab('overview');
+  switchTab('dashboard');
 }
 
 // ── DROP ZONE ──────────────────────────────────────────────────────────────────

@@ -1495,6 +1495,7 @@ function switchTab(t) {
   document.querySelectorAll('.row-selected').forEach(el => el.classList.remove('row-selected'));
   _lastExpandedIdx = null; _lastExpandedCtx = null;
   switch (t) {
+    case 'dashboard': rDashboard();   break;
     case 'overview':  rOV();          break;
     case 'timeline':  rTL();          break;
     case 'heatmap':   rHM();          break;
