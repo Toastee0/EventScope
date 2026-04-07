@@ -137,6 +137,47 @@ function _getDstHost(p) {
   return v;
 }
 
+// Friendly LogonType names. Hayabusa often pre-decodes ("3 - NETWORK")
+// so we extract any leading number and re-format consistently.
+const _LOGON_TYPES = {
+  '0':  'System',
+  '2':  'Interactive',
+  '3':  'Network',
+  '4':  'Batch',
+  '5':  'Service',
+  '7':  'Unlock',
+  '8':  'NetworkCleartext',
+  '9':  'NewCredentials',
+  '10': 'RemoteInteractive',
+  '11': 'CachedInteractive',
+  '12': 'CachedRemoteInteractive',
+  '13': 'CachedUnlock',
+};
+function _decodeLogonType(v) {
+  if (!v) return '';
+  const m = String(v).match(/(\d+)/);
+  if (!m) return v;
+  const n = m[1];
+  return _LOGON_TYPES[n] ? `${n}-${_LOGON_TYPES[n]}` : v;
+}
+
+// Impersonation level codes from Security 4624. Some sources emit the
+// numeric code, others emit "%%1833" style placeholders, others a name.
+const _IMP_LEVELS = {
+  '0':      'Anonymous',
+  '1':      'Identification',
+  '2':      'Impersonation',
+  '3':      'Delegation',
+  '%%1832': 'Identification',
+  '%%1833': 'Impersonation',
+  '%%1840': 'Delegation',
+  '%%1841': 'Anonymous',
+};
+function _decodeImpLevel(v) {
+  if (!v) return '';
+  return _IMP_LEVELS[v] || v;
+}
+
 // ── STATE ─────────────────────────────────────────────────────────────────────
 
 let _peersExpanded = null;        // 'in:1.2.3.4' or 'out:5.6.7.8'
@@ -155,6 +196,11 @@ function _buildPeers() {
       ip, count:0, fail:0,
       eids: new Set(), users: new Set(), comps: new Set(),
       remoteHosts: new Set(),
+      logonTypes:    new Set(),    // 2/3/10/etc -- decoded for display
+      logonProcs:    new Set(),    // NtLmSsp, Kerberos, Advapi, ...
+      authPackages:  new Set(),    // NTLM, Kerberos, Negotiate
+      lmPackages:    new Set(),    // NTLM V1, NTLM V2, LM
+      impLevels:     new Set(),    // Impersonation level
       first: Infinity, last: -Infinity, indices: []
     });
     return m.get(ip);
@@ -180,6 +226,17 @@ function _buildPeers() {
     // SrcComp, ClientName, etc.) -- only meaningful for inbound peers
     const rh = (dirHint === 'in') ? _getSrcHost(det) : _getDstHost(det);
     if (rh && rh.toLowerCase() !== ip.toLowerCase()) e.remoteHosts.add(rh);
+    // Logon mechanics (4624/4625/4648 carry these; harmless if absent)
+    const lt = _firstField(det, ['LogonType','Type']);
+    if (lt) e.logonTypes.add(_decodeLogonType(lt));
+    const lp = _firstField(det, ['LogonProcessName','LogonProcess']);
+    if (lp) e.logonProcs.add(lp);
+    const ap = _firstField(det, ['AuthenticationPackageName','AuthPkg']);
+    if (ap) e.authPackages.add(ap);
+    const lm = _firstField(det, ['LmPackageName']);
+    if (lm) e.lmPackages.add(lm);
+    const im = _firstField(det, ['ImpersonationLevel']);
+    if (im) e.impLevels.add(_decodeImpLevel(im));
     if (!isNaN(r.ts)) {
       if (r.ts < e.first) e.first = r.ts;
       if (r.ts > e.last)  e.last  = r.ts;
@@ -274,13 +331,30 @@ function _renderPeerTable(map, direction) {
                    + (p.users.size > 3 ? ` +${p.users.size-3}` : '');
     const hostList = [...p.remoteHosts].slice(0, 2).join(', ')
                    + (p.remoteHosts.size > 2 ? ` +${p.remoteHosts.size-2}` : '');
+    const ltList   = [...p.logonTypes].sort().join(', ');
+    const procList = [...p.logonProcs].sort().join(', ');
+    const authList = [...p.authPackages].sort().join(', ');
+    const lmList   = [...p.lmPackages].sort().join(', ');
+    const impList  = [...p.impLevels].sort().join(', ');
     const span = (p.last - p.first) > 0 ? fDelta(p.last - p.first) : '\u2014';
+
+    // Logon mechanics tooltip — only meaningful for inbound peers (4624/4625/4648)
+    const mechTip = direction === 'in' ? eH([
+      procList ? 'LogonProcess: ' + procList : '',
+      authList ? 'AuthPackage: '  + authList : '',
+      lmList   ? 'LmPackage: '    + lmList   : '',
+      impList  ? 'Impersonation: '+ impList  : '',
+    ].filter(Boolean).join(' \u2022 ')) : '';
+    const mechCell = direction === 'in'
+      ? `<td style="font-family:var(--mono);font-size:11px;color:var(--text-dim);max-width:170px;overflow:hidden;text-overflow:ellipsis" title="${mechTip}">${eH(ltList) || '\u2014'}</td>`
+      : `<td style="color:var(--text-dim)">\u2014</td>`;
 
     let summary = `<tr class="peer-summary-row${isOpen?' peer-row-open':''}" style="cursor:pointer" onclick="togglePeerExpand('${eH(id)}')">
       <td style="width:18px;color:var(--text-dim);font-size:10px;padding-right:0">${arrow}</td>
       <td style="font-family:var(--mono);${ipStyle}">${eH(p.ip)}${badge}</td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--info);max-width:170px;overflow:hidden;text-overflow:ellipsis" title="${eH([...p.remoteHosts].join(', '))}">${eH(hostList) || '<span style="color:var(--text-dim)">\u2014</span>'}</td>
       <td style="text-align:right;font-family:var(--mono)">${failBadge}</td>
+      ${mechCell}
       <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${!isFinite(p.first)?'\u2014':fDTz(p.first)}</td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${!isFinite(p.last)?'\u2014':fDTz(p.last)}</td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${span}</td>
@@ -306,9 +380,9 @@ function _renderPeerTable(map, direction) {
         </tr>`;
       }).join('');
       const more = p.indices.length > 60
-        ? `<tr><td colspan="9" style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--text-dim);padding:6px">\u2026 ${(p.indices.length-60).toLocaleString()} more (truncated)</td></tr>`
+        ? `<tr><td colspan="10" style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--text-dim);padding:6px">\u2026 ${(p.indices.length-60).toLocaleString()} more (truncated)</td></tr>`
         : '';
-      summary += `<tr class="peer-expand-row"><td colspan="9" style="padding:0;background:var(--surface2);border-top:2px solid var(--orange);border-bottom:1px solid var(--border)">
+      summary += `<tr class="peer-expand-row"><td colspan="10" style="padding:0;background:var(--surface2);border-top:2px solid var(--orange);border-bottom:1px solid var(--border)">
         <table class="data-table" style="margin:0;border:none">
           <thead><tr style="background:var(--surface3)"><th colspan="2"></th><th>Time</th><th>Lvl</th><th>EID</th><th>Hostname</th><th colspan="2">Account</th></tr></thead>
           <tbody>${evtRows}${more}</tbody>
@@ -323,6 +397,7 @@ function _renderPeerTable(map, direction) {
     <th>${dirLabel}</th>
     <th>Hostname</th>
     <th style="text-align:right">Hits / Fails</th>
+    <th title="LogonType (hover for LogonProcess / AuthPackage / LmPackage / Impersonation)">Logon</th>
     <th>First Seen</th>
     <th>Last Seen</th>
     <th>Span</th>
@@ -346,6 +421,7 @@ function togglePeerExpand(id) {
 
 const PEER_CSV_COLS = [
   'Direction','RemoteIP','RemoteHostnames','Classification','Hits','Failures',
+  'LogonTypes','LogonProcesses','AuthPackages','LmPackages','ImpersonationLevels',
   'FirstSeen_UTC','LastSeen_UTC','Span',
   'EventIDs','Accounts','Computers'
 ];
@@ -370,6 +446,11 @@ function _peerToCsvRow(p, direction) {
     cls,
     p.count,
     p.fail,
+    [...p.logonTypes].sort().join('; '),
+    [...p.logonProcs].sort().join('; '),
+    [...p.authPackages].sort().join('; '),
+    [...p.lmPackages].sort().join('; '),
+    [...p.impLevels].sort().join('; '),
     fmt(p.first),
     fmt(p.last),
     (p.last - p.first) > 0 ? fDelta(p.last - p.first) : '',
