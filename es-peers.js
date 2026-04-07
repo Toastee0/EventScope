@@ -268,3 +268,70 @@ function togglePeerExpand(id) {
     });
   }
 }
+
+// ── CSV EXPORT ────────────────────────────────────────────────────────────────
+
+const PEER_CSV_COLS = [
+  'Direction','RemoteIP','IsPrivate','Hits','Failures',
+  'FirstSeen_UTC','LastSeen_UTC','Span',
+  'EventIDs','Accounts','Computers'
+];
+
+function _csvCell(v) {
+  const s = (v == null) ? '' : String(v);
+  if (s.indexOf('"') !== -1 || s.indexOf(',') !== -1 || s.indexOf('\n') !== -1) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+function _peerToCsvRow(p, direction) {
+  const fmt = ts => isFinite(ts) ? new Date(ts).toISOString().replace('T',' ').replace(/\..+$/, '') : '';
+  return [
+    direction === 'in' ? 'Inbound' : 'Outbound',
+    p.ip,
+    _isPrivateIP(p.ip) ? 'true' : 'false',
+    p.count,
+    p.fail,
+    fmt(p.first),
+    fmt(p.last),
+    (p.last - p.first) > 0 ? fDelta(p.last - p.first) : '',
+    [...p.eids].sort().join('; '),
+    [...p.users].sort().join('; '),
+    [...p.comps].sort().join('; '),
+  ].map(_csvCell).join(',');
+}
+
+function buildPeersCsv() {
+  const { inMap, outMap } = _buildPeers();
+  const lines = [PEER_CSV_COLS.map(_csvCell).join(',')];
+  // Inbound first (sorted by hits desc), then outbound
+  [...inMap.values()].sort((a,b) => b.count - a.count).forEach(p => lines.push(_peerToCsvRow(p, 'in')));
+  [...outMap.values()].sort((a,b) => b.count - a.count).forEach(p => lines.push(_peerToCsvRow(p, 'out')));
+  return lines.join('\r\n');
+}
+
+function copyPeersCsv() {
+  const csv = buildPeersCsv();
+  if (!csv) { showToast('No peer data to export'); return; }
+  navigator.clipboard.writeText(csv).then(
+    () => showToast('Remote hosts CSV copied to clipboard'),
+    () => showToast('Clipboard copy failed')
+  );
+}
+
+function downloadPeersCsv() {
+  const csv = buildPeersCsv();
+  if (!csv) { showToast('No peer data to export'); return; }
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+  a.href     = url;
+  a.download = `remote-hosts-${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Remote hosts CSV downloaded');
+}
