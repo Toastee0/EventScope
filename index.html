@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EventScope v5.19 — Forensic Event Log Analyzer</title>
+<title>EventScope v5.20 — Forensic Event Log Analyzer</title>
 <style>
   :root {
     /* ── Core palette ─────────────────────────────── */
@@ -613,7 +613,7 @@
 
 <div class="header">
   <div class="header-left">
-    <div class="logo">EventScope <span>/ v5.19</span></div>
+    <div class="logo">EventScope <span>/ v5.20</span></div>
   </div>
   <div class="header-stats" id="headerStats"></div>
 </div>
@@ -636,9 +636,26 @@
       Auto-detected from the CSV header.
     </div>
   </div>
+  <div style="display:flex;gap:10px;margin-top:18px;align-items:center">
+    <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">No data yet?</span>
+    <button class="session-add-btn" id="splashCypferBtn" style="border-style:solid" onclick="openCypferModal()">Generate collector script &rarr;</button>
+  </div>
   <div class="progress-container" id="progressContainer">
     <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
     <div class="progress-text" id="progressText">Preparing...</div>
+  </div>
+</div>
+
+<!-- Cypfer Collector Modal (reused by splash button and Cypfer tab) -->
+<div class="col-cfg-overlay" id="cypferOverlay">
+  <div class="col-cfg-modal" style="width:900px;max-width:96vw">
+    <div class="col-cfg-title">EventScope Cypfer &mdash; Collector Script Generator</div>
+    <div class="col-cfg-sub">Generates a ready-to-run PowerShell triage script customised to your paths. Nothing runs from the browser.</div>
+    <div id="cypferModalBody"></div>
+    <div class="col-cfg-footer">
+      <span style="font-size:10px;color:var(--text-dim);font-family:var(--mono)">Paste into VS Code or any elevated PowerShell and run</span>
+      <button class="col-cfg-cancel" onclick="closeCypferModal()">Close</button>
+    </div>
   </div>
 </div>
 
@@ -694,6 +711,7 @@
     <div class="tab" data-tab="logons">Logons</div>
     <div class="tab" data-tab="lateral">Lateral Movement</div>
     <div class="tab" data-tab="peers">Remote Hosts</div>
+    <div class="tab" data-tab="cypfer">Collector</div>
     <div class="tab" data-tab="eidfocus" id="tabEidFocus" style="display:none">EID Focus</div>
     <div class="tab" data-tab="srum">SRUM</div>
     <div class="tab" data-tab="netconfig">Network</div>
@@ -1135,6 +1153,11 @@
     </div>
   </div>
 
+  <!-- COLLECTOR (Cypfer) -->
+  <div class="panel" id="panel-cypfer">
+    <div id="cypferContent"></div>
+  </div>
+
 </div><!-- /.dashboard -->
 
 <div class="tooltip" id="tooltip"></div>
@@ -1181,6 +1204,7 @@
 <script src="es-netconfig.js"></script>
 <script src="es-peers.js"></script>
 <script src="es-dashboard.js"></script>
+<script src="es-cypfer.js"></script>
 
 <!-- Initialization -->
 <script>

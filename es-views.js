@@ -1621,6 +1621,7 @@ function switchTab(t) {
     case 'srum':      rSRUM();        break;
     case 'netconfig': rNetconfig();   break;
     case 'peers':     rPeers();       break;
+    case 'cypfer':    rCypfer();      break;
   }
 }
 
