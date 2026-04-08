@@ -21,6 +21,9 @@ const PEER_EID_MAP = {
   '4778': { dir:'in',  src:['SrcIP','ClientAddress'],      label:'Session Reconnect'  },
   '4779': { dir:'in',  src:['SrcIP','ClientAddress'],      label:'Session Disconnect' },
   '4825': { dir:'in',  src:['SrcIP','ClientAddress'],      label:'RDP Denied'         },
+  // RemoteDesktopServices-RdpCoreTS/Operational. ClientIP arrives as
+  // "1.2.3.4:50123" -- _normIP() extracts the v4 substring automatically.
+  '131':  { dir:'in',  src:['ClientIP','RemoteHost'],      label:'RDP Connection',   chan:'RdpCoreTS' },
   // ── Inbound: share access ───────────────────────────────────────────────────
   '5140': { dir:'in',  src:['SrcIP','IpAddress'],          label:'Share Access'       },
   '5145': { dir:'in',  src:['SrcIP','IpAddress'],          label:'Share Detail'       },

@@ -135,10 +135,20 @@ function _extractChannelSpans(rows) {
   return [...map.values()].sort((a, b) => b.count - a.count);
 }
 
+// Pull a clean IPv4 out of any string the events throw at us. Handles
+// "::ffff:1.2.3.4", "1.2.3.4:50123", "[::1]" wrappers, etc.
+function _dashCleanIP(s) {
+  if (!s || s === '-') return '';
+  let v = String(s).trim().toLowerCase();
+  if (v.startsWith('[') && v.endsWith(']')) v = v.slice(1, -1);
+  v = v.replace(/^::ffff:/, '').replace(/^(?:0+:){5}ffff:/, '');
+  const v4 = v.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
+  return v4 ? v4[1] : v;
+}
+
 function _extractNetwork(rows) {
   // Distinct hostnames (from r.comp) + distinct source/peer IPs seen in
-  // logon/share/Sysmon/WFP events. Also capture which interfaces had DHCP
-  // leases by looking at EID 7036 / 10000 / DHCP client events if present.
+  // logon/share/Sysmon/WFP/RDP events.
   const hosts = new Set();
   const srcIps = new Set();
   const dstIps = new Set();
@@ -146,10 +156,16 @@ function _extractNetwork(rows) {
   for (const r of rows) {
     if (r.comp) hosts.add(r.comp);
     const p = parseDet(r.det);
-    const sIp = p.SrcIP || p.IpAddress || p.ClientAddress || p.SourceAddress || p.SourceIp;
+    // Inbound source IP candidates -- includes ClientIP/RemoteHost from
+    // RdpCoreTS EID 131 (which arrive as "1.2.3.4:port")
+    const sIp = p.SrcIP || p.IpAddress || p.ClientAddress
+             || p.SourceAddress || p.SourceIp
+             || p.ClientIP || p.RemoteHost;
     const dIp = p.TgtIP || p.DestAddress || p.DestinationIp;
-    if (sIp && sIp !== '-') srcIps.add(sIp.replace(/^::ffff:/i, ''));
-    if (dIp && dIp !== '-') dstIps.add(dIp.replace(/^::ffff:/i, ''));
+    const sClean = _dashCleanIP(sIp);
+    const dClean = _dashCleanIP(dIp);
+    if (sClean) srcIps.add(sClean);
+    if (dClean) dstIps.add(dClean);
     const d = p.TargetDomainName || p.SubjectDomainName;
     if (d && d !== '-' && !d.endsWith('$')) domains.add(d);
   }
