@@ -1,3 +1,5 @@
 {
-  "Microsoft-WindowsAzure-Status/Plugins|7": "Azure VM extension installed/maintained/removed (CustomScriptExtension or RunCommand — runs as SYSTEM)"
+  "Microsoft-WindowsAzure-Status/Plugins|7": "Azure VM extension installed/maintained/removed (CustomScriptExtension or RunCommand — runs as SYSTEM)",
+  "windowsAzure-GuestAgent-Metrics/|7": "Azure VM extension installed/maintained/removed (CustomScriptExtension or RunCommand — runs as SYSTEM)",
+  "WindowsAzureGuestAgent|7": "Azure VM extension installed/maintained/removed (CustomScriptExtension or RunCommand — runs as SYSTEM)"
 }
