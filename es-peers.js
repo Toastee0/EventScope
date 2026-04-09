@@ -181,6 +181,24 @@ function _decodeImpLevel(v) {
   return _IMP_LEVELS[v] || v;
 }
 
+// Pull a port number off an "ip:port" or "[ipv6]:port" string. Returns
+// '' when no recognisable port is present. _normIP strips it for the IP
+// side; this is the complement so we can keep both halves.
+function _extractPort(s) {
+  if (!s) return '';
+  const v = String(s).trim();
+  // [::1]:443 -> 443
+  const bracket = v.match(/^\[[^\]]+\]:(\d{1,5})$/);
+  if (bracket) return bracket[1];
+  // 1.2.3.4:50123 -- only treat trailing digits as a port if exactly
+  // one colon is present (so we don't mis-parse pure IPv6 like 2001::1)
+  if ((v.match(/:/g) || []).length === 1) {
+    const m = v.match(/:(\d{1,5})$/);
+    if (m) return m[1];
+  }
+  return '';
+}
+
 // ── STATE ─────────────────────────────────────────────────────────────────────
 
 let _peersExpanded = null;        // 'in:1.2.3.4' or 'out:5.6.7.8'
@@ -204,6 +222,7 @@ function _buildPeers() {
       authPackages:  new Set(),    // NTLM, Kerberos, Negotiate
       lmPackages:    new Set(),    // NTLM V1, NTLM V2, LM
       impLevels:     new Set(),    // Impersonation level
+      ports:         new Set(),    // remote-side port numbers (string form)
       first: Infinity, last: -Infinity, indices: []
     });
     return m.get(ip);
@@ -240,6 +259,17 @@ function _buildPeers() {
     if (lm) e.lmPackages.add(lm);
     const im = _firstField(det, ['ImpersonationLevel']);
     if (im) e.impLevels.add(_decodeImpLevel(im));
+    // Port capture -- two sources:
+    //  (a) embedded in the IP field itself, e.g. EID 131 ClientIP "1.2.3.4:50123"
+    //  (b) a separate Port field on the event (Sysmon 3, WFP 5156/5157)
+    // For inbound peers we want the remote source port; for outbound the
+    // destination port we touched.
+    const embeddedPort = _extractPort(ipRaw);
+    if (embeddedPort) e.ports.add(embeddedPort);
+    const portField = (dirHint === 'in')
+      ? _firstField(det, ['SrcPort','SourcePort','ClientPort'])
+      : _firstField(det, ['TgtPort','DestPort','DestinationPort']);
+    if (portField && /^\d{1,5}$/.test(portField)) e.ports.add(portField);
     if (!isNaN(r.ts)) {
       if (r.ts < e.first) e.first = r.ts;
       if (r.ts > e.last)  e.last  = r.ts;
@@ -312,7 +342,7 @@ function _renderPeerTable(map, direction) {
   const dirLabel = direction === 'in' ? 'Source IP' : 'Destination IP';
   const peers = [...map.values()].sort((a,b) => b.count - a.count);
 
-  const rows = peers.map((p, ri) => {
+  const rows = peers.map(p => {
     const id        = direction + ':' + p.ip;
     const isOpen    = _peersExpanded === id;
     const arrow     = isOpen ? '&#9660;' : '&#9658;';
@@ -334,6 +364,9 @@ function _renderPeerTable(map, direction) {
                    + (p.users.size > 3 ? ` +${p.users.size-3}` : '');
     const hostList = [...p.remoteHosts].slice(0, 2).join(', ')
                    + (p.remoteHosts.size > 2 ? ` +${p.remoteHosts.size-2}` : '');
+    const portsSorted = [...p.ports].sort((a,b) => Number(a) - Number(b));
+    const portList    = portsSorted.slice(0, 4).join(', ')
+                      + (portsSorted.length > 4 ? ` +${portsSorted.length-4}` : '');
     const ltList   = [...p.logonTypes].sort().join(', ');
     const procList = [...p.logonProcs].sort().join(', ');
     const authList = [...p.authPackages].sort().join(', ');
@@ -352,10 +385,18 @@ function _renderPeerTable(map, direction) {
       ? `<td style="font-family:var(--mono);font-size:11px;color:var(--text-dim);max-width:170px;overflow:hidden;text-overflow:ellipsis" title="${mechTip}">${eH(ltList) || '\u2014'}</td>`
       : `<td style="color:var(--text-dim)">\u2014</td>`;
 
+    const portsTitle = portsSorted.length
+      ? `${portsSorted.length} distinct port${portsSorted.length===1?'':'s'}: ${portsSorted.join(', ')}`
+      : '';
+    const portsCell = portsSorted.length
+      ? `<td style="font-family:var(--mono);font-size:11px;color:var(--text-dim);max-width:140px;overflow:hidden;text-overflow:ellipsis" title="${eH(portsTitle)}">${eH(portList)}</td>`
+      : `<td style="color:var(--text-dim)">\u2014</td>`;
+
     let summary = `<tr class="peer-summary-row${isOpen?' peer-row-open':''}" style="cursor:pointer" onclick="togglePeerExpand('${eH(id)}')">
       <td style="width:18px;color:var(--text-dim);font-size:10px;padding-right:0">${arrow}</td>
       <td style="font-family:var(--mono);${ipStyle}">${eH(p.ip)}${badge}</td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--info);max-width:170px;overflow:hidden;text-overflow:ellipsis" title="${eH([...p.remoteHosts].join(', '))}">${eH(hostList) || '<span style="color:var(--text-dim)">\u2014</span>'}</td>
+      ${portsCell}
       <td style="text-align:right;font-family:var(--mono)">${failBadge}</td>
       ${mechCell}
       <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${!isFinite(p.first)?'\u2014':fDTz(p.first)}</td>
@@ -383,9 +424,9 @@ function _renderPeerTable(map, direction) {
         </tr>`;
       }).join('');
       const more = p.indices.length > 60
-        ? `<tr><td colspan="10" style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--text-dim);padding:6px">\u2026 ${(p.indices.length-60).toLocaleString()} more (truncated)</td></tr>`
+        ? `<tr><td colspan="11" style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--text-dim);padding:6px">\u2026 ${(p.indices.length-60).toLocaleString()} more (truncated)</td></tr>`
         : '';
-      summary += `<tr class="peer-expand-row"><td colspan="10" style="padding:0;background:var(--surface2);border-top:2px solid var(--orange);border-bottom:1px solid var(--border)">
+      summary += `<tr class="peer-expand-row"><td colspan="11" style="padding:0;background:var(--surface2);border-top:2px solid var(--orange);border-bottom:1px solid var(--border)">
         <table class="data-table" style="margin:0;border:none">
           <thead><tr style="background:var(--surface3)"><th colspan="2"></th><th>Time</th><th>Lvl</th><th>EID</th><th>Hostname</th><th colspan="2">Account</th></tr></thead>
           <tbody>${evtRows}${more}</tbody>
@@ -395,10 +436,12 @@ function _renderPeerTable(map, direction) {
     return summary;
   }).join('');
 
+  const portHeader = direction === 'in' ? 'Src Ports' : 'Dst Ports';
   return `<table class="data-table"><thead><tr>
     <th style="width:18px"></th>
     <th>${dirLabel}</th>
     <th>Hostname</th>
+    <th title="${direction==='in'?'Remote (source) ports observed':'Destination ports touched'}">${portHeader}</th>
     <th style="text-align:right">Hits / Fails</th>
     <th title="LogonType (hover for LogonProcess / AuthPackage / LmPackage / Impersonation)">Logon</th>
     <th>First Seen</th>
@@ -423,7 +466,7 @@ function togglePeerExpand(id) {
 // ── CSV EXPORT ────────────────────────────────────────────────────────────────
 
 const PEER_CSV_COLS = [
-  'Direction','RemoteIP','RemoteHostnames','Classification','Hits','Failures',
+  'Direction','RemoteIP','RemoteHostnames','RemotePorts','Classification','Hits','Failures',
   'LogonTypes','LogonProcesses','AuthPackages','LmPackages','ImpersonationLevels',
   'FirstSeen_UTC','LastSeen_UTC','Span',
   'EventIDs','Accounts','Computers'
@@ -446,6 +489,7 @@ function _peerToCsvRow(p, direction) {
     direction === 'in' ? 'Inbound' : 'Outbound',
     p.ip,
     [...p.remoteHosts].sort().join('; '),
+    [...p.ports].sort((a,b) => Number(a)-Number(b)).join('; '),
     cls,
     p.count,
     p.fail,
