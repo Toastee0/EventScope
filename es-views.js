@@ -805,7 +805,7 @@ function openPeriodicDetail(idx) {
   // Get recent events for this EID
   const evts = getFR().filter(r => r.eid === pr.eid && !isNaN(r.ts))
     .sort((a,b) => b.ts - a.ts).slice(0, 20);
-  const desc = S.eidDescs[pr.eid] ? `<span style="color:var(--text-dim);font-size:11px"> — ${eH(S.eidDescs[pr.eid])}</span>` : '';
+  const desc = getEidDesc(pr.eid) ? `<span style="color:var(--text-dim);font-size:11px"> — ${eH(getEidDesc(pr.eid))}</span>` : '';
   const evtRows = evts.map(r =>
     `<div style="font-family:var(--mono);font-size:11px;padding:3px 0;border-bottom:1px solid var(--border);display:flex;gap:12px;cursor:pointer" onclick="jumpToRaw(${getFR().indexOf(r)})">
       <span style="color:var(--stone);min-width:190px">${fDTz(r.ts)}</span>
@@ -902,7 +902,7 @@ function rPeriodic() {
   document.getElementById('periodicTable').innerHTML =
     `<table class="data-table"><thead><tr><th>Event ID</th><th>Count</th><th>Median Interval</th><th>Std Dev</th><th>CV</th><th>Matches</th><th>Classification</th></tr></thead><tbody>${
       results.slice(0,200).map((r,i) => `<tr style="cursor:pointer" data-nav-idx="${i}" onclick="openPeriodicDetail(${i})">
-        <td>${eL(r.eid)}${S.eidDescs[r.eid]?`<br><span style="color:var(--text-dim);font-size:10px">${eH(S.eidDescs[r.eid])}</span>`:''}</td>
+        <td>${eL(r.eid)}${getEidDesc(r.eid)?`<br><span style="color:var(--text-dim);font-size:10px">${eH(getEidDesc(r.eid))}</span>`:''}</td>
         <td>${r.count.toLocaleString()}</td>
         <td style="font-family:var(--mono);font-size:11px">${fDelta(r.median)}</td>
         <td style="font-family:var(--mono);font-size:11px">${fDelta(r.std)}</td>
@@ -1198,7 +1198,7 @@ function rFirstSeen() {
     const eid = String(r.eid || '');
     if (!eid) continue;
     if (!map.has(eid)) map.set(eid, {
-      eid, first: r.ts, last: r.ts, count: 0,
+      eid, chan: r.chan || '', first: r.ts, last: r.ts, count: 0,
       comps: new Set(), lvlIdx: 4, sampleRule: r.rule || '',
       firstFi: fi, firstComp: r.comp || ''
     });
@@ -1254,12 +1254,13 @@ function rFirstSeen() {
     const dayDate = new Date(dk + 'T00:00:00Z');
     const weekday = dayDate.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' });
     const rows_html = items.map(e => {
-      const desc = S.eidDescs[e.eid] ? eH(S.eidDescs[e.eid]) : '<span style="color:var(--text-dim)">\u2014</span>';
+      const desc = getEidDesc(e.eid, e.chan) || '';
+      const descHtml = desc ? eH(desc) : '<span style="color:var(--text-dim)">\u2014</span>';
       const span = e.last - e.first;
       return `<tr style="cursor:pointer" data-nav-idx="${e.firstFi}" onclick="openDP(${e.firstFi},'firstseen')">
         <td style="font-family:var(--mono);font-size:12px;white-space:nowrap">${eL(e.eid)}</td>
         <td style="text-align:center">${lvlDot(e.lvlIdx)}</td>
-        <td style="font-size:11px;color:var(--text-dim);max-width:340px;overflow:hidden;text-overflow:ellipsis">${desc}</td>
+        <td style="font-size:11px;color:var(--text-dim);max-width:340px;overflow:hidden;text-overflow:ellipsis">${descHtml}</td>
         <td style="font-family:var(--mono);font-size:11px;white-space:nowrap;color:var(--orange)">${fDTz(e.first)}</td>
         <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim);max-width:180px;overflow:hidden;text-overflow:ellipsis">${eH(e.firstComp) || '\u2014'}</td>
         <td style="font-family:var(--mono);font-size:12px;text-align:right">${e.count.toLocaleString()}</td>

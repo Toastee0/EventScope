@@ -264,6 +264,11 @@ function eL(eid) {
   return `<a class="eid-link" onclick="focusEid('${eH(eid)}')">${eH(eid)}</a>`;
 }
 
+function getEidDesc(eid, chan) {
+  if (chan) { const d = S.eidDescs[chan + '|' + eid]; if (d) return d; }
+  return S.eidDescs[eid] || '';
+}
+
 function mFT(h, r) {
   return `<table class="data-table"><thead><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${r.map(x=>`<tr>${x.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 }

@@ -1465,6 +1465,7 @@ if (netconfigDZ) {
 // ── EID DESCRIPTIONS ───────────────────────────────────────────────────────────
 
 fetch('es-data/win-security-eids.json').then(r => r.json()).then(d => { S.eidDescs = d; }).catch(() => {});
+fetch('es-data/channel-eids.json').then(r => r.json()).then(d => { Object.assign(S.eidDescs, d); }).catch(() => {});
 
 // ── PREFERENCES (theme etc.) ────────────────────────────────────────────────────
 

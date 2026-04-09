@@ -1,0 +1,3 @@
+{
+  "Microsoft-WindowsAzure-Status/Plugins|7": "Azure VM extension installed/maintained/removed (CustomScriptExtension or RunCommand — runs as SYSTEM)"
+}

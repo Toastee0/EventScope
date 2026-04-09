@@ -350,7 +350,7 @@ function rDashboard() {
   const topEidRows = topEids.map(([eid, count]) => {
     const pct = (count / rows.length * 100).toFixed(1);
     const barW = Math.max(2, (count / topEids[0][1]) * 100);
-    const desc = S.eidDescs?.[eid] || '';
+    const desc = getEidDesc(eid) || '';
     return `<div style="display:grid;grid-template-columns:70px 1fr 70px 95px;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--border)" title="${eH(desc)}">
       <div style="font-family:var(--mono);font-size:11px">${eL(eid)}</div>
       <div style="font-size:11px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${eH(desc) || '<span style="color:var(--text-dim);font-style:italic">no description</span>'}</div>
