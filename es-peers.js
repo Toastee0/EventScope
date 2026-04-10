@@ -126,9 +126,11 @@ function _getSrcHost(p) {
     'SourceHostname','RemoteHost','Source Workstation'
   ]);
   if (!v) return '';
+  // Strip "(IP)" suffix from EvtxECmd RemoteHost values like "vm000001 (10.3.0.68)"
+  let clean = v.replace(/\s*\(\d{1,3}(\.\d{1,3}){3}\)$/, '').trim();
   // ClientName fields occasionally hold the IP itself; ignore those
-  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(v)) return '';
-  return v.replace(/\\$/, '');   // strip trailing slash NetBIOS artefact
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(clean)) return '';
+  return clean.replace(/\\$/, '');   // strip trailing slash NetBIOS artefact
 }
 
 function _getDstHost(p) {
@@ -323,11 +325,78 @@ function rPeers() {
   if (incPriv)  incPriv.checked  = _peersIncludePrivate;
   if (onlyFail) onlyFail.checked = _peersOnlyFails;
 
+  // Detect IP→multi-hostname conflicts
+  const conflicts = _findHostnameConflicts(inMap, outMap);
+  const conflictEl = document.getElementById('peersConflicts');
+  if (conflictEl) {
+    if (conflicts.length) {
+      conflictEl.innerHTML = `<div style="padding:12px 16px;background:var(--high-dim, rgba(220,85,31,0.12));border:1px solid var(--high);border-radius:6px;margin-bottom:14px">
+        <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--high);margin-bottom:8px">
+          \u26A0 IP \u2194 Hostname Conflicts (${conflicts.length})
+        </div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-bottom:8px">
+          Multiple hostnames observed for the same IP address. Could indicate hostname spoofing, VM reuse, DHCP reassignment, or a compromised host.
+        </div>
+        <table class="data-table"><thead><tr>
+          <th>IP Address</th><th>Hostnames</th><th>Direction</th><th>Hits</th><th>First Seen</th><th>Last Seen</th>
+        </tr></thead><tbody>
+          ${conflicts.map(c => `<tr>
+            <td style="font-family:var(--mono);font-weight:600;color:var(--orange)">${eH(c.ip)}</td>
+            <td style="font-family:var(--mono);font-size:11px">${c.hostnames.map(h => `<span style="display:inline-block;padding:1px 6px;margin:1px 3px;border-radius:3px;border:1px solid var(--border);background:var(--surface2)">${eH(h)}</span>`).join('')}</td>
+            <td style="font-size:11px;color:var(--text-dim)">${c.direction}</td>
+            <td style="font-family:var(--mono)">${c.count.toLocaleString()}</td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim);white-space:nowrap">${!isFinite(c.first)?'\u2014':fDTz(c.first)}</td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim);white-space:nowrap">${!isFinite(c.last)?'\u2014':fDTz(c.last)}</td>
+          </tr>`).join('')}
+        </tbody></table>
+      </div>`;
+      conflictEl.style.display = '';
+    } else {
+      conflictEl.style.display = 'none';
+      conflictEl.innerHTML = '';
+    }
+  }
+
   document.getElementById('peersInWrap').innerHTML  = _renderPeerTable(inMap,  'in');
   document.getElementById('peersOutWrap').innerHTML = _renderPeerTable(outMap, 'out');
 
   document.getElementById('peersStats').textContent =
     `${inMap.size} inbound peer${inMap.size===1?'':'s'} \u2022 ${outMap.size} outbound peer${outMap.size===1?'':'s'}`;
+}
+
+function _findHostnameConflicts(inMap, outMap) {
+  const conflicts = [];
+  const check = (map, dir) => {
+    for (const [ip, peer] of map) {
+      if (peer.remoteHosts.size > 1) {
+        conflicts.push({
+          ip,
+          hostnames: [...peer.remoteHosts].sort(),
+          direction: dir,
+          count: peer.count,
+          first: peer.first,
+          last: peer.last
+        });
+      }
+    }
+  };
+  check(inMap, 'Inbound');
+  check(outMap, 'Outbound');
+  // Deduplicate: if same IP appears in both directions, merge
+  const merged = new Map();
+  for (const c of conflicts) {
+    if (merged.has(c.ip)) {
+      const m = merged.get(c.ip);
+      for (const h of c.hostnames) if (!m.hostnames.includes(h)) m.hostnames.push(h);
+      m.direction = 'Both';
+      m.count += c.count;
+      if (c.first < m.first) m.first = c.first;
+      if (c.last > m.last) m.last = c.last;
+    } else {
+      merged.set(c.ip, { ...c, hostnames: [...c.hostnames] });
+    }
+  }
+  return [...merged.values()].sort((a, b) => b.hostnames.length - a.hostnames.length || b.count - a.count);
 }
 
 function togglePeersFilter(which, el) {
@@ -367,6 +436,9 @@ function _renderPeerTable(map, direction) {
                    + (p.users.size > 3 ? ` +${p.users.size-3}` : '');
     const hostList = [...p.remoteHosts].slice(0, 2).join(', ')
                    + (p.remoteHosts.size > 2 ? ` +${p.remoteHosts.size-2}` : '');
+    const hostConflict = p.remoteHosts.size > 1
+      ? ' <span style="font-size:9px;background:var(--high-dim, rgba(220,60,30,0.15));color:var(--high);padding:1px 4px;border-radius:2px;font-weight:700" title="Multiple hostnames for same IP">\u26A0 ' + p.remoteHosts.size + ' names</span>'
+      : '';
     const portsSorted = [...p.ports].sort((a,b) => Number(a) - Number(b));
     const portList    = portsSorted.slice(0, 4).join(', ')
                       + (portsSorted.length > 4 ? ` +${portsSorted.length-4}` : '');
@@ -398,7 +470,7 @@ function _renderPeerTable(map, direction) {
     let summary = `<tr class="peer-summary-row${isOpen?' peer-row-open':''}" style="cursor:pointer" onclick="togglePeerExpand('${eH(id)}')">
       <td style="width:18px;color:var(--text-dim);font-size:10px;padding-right:0">${arrow}</td>
       <td style="font-family:var(--mono);${ipStyle}">${eH(p.ip)}${badge}</td>
-      <td style="font-family:var(--mono);font-size:11px;color:var(--info);max-width:170px;overflow:hidden;text-overflow:ellipsis" title="${eH([...p.remoteHosts].join(', '))}">${eH(hostList) || '<span style="color:var(--text-dim)">\u2014</span>'}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--info);max-width:220px;overflow:hidden;text-overflow:ellipsis" title="${eH([...p.remoteHosts].join(', '))}">${eH(hostList) || '<span style="color:var(--text-dim)">\u2014</span>'}${hostConflict}</td>
       ${portsCell}
       <td style="text-align:right;font-family:var(--mono)">${failBadge}</td>
       ${mechCell}
