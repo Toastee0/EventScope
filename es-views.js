@@ -728,6 +728,13 @@ function copySelectedRows() {
 // Rows currently displayed in raw view (may be rule-filtered). Used by selection copy.
 let _rawDisplayRows = [];
 
+// ── VIRTUAL SCROLL STATE ──────────────────────────────────────────────────────
+
+let _vsPairs = [];           // all pairs for current view
+let _vsStacking = false;
+const _VS_ROW_H = 33;       // px per row (mono 12px + 8px pad top/bottom + 1px border)
+const _VS_OVERSCAN = 20;    // extra rows above/below viewport
+
 function rRW() {
   _rawSelection.clear();
   updateRawSelectionUI();
@@ -766,35 +773,74 @@ function rRW() {
   }
 
   // Apply stacking if enabled
-  const isStacking = typeof stackRows === 'function' && typeof _stackEnabled !== 'undefined' && _stackEnabled;
-  let displayPairs;
-  if (isStacking) {
+  _vsStacking = typeof stackRows === 'function' && typeof _stackEnabled !== 'undefined' && _stackEnabled;
+  if (_vsStacking) {
     const result = stackRows(pairs);
-    displayPairs = result.pairs;
+    _vsPairs = result.pairs;
   } else {
-    displayPairs = pairs;
+    _vsPairs = pairs;
   }
 
-  const mx = 50000;
-  const sh = displayPairs.slice(0, mx);
-  _rawDisplayRows = sh.map(p => p.r);
+  _rawDisplayRows = _vsPairs.map(p => p.r);
 
-  const countLabel = isStacking
-    ? `${sh.length.toLocaleString()} groups (${pairs.length.toLocaleString()} events)`
-    : (pairs.length <= mx
-      ? `${pairs.length.toLocaleString()} events`
-      : `Showing ${mx.toLocaleString()} of ${pairs.length.toLocaleString()}`);
+  const countLabel = _vsStacking
+    ? `${_vsPairs.length.toLocaleString()} groups (${pairs.length.toLocaleString()} events)`
+    : `${_vsPairs.length.toLocaleString()} events`;
   document.getElementById('rawCount').textContent = countLabel;
 
   const hdr = typeof buildRawHeader === 'function' ? buildRawHeader() : '';
-  const rows = isStacking && typeof buildStackedRow === 'function'
-    ? sh.map((p, i) => buildStackedRow(p, i)).join('')
-    : (typeof buildRawRow === 'function'
-      ? sh.map(({r, fi}, i) => buildRawRow(r, fi, i)).join('')
-      : '');
+  const totalH = _vsPairs.length * _VS_ROW_H;
+  const wrap = document.getElementById('rawTableWrap');
 
-  document.getElementById('rawTableWrap').innerHTML =
-    `<table class="data-table" id="rawDataTable"><thead><tr>${hdr}</tr></thead><tbody>${rows}</tbody></table>`;
+  wrap.innerHTML =
+    `<div id="vsContainer" style="height:calc(100vh - 260px);overflow-y:auto;overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);position:relative">
+      <table class="data-table" id="rawDataTable" style="width:100%;border-collapse:collapse">
+        <thead><tr>${hdr}</tr></thead>
+      </table>
+      <div id="vsSpace" style="height:${totalH}px;position:relative">
+        <table class="data-table" id="vsBody" style="position:absolute;top:0;left:0;width:100%;border-collapse:collapse">
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>`;
+
+  const container = document.getElementById('vsContainer');
+  container.addEventListener('scroll', _vsOnScroll);
+  _vsRender();
+}
+
+function _vsOnScroll() {
+  requestAnimationFrame(_vsRender);
+}
+
+function _vsRender() {
+  const container = document.getElementById('vsContainer');
+  const tbody = document.querySelector('#vsBody tbody');
+  const bodyTable = document.getElementById('vsBody');
+  if (!container || !tbody) return;
+
+  const scrollTop = container.scrollTop;
+  // Account for header height (sticky header is in separate table)
+  const viewH = container.clientHeight;
+
+  const startIdx = Math.max(0, Math.floor(scrollTop / _VS_ROW_H) - _VS_OVERSCAN);
+  const endIdx = Math.min(_vsPairs.length, Math.ceil((scrollTop + viewH) / _VS_ROW_H) + _VS_OVERSCAN);
+
+  // Position the body table at the correct offset
+  bodyTable.style.top = (startIdx * _VS_ROW_H) + 'px';
+
+  // Render only visible rows
+  const useStacked = _vsStacking && typeof buildStackedRow === 'function';
+  const html = [];
+  for (let i = startIdx; i < endIdx; i++) {
+    const p = _vsPairs[i];
+    if (useStacked) {
+      html.push(buildStackedRow(p, i));
+    } else if (typeof buildRawRow === 'function') {
+      html.push(buildRawRow(p.r, p.fi, i));
+    }
+  }
+  tbody.innerHTML = html.join('');
 }
 
 // ── PERIODICITY ────────────────────────────────────────────────────────────────
