@@ -441,17 +441,6 @@ function rDashboard() {
       <div class="card-grid">${identityCards}</div>
     </div>
 
-    <div class="chart-box" style="margin-bottom:14px">
-      <div class="chart-header">
-        <span class="chart-title">Log Span by Channel</span>
-        <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim);margin-left:auto">each channel rolls independently</span>
-      </div>
-      <div style="display:flex;gap:18px;align-items:flex-start">
-        <div class="data-table-wrap" style="flex:0 1 auto;max-width:fit-content">${chanSpanSection}</div>
-        <div style="flex:1;min-width:200px" id="dashChanExtra"></div>
-      </div>
-    </div>
-
     <div class="two-col">
       <div class="chart-box">
         <div class="chart-header"><span class="chart-title">Activity Histogram &mdash; events per UTC day</span></div>
@@ -464,24 +453,31 @@ function rDashboard() {
     </div>
 
     <div class="chart-box" style="margin-bottom:14px">
-      <div class="chart-header"><span class="chart-title">User Accounts &mdash; by logon activity</span>
-        <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim);margin-left:auto">extracted from 4624 / 4625 / 4648</span>
-      </div>
-      <div class="data-table-wrap">${usersSection}</div>
-    </div>
-
-    <div class="chart-box" style="margin-bottom:14px">
       <div class="chart-header"><span class="chart-title">Privileged Logons &mdash; admin sessions and what they got</span>
-        <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim);margin-left:auto">EID 4672 &mdash; SeDebug / SeImpersonate / SeAssignPrimaryToken etc. highlighted as high-risk</span>
+        <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim);margin-left:auto">EID 4672 &mdash; SeDebug / SeImpersonate / SeAssignPrimaryToken etc.</span>
       </div>
       <div class="data-table-wrap">${privSection}</div>
     </div>
 
-    <div class="chart-box" style="margin-bottom:14px">
-      <div class="chart-header"><span class="chart-title">Network &mdash; as seen in logs</span>
-        <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim);margin-left:auto">source IPs in auth/share events, dest IPs in WFP/Sysmon</span>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
+      <div class="chart-box" style="margin-bottom:0">
+        <div class="chart-header">
+          <span class="chart-title">Log Span by Channel</span>
+        </div>
+        <div class="data-table-wrap">${chanSpanSection}</div>
       </div>
-      ${netSection}
+      <div class="chart-box" style="margin-bottom:0">
+        <div class="chart-header"><span class="chart-title">User Accounts</span>
+          <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim);margin-left:auto">4624 / 4625 / 4648</span>
+        </div>
+        <div class="data-table-wrap">${usersSection}</div>
+      </div>
+      <div class="chart-box" style="margin-bottom:0">
+        <div class="chart-header"><span class="chart-title">Network</span>
+          <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim);margin-left:auto">as seen in logs</span>
+        </div>
+        ${netSection}
+      </div>
     </div>
 
     <div class="chart-box" style="margin-bottom:14px">
