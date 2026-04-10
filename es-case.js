@@ -14,20 +14,46 @@ let _caseLoading = false; // true while manifest-driven load is in progress
 
 // ── OPEN CASE FOLDER ──────────────────────────────────────────────────────────
 
+// Extensions worth indexing — everything else is ignored during folder scan
+const _CASE_EXTS = /\.(csv|tsv|txt|json|jsonl|log|xml)$/i;
+// Paths to always skip even if extension matches (massive dirs, no forensic value)
+const _CASE_SKIP = /[/\\](Windows[/\\]WinSxS|Windows[/\\]assembly|Windows[/\\]servicing|Windows[/\\]Installer|Windows[/\\]SoftwareDistribution|\$Recycle\.Bin|System Volume Information)[/\\]/i;
+
 async function openCaseFolder(fileList) {
   // Build a map of relative-filename → File from the webkitdirectory result.
-  // webkitRelativePath looks like "FolderName/file.csv"
+  // Only index files with forensically useful extensions to avoid choking on
+  // full filesystem mirrors with hundreds of thousands of files.
   _caseFiles = new Map();
   _caseFolderName = '';
   _caseMeta = null;
+  let skipped = 0;
 
   for (const f of fileList) {
     const rel = f.webkitRelativePath || f.name;
-    // Strip the top-level folder prefix to get the filename
     const parts = rel.split('/');
     if (parts.length > 1 && !_caseFolderName) _caseFolderName = parts[0];
     const key = parts.length > 1 ? parts.slice(1).join('/') : parts[0];
+
+    // Always index case.json
+    if (/^case\.json$/i.test(key.split('/').pop())) {
+      _caseFiles.set(key, f);
+      continue;
+    }
+
+    // Skip files in known junk directories
+    if (_CASE_SKIP.test(key)) { skipped++; continue; }
+
+    // Only index files with useful extensions
+    if (!_CASE_EXTS.test(key)) { skipped++; continue; }
+
+    // Skip very deeply nested files (>8 levels deep = likely OS noise)
+    if (key.split('/').length > 8) { skipped++; continue; }
+
     _caseFiles.set(key, f);
+  }
+
+  if (skipped > 0) {
+    console.debug(`[case] indexed ${_caseFiles.size} files, skipped ${skipped.toLocaleString()} irrelevant files`);
   }
 
   // Look for case.json

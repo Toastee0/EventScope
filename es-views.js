@@ -1626,6 +1626,7 @@ function switchTab(t) {
     case 'srum':      rSRUM();        break;
     case 'netconfig': rNetconfig();   break;
     case 'peers':     rPeers();       break;
+    case 'rdp':       if (typeof rRDP==='function') rRDP(); break;
     case 'cypfer':    rCypfer();      break;
     case 'developer': if (typeof rDeveloper==='function') rDeveloper(); break;
   }

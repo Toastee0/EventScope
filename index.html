@@ -866,6 +866,7 @@
     <div class="tab" data-tab="raw">Raw Data</div>
     <div class="tab" data-tab="logons">Logons</div>
     <div class="tab" data-tab="lateral">Lateral Movement</div>
+    <div class="tab" data-tab="rdp">RDP</div>
     <div class="tab" data-tab="peers">Remote Hosts</div>
     <div class="tab" data-tab="cypfer">Collector</div>
     <div class="tab" data-tab="eidfocus" id="tabEidFocus" style="display:none">EID Focus</div>
@@ -1314,6 +1315,11 @@
     <div id="cypferContent"></div>
   </div>
 
+  <!-- RDP SESSION RECONSTRUCTION -->
+  <div class="panel" id="panel-rdp">
+    <div id="rdpContent"></div>
+  </div>
+
   <!-- DEVELOPER — field mapping -->
   <div class="panel" id="panel-developer">
     <div id="developerContent"></div>
@@ -1368,6 +1374,7 @@
 <script src="es-peers.js"></script>
 <script src="es-dashboard.js"></script>
 <script src="es-cypfer.js"></script>
+<script src="es-rdp.js"></script>
 <script src="es-mplog.js"></script>
 <script src="es-case.js"></script>
 
