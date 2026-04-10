@@ -124,7 +124,11 @@ const ARTIFACT_PATTERNS = [
   { rx: /MFTECmd[^/]*J[^/]*\.csv$/i,                   cat: 'filesystem', label: 'USN Journal',            parser: 'csv_generic',   pri: 51, auto: false },
 
   // ── Endpoint Protection ──
-  { rx: /MPLog[^/]*\.csv$/i,                            cat: 'protection', label: 'Defender MPLog',         parser: 'csv_generic',   pri: 60, auto: true },
+  { rx: /MPLog[^/]*\.log$/i,                            cat: 'protection', label: 'Defender MPLog (raw)',   parser: 'mplog',         pri: 59, auto: true },
+  { rx: /MPDlpLog[^/]*\.log$/i,                         cat: 'protection', label: 'Defender DLP Log (raw)', parser: 'mplog',         pri: 59, auto: true },
+  { rx: /Windows Defender[/\\]Support[/\\]MPLog/i,      cat: 'protection', label: 'Defender MPLog (image)', parser: 'mplog',         pri: 59, auto: true },
+  { rx: /Windows Defender[/\\]Support[/\\]MPDlpLog/i,   cat: 'protection', label: 'Defender DLP (image)',   parser: 'mplog',         pri: 59, auto: true },
+  { rx: /MPLog[^/]*\.csv$/i,                            cat: 'protection', label: 'Defender MPLog (CSV)',   parser: 'csv_generic',   pri: 60, auto: true },
 
   // ── Hayabusa extras ──
   { rx: /Hayabusa-logon-summary/i,                      cat: 'events',     label: 'Hayabusa logon summary', parser: 'csv_generic',   pri: 70, auto: false },
@@ -292,6 +296,9 @@ async function _loadAuxArtifact(aux) {
         break;
       case 'srum':
         if (typeof loadSrumFile === 'function') await loadSrumFile(aux.file);
+        break;
+      case 'mplog':
+        if (typeof loadMPLogFile === 'function') await loadMPLogFile(aux.file);
         break;
       case 'console_history':
         await _loadConsoleHistory(aux);
