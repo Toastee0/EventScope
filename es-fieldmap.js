@@ -174,6 +174,13 @@ function discoverFields(channelEid, maxSamples) {
     }
   }
 
+  // Augment with fields known from EvtxECmd maps (even if no samples found)
+  if (S.evtxMaps && S.evtxMaps[channelEid]) {
+    for (const f of (S.evtxMaps[channelEid].fields || [])) {
+      if (!fieldSamples.has(f)) fieldSamples.set(f, []);
+    }
+  }
+
   return fieldSamples; // Map<fieldName, string[]>
 }
 

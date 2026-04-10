@@ -33,6 +33,7 @@ const S = {
   ignoreEids: new Set(),
   prefs: {},              // loaded preferences
   eidDescs: {},           // eid → friendly description
+  evtxMaps: {},           // "Channel::EID" → {description, fields[], lookups{}}
   colConfig: [],          // column order/visibility
   hostnameGroups: {},
   // v4 operational fields:
@@ -276,7 +277,22 @@ function eL(eid) {
 
 function getEidDesc(eid, chan) {
   if (chan) { const d = S.eidDescs[chan + '|' + eid]; if (d) return d; }
-  return S.eidDescs[eid] || '';
+  if (S.eidDescs[eid]) return S.eidDescs[eid];
+  // Fall back to EvtxECmd maps
+  if (chan) { const m = S.evtxMaps[chan + '::' + eid]; if (m) return m.description; }
+  return '';
+}
+
+// Resolve %% codes (e.g. %%1833 → "Impersonation") using evtxMaps lookups
+function resolveCode(val, chan, eid) {
+  if (!val || !S.evtxMaps) return val;
+  const key = (chan || '') + '::' + (eid || '');
+  const map = S.evtxMaps[key];
+  if (!map || !map.lookups) return val;
+  for (const lk of Object.values(map.lookups)) {
+    if (lk[val]) return lk[val];
+  }
+  return val;
 }
 
 function mFT(h, r) {
