@@ -4,7 +4,7 @@
 // ── STREAM PARSER ──────────────────────────────────────────────────────────────
 
 async function streamParse(file) {
-  const CS = 4 * 1024 * 1024;
+  const CS = 16 * 1024 * 1024;
   let off = 0, buf = '', hp = false, rc = 0, procFn = procRow;
   const pf = document.getElementById('progressFill');
   const pt = document.getElementById('progressText');

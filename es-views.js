@@ -775,13 +775,15 @@ function rRW() {
     displayPairs = pairs;
   }
 
-  const mx = 2000;
+  const mx = 50000;
   const sh = displayPairs.slice(0, mx);
   _rawDisplayRows = sh.map(p => p.r);
 
   const countLabel = isStacking
     ? `${sh.length.toLocaleString()} groups (${pairs.length.toLocaleString()} events)`
-    : `Showing ${Math.min(mx, pairs.length).toLocaleString()} of ${pairs.length.toLocaleString()}`;
+    : (pairs.length <= mx
+      ? `${pairs.length.toLocaleString()} events`
+      : `Showing ${mx.toLocaleString()} of ${pairs.length.toLocaleString()}`);
   document.getElementById('rawCount').textContent = countLabel;
 
   const hdr = typeof buildRawHeader === 'function' ? buildRawHeader() : '';

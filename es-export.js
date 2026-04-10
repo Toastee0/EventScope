@@ -72,7 +72,7 @@ function copyDetailEvent() {
 
 function copyTableRows(ctx) {
   if (ctx === 'raw') {
-    copyRows(getFR().slice(0, 2000));
+    copyRows(getFR());
     return;
   }
   if (ctx === 'rules') {

@@ -269,7 +269,7 @@ function rDefender() {
     </div>` : '';
 
   // Event timeline
-  const display = filtered.slice(0, 1000);
+  const display = filtered.slice(0, 10000);
   const evtRows = display.map(e => {
     const sevColor = e.sev === 'critical' ? 'var(--crit)' : e.sev === 'high' ? 'var(--high)' : e.sev === 'medium' ? 'var(--med)' : 'var(--text-dim)';
     const catMeta = DEF_CATS[e.cat] || DEF_CATS.mplog;
