@@ -1276,10 +1276,10 @@ function rFirstSeen() {
       const descHtml = desc ? eH(desc) : '<span style="color:var(--text-dim)">\u2014</span>';
       const span = e.last - e.first;
       return `<tr style="cursor:pointer" data-nav-idx="${e.firstFi}" onclick="openDP(${e.firstFi},'firstseen')">
+        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap;color:var(--orange)">${fDTz(e.first)}</td>
         <td style="font-family:var(--mono);font-size:12px;white-space:nowrap">${eL(e.eid)}</td>
         <td style="text-align:center">${lvlDot(e.lvlIdx)}</td>
         <td style="font-size:11px;color:var(--text-dim);max-width:340px;overflow:hidden;text-overflow:ellipsis">${descHtml}</td>
-        <td style="font-family:var(--mono);font-size:11px;white-space:nowrap;color:var(--orange)">${fDTz(e.first)}</td>
         <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim);max-width:180px;overflow:hidden;text-overflow:ellipsis">${eH(e.firstComp) || '\u2014'}</td>
         <td style="font-family:var(--mono);font-size:12px;text-align:right">${e.count.toLocaleString()}</td>
         <td style="font-family:var(--mono);font-size:12px;text-align:center">${e.comps.size}</td>
@@ -1295,8 +1295,8 @@ function rFirstSeen() {
       </div>
       <table class="data-table">
         <thead><tr>
-          <th>EID</th><th>Lvl</th><th>Description</th>
-          <th>First Seen</th><th>First on Host</th>
+          <th>First Seen</th><th>EID</th><th>Lvl</th><th>Description</th>
+          <th>First on Host</th>
           <th style="text-align:right">Total Count</th>
           <th style="text-align:center">Hosts</th>
           <th>Span</th>
