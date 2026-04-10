@@ -57,12 +57,13 @@ $ErrorActionPreference = "Continue"
 
 # -- OUTPUT DIRS ---------------------------------------------------------------
 
-$HivesDir   = Join-Path $OutDir "hives"
-$ParsedOS   = Join-Path $OutDir "parsed_os"
-$ParsedUser = Join-Path $OutDir "parsed_user"
-$SrumDir    = Join-Path $OutDir "srum"
+$HivesDir       = Join-Path $OutDir "hives"
+$ParsedOS       = Join-Path $OutDir "parsed_os"
+$ParsedUser     = Join-Path $OutDir "parsed_user"
+$SrumDir        = Join-Path $OutDir "srum"
+$ScriptBlockDir = Join-Path $OutDir "PSScriptBlocks"
 
-foreach ($d in @($HivesDir, $ParsedOS, $ParsedUser, $SrumDir)) {
+foreach ($d in @($HivesDir, $ParsedOS, $ParsedUser, $SrumDir, $ScriptBlockDir)) {
     New-Item -ItemType Directory -Path $d -Force | Out-Null
 }
 
@@ -75,13 +76,17 @@ function Find-Tool {
     return $null
 }
 
-$ZimTools = Join-Path $ToolsDir "ZimmermanTools\\net9"
-$RipExe   = Find-Tool (Join-Path $ToolsDir "RegRipper3.0") "rip.exe"
-$RECmdExe = Find-Tool $ZimTools "RECmd.exe"
-$SrumExe  = Find-Tool $ZimTools "SrumECmd.exe"
-$SBEExe   = Find-Tool $ZimTools "SBECmd.exe"
-$EvtxExe  = Find-Tool $ZimTools "EvtxECmd.exe"
-$HayaExe  = Find-Tool (Join-Path $ToolsDir "hayabusa") "hayabusa.exe"
+$ZimTools   = Join-Path $ToolsDir "ZimmermanTools\\net9"
+$RipExe     = Find-Tool (Join-Path $ToolsDir "RegRipper3.0") "rip.exe"
+$RECmdExe   = Find-Tool $ZimTools "RECmd.exe"
+$SrumExe    = Find-Tool $ZimTools "SrumECmd.exe"
+$SBEExe     = Find-Tool $ZimTools "SBECmd.exe"
+$EvtxExe    = Find-Tool $ZimTools "EvtxECmd.exe"
+$AppCompat  = Find-Tool $ZimTools "AppCompatCacheParser.exe"
+$Amcache    = Find-Tool $ZimTools "AmcacheParser.exe"
+$MFTExe     = Find-Tool $ZimTools "MFTECmd.exe"
+$HayaExe    = Find-Tool (Join-Path $ToolsDir "hayabusa") "hayabusa.exe"
+$TakajoExe  = Find-Tool (Join-Path $ToolsDir "Takajo") "takajo.exe"
 
 function Run { param([string]$exe, [string[]]$params)
     if (-not $exe -or -not (Test-Path $exe -ErrorAction SilentlyContinue)) {
@@ -95,9 +100,11 @@ function Run { param([string]$exe, [string[]]$params)
     }
 }
 
+$EvtxLogs = "C:\\Windows\\System32\\winevt\\Logs"
+
 # -- 1. REGISTRY HIVE COPIES ---------------------------------------------------
 
-Write-Host "\`n[1/7] Saving registry hives..."
+Write-Host "\`n[1/12] Saving registry hives..."
 foreach ($hive in @("SAM","SOFTWARE","SYSTEM","SECURITY")) {
     $dest = Join-Path $HivesDir $hive
     reg.exe save "HKLM\\$hive" $dest /y 2>&1 | Out-Null
@@ -137,9 +144,9 @@ try {
     if ($shadowObj) { $shadowObj.Delete() | Out-Null; Write-Host "  VSS snapshot deleted." }
 }
 
-# -- 2. REGRIPPER --------------------------------------------------------------
+# -- 2. REGRIPPER + SERVICES ---------------------------------------------------
 
-Write-Host "\`n[2/7] RegRipper..."
+Write-Host "\`n[2/12] RegRipper..."
 if ($RipExe) {
     foreach ($hive in @("SAM","SOFTWARE","SYSTEM","SECURITY")) {
         $src = Join-Path $HivesDir $hive
@@ -148,6 +155,11 @@ if ($RipExe) {
             & $RipExe -r $src -a 2>$null | Out-File $out -Encoding utf8
             Write-Host "  $hive -> $out"
         }
+    }
+    $sysHive = Join-Path $HivesDir "SYSTEM"
+    if (Test-Path $sysHive) {
+        & $RipExe -r $sysHive -p svc 2>$null | Out-File (Join-Path $OutDir "services.rr3.csv") -Encoding utf8
+        Write-Host "  services -> services.rr3.csv"
     }
     Get-ChildItem $HivesDir -Filter "*.NTUSER.DAT" | ForEach-Object {
         $username = $_.Name -replace '\\.NTUSER\\.DAT$',''
@@ -159,7 +171,7 @@ if ($RipExe) {
 
 # -- 3. RECMD ------------------------------------------------------------------
 
-Write-Host "\`n[3/7] RECmd..."
+Write-Host "\`n[3/12] RECmd..."
 if ($RECmdExe) {
     foreach ($h in @("SOFTWARE","SAM","SYSTEM")) {
         $src = Join-Path $HivesDir $h
@@ -171,9 +183,29 @@ if ($RECmdExe) {
     }
 } else { Write-Host "  SKIP - RECmd.exe not found" }
 
-# -- 4. SRUM -------------------------------------------------------------------
+# -- 4. SHIMCACHE / APPCOMPAT --------------------------------------------------
 
-Write-Host "\`n[4/7] SrumECmd..."
+Write-Host "\`n[4/12] Shimcache..."
+if ($AppCompat) {
+    $sysHive = Join-Path $HivesDir "SYSTEM"
+    if (Test-Path $sysHive) {
+        Run $AppCompat @("-f", $sysHive, "--csv", $OutDir, "--csvf", "Shimcache.appcompatparser.csv")
+    }
+} else { Write-Host "  SKIP - AppCompatCacheParser.exe not found" }
+
+# -- 5. AMCACHE ----------------------------------------------------------------
+
+Write-Host "\`n[5/12] Amcache..."
+if ($Amcache) {
+    $amPath = "C:\\Windows\\AppCompat\\Programs\\Amcache.hve"
+    if (Test-Path $amPath) {
+        Run $Amcache @("-f", $amPath, "--csv", $OutDir)
+    } else { Write-Host "  SKIP - Amcache.hve not found" }
+} else { Write-Host "  SKIP - AmcacheParser.exe not found" }
+
+# -- 6. SRUM -------------------------------------------------------------------
+
+Write-Host "\`n[6/12] SrumECmd..."
 if ($SrumExe) {
     $sruDb  = "C:\\Windows\\System32\\sru\\SRUDB.dat"
     $swHive = Join-Path $HivesDir "SOFTWARE"
@@ -184,35 +216,80 @@ if ($SrumExe) {
     } else { Write-Host "  SKIP - SRUDB.dat not found" }
 } else { Write-Host "  SKIP - SrumECmd.exe not found" }
 
-# -- 5. SHELLBAGS --------------------------------------------------------------
+# -- 7. SHELLBAGS --------------------------------------------------------------
 
-Write-Host "\`n[5/7] ShellBags..."
+Write-Host "\`n[7/12] ShellBags..."
 if ($SBEExe) {
     Get-ChildItem "C:\\Users" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
         Run $SBEExe @("-d", $_.FullName, "--csv", $ParsedUser, "--csvf", "$($_.Name).shellbags.csv")
     }
 } else { Write-Host "  SKIP - SBECmd.exe not found" }
 
-# -- 6. EVENT LOGS -------------------------------------------------------------
+# -- 8. EVENT LOGS + HAYABUSA + TAKAJO ----------------------------------------
 
-Write-Host "\`n[6/7] Event logs..."
+Write-Host "\`n[8/12] Event logs + Hayabusa..."
 if ($EvtxExe) {
-    Run $EvtxExe @("-d", "C:\\Windows\\System32\\winevt\\Logs", "--csv", $OutDir, "--csvf", "_EVTX_live-all.csv")
+    Run $EvtxExe @("-d", $EvtxLogs, "--csv", $OutDir, "--csvf", "_EVTX_live-all.csv")
 } else { Write-Host "  SKIP - EvtxECmd.exe not found" }
 
 if ($HayaExe) {
-    Run $HayaExe @("csv-timeline", "--directory", "C:\\Windows\\System32\\winevt\\Logs", "-s", "-w", "-a", "-b", "-o", (Join-Path $OutDir "Hayabusa-all.csv"), "-p", "standard", "-X", "-U", "-q")
+    Run $HayaExe @("csv-timeline", "--directory", $EvtxLogs, "-s", "-w", "-a", "-b", "-o", (Join-Path $OutDir "Hayabusa-all.csv"), "-p", "standard", "-X", "-U", "-q")
+    Run $HayaExe @("logon-summary", "--directory", $EvtxLogs, "-q", "-X", "-K", "-U", "-o", (Join-Path $OutDir "Hayabusa-logon-summary"))
+    Run $HayaExe @("computer-metrics", "--directory", $EvtxLogs, "-q", "-K", "-o", (Join-Path $OutDir "Hayabusa-computer-metrics.csv"))
+    Run $HayaExe @("extract-base64", "--directory", $EvtxLogs, "-q", "-K", "-U", "-o", (Join-Path $OutDir "Hayabusa-extract-base64.csv"))
+
+    $jsonOut = Join-Path $OutDir "Hayabusa-json-output.jsonl"
+    Run $HayaExe @("json-timeline", "--directory", $EvtxLogs, "-U", "-L", "-o", $jsonOut, "-w")
+    if ((Test-Path $jsonOut) -and $TakajoExe) {
+        Run $TakajoExe @("extract-scriptblocks", "-t", $jsonOut, "-o", $ScriptBlockDir)
+    }
 } else { Write-Host "  SKIP - hayabusa.exe not found" }
 
-# -- 7. NETWORK CONFIG ---------------------------------------------------------
+# -- 9. POWERSHELL HISTORY ----------------------------------------------------
 
-Write-Host "\`n[7/7] Network configuration..."
+Write-Host "\`n[9/12] PowerShell history..."
+Get-ChildItem "C:\\Users" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+    $src = Join-Path $_.FullName "AppData\\Roaming\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt"
+    if (Test-Path $src) {
+        Copy-Item $src (Join-Path $OutDir "$($_.Name).ConsoleHost_history.txt") -Force
+        Write-Host "  $($_.Name) -> ConsoleHost_history.txt"
+    }
+}
+
+# -- 10. DEFENDER MPLOGS -------------------------------------------------------
+
+Write-Host "\`n[10/12] Defender MPLogs..."
+$defDir = "C:\\ProgramData\\Microsoft\\Windows Defender\\Support"
+if (Test-Path $defDir) {
+    $mpDir = Join-Path $OutDir "defender"
+    New-Item -ItemType Directory -Path $mpDir -Force | Out-Null
+    Get-ChildItem $defDir -Filter "MPLog-*" -ErrorAction SilentlyContinue | ForEach-Object {
+        Copy-Item $_.FullName (Join-Path $mpDir $_.Name) -Force
+        Write-Host "  $($_.Name)"
+    }
+    Get-ChildItem $defDir -Filter "MPDlpLog-*" -ErrorAction SilentlyContinue | ForEach-Object {
+        Copy-Item $_.FullName (Join-Path $mpDir $_.Name) -Force
+        Write-Host "  $($_.Name)"
+    }
+} else { Write-Host "  SKIP - Defender support dir not found" }
+
+# -- 11. NETWORK CONFIG -------------------------------------------------------
+
+Write-Host "\`n[11/12] Network configuration..."
 $NetDir = Join-Path $OutDir "network"
 New-Item -ItemType Directory -Path $NetDir -Force | Out-Null
 Get-NetAdapter -ErrorAction SilentlyContinue | Export-Csv (Join-Path $NetDir 'network-adapters.csv') -NoTypeInformation -Encoding UTF8
 Get-ChildItem 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\NetworkList\\Profiles' -ErrorAction SilentlyContinue |
     ForEach-Object { Get-ItemProperty $_.PSPath } |
     Export-Csv (Join-Path $NetDir 'network-profiles.csv') -NoTypeInformation -Encoding UTF8
+
+# -- 12. MFT / USN JOURNAL ----------------------------------------------------
+
+Write-Host "\`n[12/12] MFT / USN Journal..."
+if ($MFTExe) {
+    $mftPath = "\\\\.\\C:"
+    Run $MFTExe @("-f", $mftPath, "--csv", $OutDir, "--csvf", "MFTECmd_MFT_Output.csv", "--de", "csv")
+} else { Write-Host "  SKIP - MFTECmd.exe not found" }
 
 Write-Host "\`nDone. Output: $OutDir"
 Write-Host "Press any key to close..."
