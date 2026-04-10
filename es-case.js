@@ -14,47 +14,92 @@ let _caseLoading = false; // true while manifest-driven load is in progress
 
 // ── OPEN CASE FOLDER ──────────────────────────────────────────────────────────
 
-// Extensions worth indexing — everything else is ignored during folder scan
-const _CASE_EXTS = /\.(csv|tsv|txt|json|jsonl|log|xml)$/i;
-// Paths to always skip even if extension matches (massive dirs, no forensic value)
-const _CASE_SKIP = /[/\\](Windows[/\\]WinSxS|Windows[/\\]assembly|Windows[/\\]servicing|Windows[/\\]Installer|Windows[/\\]SoftwareDistribution|\$Recycle\.Bin|System Volume Information)[/\\]/i;
+// Fast extension check — Set lookup instead of regex per file
+const _CASE_EXT_SET = new Set(['csv','tsv','txt','json','jsonl','log','xml']);
+// Junk path segments — if any segment matches, skip the file
+const _CASE_SKIP_SEGS = new Set(['winsxs','assembly','servicing','installer','softwaredistribution','$recycle.bin','system volume information','windows.old']);
+
+function _fastExtCheck(name) {
+  const dot = name.lastIndexOf('.');
+  if (dot < 0) return false;
+  return _CASE_EXT_SET.has(name.substring(dot + 1).toLowerCase());
+}
+
+function _fastSkipCheck(relLower) {
+  for (const seg of _CASE_SKIP_SEGS) {
+    if (relLower.includes(seg)) return true;
+  }
+  return false;
+}
 
 async function openCaseFolder(fileList) {
-  // Build a map of relative-filename → File from the webkitdirectory result.
-  // Only index files with forensically useful extensions to avoid choking on
-  // full filesystem mirrors with hundreds of thousands of files.
+  // Scan in chunks of 50k to yield to the UI and prevent Chrome freeze.
+  // Only index files with forensically useful extensions.
   _caseFiles = new Map();
   _caseFolderName = '';
   _caseMeta = null;
   let skipped = 0;
+  const total = fileList.length;
+  const CHUNK = 50000;
 
-  for (const f of fileList) {
-    const rel = f.webkitRelativePath || f.name;
-    const parts = rel.split('/');
-    if (parts.length > 1 && !_caseFolderName) _caseFolderName = parts[0];
-    const key = parts.length > 1 ? parts.slice(1).join('/') : parts[0];
+  // Show progress
+  const progContainer = document.getElementById('progressContainer');
+  const progFill = document.getElementById('progressFill');
+  const progText = document.getElementById('progressText');
+  if (progContainer) progContainer.style.display = '';
+  if (progFill) progFill.style.width = '0%';
+  if (progText) progText.textContent = `Scanning ${total.toLocaleString()} files...`;
 
-    // Always index case.json
-    if (/^case\.json$/i.test(key.split('/').pop())) {
+  for (let start = 0; start < total; start += CHUNK) {
+    const end = Math.min(start + CHUNK, total);
+    for (let i = start; i < end; i++) {
+      const f = fileList[i];
+      const rel = f.webkitRelativePath || f.name;
+
+      // Extract folder name from first file only
+      if (!_caseFolderName) {
+        const slash = rel.indexOf('/');
+        if (slash > 0) _caseFolderName = rel.substring(0, slash);
+      }
+
+      // Build key: strip top-level folder
+      const slash = rel.indexOf('/');
+      const key = slash > 0 ? rel.substring(slash + 1) : rel;
+      const fname = key.substring(key.lastIndexOf('/') + 1);
+
+      // Always index case.json
+      if (fname.toLowerCase() === 'case.json') {
+        _caseFiles.set(key, f);
+        continue;
+      }
+
+      // Fast extension check (no regex)
+      if (!_fastExtCheck(fname)) { skipped++; continue; }
+
+      // Fast junk path check (no regex)
+      if (_fastSkipCheck(key.toLowerCase())) { skipped++; continue; }
+
+      // Skip deeply nested (count slashes instead of split)
+      let depth = 0;
+      for (let j = 0; j < key.length; j++) if (key.charCodeAt(j) === 47) depth++;
+      if (depth > 7) { skipped++; continue; }
+
       _caseFiles.set(key, f);
-      continue;
     }
 
-    // Skip files in known junk directories
-    if (_CASE_SKIP.test(key)) { skipped++; continue; }
-
-    // Only index files with useful extensions
-    if (!_CASE_EXTS.test(key)) { skipped++; continue; }
-
-    // Skip very deeply nested files (>8 levels deep = likely OS noise)
-    if (key.split('/').length > 8) { skipped++; continue; }
-
-    _caseFiles.set(key, f);
+    // Yield to UI between chunks + update progress
+    if (end < total) {
+      if (progFill) progFill.style.width = (end / total * 100) + '%';
+      if (progText) progText.textContent = `Scanning files... ${end.toLocaleString()} / ${total.toLocaleString()} (${_caseFiles.size} indexed)`;
+      await new Promise(r => setTimeout(r, 0));
+    }
   }
 
-  if (skipped > 0) {
-    console.debug(`[case] indexed ${_caseFiles.size} files, skipped ${skipped.toLocaleString()} irrelevant files`);
-  }
+  if (progFill) progFill.style.width = '100%';
+  if (progText) progText.textContent = `Found ${_caseFiles.size} artifact files (skipped ${skipped.toLocaleString()})`;
+  if (progContainer) setTimeout(() => { progContainer.style.display = 'none'; }, 1500);
+
+  console.debug(`[case] indexed ${_caseFiles.size} files, skipped ${skipped.toLocaleString()} in ${total.toLocaleString()} total`);
 
   // Look for case.json
   const caseFile = _caseFiles.get('case.json') || _caseFiles.get('Case.json');
