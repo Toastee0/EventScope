@@ -90,6 +90,9 @@ S = {
 }
 ```
 
+## Version number
+Before every commit, bump the version in `index.html` (two places: `<title>` tag and `.logo` span). Use `replace_all` to update both at once. The version format is `v5.XX` — increment XX for each commit or batch of commits.
+
 ## Coding conventions
 - Global state: always `S`
 - Short utility names: `eH` (event handler), `lB` (label), `fDF` (format date), `getFR` (get filtered rows)
