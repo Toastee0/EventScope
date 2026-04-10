@@ -101,16 +101,30 @@ async function _loadFromManifest() {
 
   _caseLoading = true;
 
+  const progContainer = document.getElementById('progressContainer');
+  const progFill = document.getElementById('progressFill');
+  const progText = document.getElementById('progressText');
+  if (progContainer) progContainer.style.display = '';
+  if (progFill) progFill.style.width = '0%';
+  const total = loadQueue.length;
+
   // Load first file as primary
+  if (progText) progText.textContent = `Loading ${loadQueue[0].file.name} (1/${total})...`;
   await loadF(loadQueue[0].file);
+  if (progFill) progFill.style.width = (1 / total * 100) + '%';
 
   // Load remaining as additional sessions
   for (let i = 1; i < loadQueue.length; i++) {
+    await new Promise(r => setTimeout(r, 0)); // yield to UI
+    if (progText) progText.textContent = `Loading ${loadQueue[i].file.name} (${i+1}/${total})...`;
     await loadAdditionalSession(loadQueue[i].file);
+    if (progFill) progFill.style.width = ((i+1) / total * 100) + '%';
   }
 
+  if (progContainer) progContainer.style.display = 'none';
+
   _caseLoading = false;
-  showToast('Case loaded: ' + (_caseMeta.caseName || _caseFolderName) + ' — ' + loadQueue.length + ' file(s)');
+  showToast('Case loaded: ' + (_caseMeta.caseName || _caseFolderName) + ' — ' + total + ' file(s)');
 }
 
 // ── ARTIFACT REGISTRY ─────────────────────────────────────────────────────────
@@ -286,21 +300,45 @@ async function applyCaseSetup() {
   overlay.style.display = 'none';
   _caseLoading = true;
 
+  const allFiles = [...evtFiles.map(f => ({...f, isEvt: true})), ...auxFiles.map(f => ({...f, isEvt: false}))];
+  const total = allFiles.length;
+
+  // Show progress bar
+  const progContainer = document.getElementById('progressContainer');
+  const progFill = document.getElementById('progressFill');
+  const progText = document.getElementById('progressText');
+  if (progContainer) progContainer.style.display = '';
+  if (progFill) progFill.style.width = '0%';
+
   // Load event log CSVs first (primary ingest pipeline)
+  let loaded = 0;
   if (evtFiles.length) {
+    if (progText) progText.textContent = `Loading ${evtFiles[0].name.split('/').pop()}...`;
     await loadF(evtFiles[0].file);
+    loaded++;
+    if (progFill) progFill.style.width = (loaded / total * 100) + '%';
     for (let i = 1; i < evtFiles.length; i++) {
+      await new Promise(r => setTimeout(r, 0)); // yield to UI
+      if (progText) progText.textContent = `Loading ${evtFiles[i].name.split('/').pop()} (${loaded+1}/${total})...`;
       await loadAdditionalSession(evtFiles[i].file);
+      loaded++;
+      if (progFill) progFill.style.width = (loaded / total * 100) + '%';
     }
   }
 
   // Load auxiliary artifacts via their specific loaders
   for (const aux of auxFiles) {
+    await new Promise(r => setTimeout(r, 0)); // yield to UI
+    loaded++;
+    if (progText) progText.textContent = `Loading ${aux.name.split('/').pop()} (${loaded}/${total})...`;
+    if (progFill) progFill.style.width = (loaded / total * 100) + '%';
     await _loadAuxArtifact(aux);
   }
 
+  if (progContainer) progContainer.style.display = 'none';
+
   _caseLoading = false;
-  const totalLoaded = evtFiles.length + auxFiles.length;
+  const totalLoaded = total;
   // Build case metadata for later save
   _caseMeta = _buildCaseMeta(caseName);
   showToast('Loaded ' + totalLoaded + ' artifact(s) from ' + caseName);
