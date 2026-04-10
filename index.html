@@ -458,13 +458,14 @@
   }
   .case-host-input::placeholder{color:var(--text-dim);font-style:italic}
   /* ── Column dropdowns + drag ── */
-  .col-hdr-sort{cursor:pointer;user-select:none}
-  .col-hdr-filter{
-    display:inline-block;margin-left:6px;font-size:9px;cursor:pointer;
-    color:var(--text-dim);opacity:.5;transition:opacity .15s;vertical-align:middle;
+  .col-hdr-inner{display:flex;align-items:center;gap:4px;width:100%}
+  .col-hdr-label{flex:1;white-space:nowrap}
+  .col-hdr-arrow{
+    font-size:9px;color:var(--text-dim);opacity:.3;transition:opacity .15s;flex-shrink:0;
   }
-  .col-hdr-filter:hover{opacity:1;color:var(--orange)}
-  .col-filter-dot{color:var(--orange);font-size:8px;margin-left:3px}
+  th:hover .col-hdr-arrow{opacity:.8}
+  .col-hdr-arrow-active{opacity:1 !important;color:var(--orange)}
+  .col-filter-dot{color:var(--orange);font-size:8px;flex-shrink:0}
   .col-dragging{opacity:.4}
   .col-drag-over{outline:2px solid var(--orange);outline-offset:-2px}
   .col-dropdown{
@@ -1097,10 +1098,10 @@
         <span class="chart-title" id="rawCount" style="font-weight:400;color:var(--text-dim)"></span>
         <div style="display:flex;gap:6px;margin-left:auto;align-items:center">
           <button class="copy-btn" id="copySelectedBtn" onclick="copySelectedRows()" style="display:none;border-color:var(--orange);color:var(--orange)">Copy Selected (0)</button>
-          <button class="copy-btn" onclick="copyTableRows('raw')" title="Copy visible rows">Copy Rows</button>
-          <button class="copy-btn" onclick="copyLogonCsv()" title="Copy 4624/4625 logon events as CSV (respects current filters)">Copy Logons</button>
-          <button class="copy-btn" onclick="downloadLogonCsv()" title="Download 4624/4625 logon events as CSV file (respects current filters)">↓ Logons</button>
-          <button class="copy-btn" onclick="openColCfg()" title="Configure columns">Columns ⋯</button>
+          <button class="copy-btn" onclick="if(typeof toggleStacking==='function')toggleStacking()" id="stackToggleBtn" title="Group identical rows by Rule/Description">Stack</button>
+          <button class="copy-btn" onclick="copyTableRows('raw')" title="Copy visible rows">Copy</button>
+          <button class="copy-btn" onclick="openColCfg()" title="Configure copy columns">Copy Cfg</button>
+          <button class="copy-btn" onclick="if(typeof openColVisibility==='function')openColVisibility()" title="Show/hide table columns">Columns</button>
         </div>
       </div>
       <div class="data-table-wrap" id="rawTableWrap"></div>

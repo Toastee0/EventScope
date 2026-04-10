@@ -333,7 +333,8 @@ function buildRawHeader() {
     const sortIcon = _colSortKey === c.key
       ? (_colSortDir === 1 ? ' \u25B4' : ' \u25BE')
       : '';
-    const filterIcon = _colFilters[c.key] ? ' <span class="col-filter-dot">\u25CF</span>' : '';
+    const hasFilter = !!_colFilters[c.key];
+    const filterDot = hasFilter ? '<span class="col-filter-dot">\u25CF</span>' : '';
     return `<th draggable="true"
       data-col="${c.key}"
       ondragstart="onColDragStart(event,'${c.key}')"
@@ -342,11 +343,123 @@ function buildRawHeader() {
       ondragleave="onColDragLeave(event)"
       ondrop="onColDrop(event,'${c.key}')"
       ondragend="onColDragEnd(event)"
-      style="max-width:${c.w}px;cursor:grab"
-    ><span class="col-hdr-sort" onclick="setColSort('${c.key}')">${eH(c.label)}${sortIcon}</span>${filterIcon}<span class="col-hdr-filter" onclick="event.stopPropagation();openColDropdown('${c.key}',this.closest('th'))" title="Filter ${c.label}">\u25BC</span></th>`;
+      style="max-width:${c.w}px;cursor:pointer;user-select:none"
+      onclick="openColDropdown('${c.key}',this)"
+    ><div class="col-hdr-inner">
+      <span class="col-hdr-label">${eH(c.label)}${sortIcon}</span>
+      ${filterDot}
+      <span class="col-hdr-arrow${hasFilter?' col-hdr-arrow-active':''}">\u25BC</span>
+    </div></th>`;
   });
 
   return checkTh + ths.join('');
+}
+
+// ── COLUMN VISIBILITY TOGGLE ──────────────────────────────────────────────────
+
+function openColVisibility() {
+  _closeColDropdown();
+  const state = _getColState();
+  const dd = document.createElement('div');
+  dd.className = 'col-dropdown';
+  dd.style.right = '32px';
+  dd.style.top = '120px';
+  dd.style.left = 'auto';
+  dd.innerHTML = `
+    <div class="col-dd-search-wrap" style="padding:10px 12px;font-family:var(--mono);font-size:12px;font-weight:600;color:var(--white)">Show / Hide Columns</div>
+    <div class="col-dd-list" style="max-height:400px">${state.map((c, i) => {
+      const def = _colDef(c.key);
+      return `<label class="col-dd-item">
+        <input type="checkbox" ${c.on?'checked':''} data-idx="${i}">
+        <span class="col-dd-val">${def ? eH(def.label) : eH(c.key)}</span>
+      </label>`;
+    }).join('')}</div>
+    <div class="col-dd-footer">
+      <span class="col-dd-count">${state.filter(c=>c.on).length} of ${state.length} visible</span>
+      <button class="col-dd-apply" onclick="applyColVisibility()">Apply</button>
+    </div>`;
+  document.body.appendChild(dd);
+  _activeColDropdown = dd;
+  dd.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const idx = parseInt(cb.dataset.idx, 10);
+      state[idx].on = cb.checked;
+    });
+  });
+  setTimeout(() => document.addEventListener('mousedown', _onDocClickDropdown), 0);
+}
+
+function applyColVisibility() {
+  _saveColState();
+  _closeColDropdown();
+  rRW();
+}
+
+// ── ROW STACKING (group duplicate rows) ───────────────────────────────────────
+
+let _stackEnabled = false;
+let _stackKey = 'rule'; // default: stack by rule/description
+
+function toggleStacking() {
+  _stackEnabled = !_stackEnabled;
+  rRW();
+}
+
+function setStackKey(key) {
+  _stackKey = key;
+  if (_stackEnabled) rRW();
+}
+
+function stackRows(pairs) {
+  if (!_stackEnabled) return { stacked: false, pairs };
+
+  const def = _colDef(_stackKey);
+  if (!def) return { stacked: false, pairs };
+
+  // Group by the stack key value
+  const groups = new Map();
+  for (const p of pairs) {
+    const v = String(def.val(p.r) ?? '');
+    if (!groups.has(v)) groups.set(v, []);
+    groups.get(v).push(p);
+  }
+
+  // Build stacked output: groups with count > 1 are collapsed
+  const result = [];
+  for (const [val, items] of groups) {
+    if (items.length === 1) {
+      result.push({ ...items[0], stackCount: 1, stackGroup: null });
+    } else {
+      // Use first item as representative, attach count
+      result.push({ ...items[0], stackCount: items.length, stackGroup: items });
+    }
+  }
+
+  // Sort by count desc (biggest stacks first)
+  result.sort((a, b) => b.stackCount - a.stackCount);
+  return { stacked: true, pairs: result };
+}
+
+function buildStackedRow(p, idx) {
+  const cols = _visCols();
+  const r = p.r;
+  const fi = p.fi;
+  const count = p.stackCount || 1;
+
+  const checkTd = `<td style="padding:6px 8px" onclick="event.stopPropagation()"><input type="checkbox" class="row-check" data-idx="${idx}" style="accent-color:var(--orange);cursor:pointer" onchange="onRawCheck(${idx},this,event)" onclick="event.stopPropagation()"></td>`;
+  const countBadge = count > 1
+    ? `<span style="display:inline-block;min-width:28px;text-align:center;padding:1px 6px;border-radius:3px;font-size:10px;font-family:var(--mono);font-weight:700;background:var(--orange-dim);color:var(--orange);margin-right:6px">${count.toLocaleString()}</span>`
+    : '';
+  const tds = cols.map((c, ci) => {
+    const style = c.key === 'rule' || c.key === 'det' || c.key === 'src'
+      ? `max-width:${c.w}px;overflow:hidden;text-overflow:ellipsis`
+      : '';
+    const title = c.key === 'rule' ? `title="${eH(r.rule)}"` : c.key === 'src' ? `title="${eH(r.src||'')}"` : '';
+    // Prepend count badge on the first visible content column
+    const badge = (ci === 0 && count > 1) ? countBadge : '';
+    return `<td ${title} ${style ? `style="${style}"` : ''}>${badge}${c.fmt(r)}</td>`;
+  }).join('');
+  return `<tr style="cursor:pointer${count>1?';background:var(--surface2)':''}" data-nav-idx="${fi}" onclick="openDP(${fi},'raw')">${checkTd}${tds}</tr>`;
 }
 
 function buildRawRow(r, fi, idx) {

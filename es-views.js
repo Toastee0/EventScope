@@ -765,17 +765,31 @@ function rRW() {
     }
   }
 
-  const mx = 2000;
-  const sh = pairs.slice(0, mx);
-  _rawDisplayRows = sh.map(({r}) => r);
+  // Apply stacking if enabled
+  const isStacking = typeof stackRows === 'function' && typeof _stackEnabled !== 'undefined' && _stackEnabled;
+  let displayPairs;
+  if (isStacking) {
+    const result = stackRows(pairs);
+    displayPairs = result.pairs;
+  } else {
+    displayPairs = pairs;
+  }
 
-  document.getElementById('rawCount').textContent =
-    `Showing ${Math.min(mx, pairs.length).toLocaleString()} of ${pairs.length.toLocaleString()}`;
+  const mx = 2000;
+  const sh = displayPairs.slice(0, mx);
+  _rawDisplayRows = sh.map(p => p.r);
+
+  const countLabel = isStacking
+    ? `${sh.length.toLocaleString()} groups (${pairs.length.toLocaleString()} events)`
+    : `Showing ${Math.min(mx, pairs.length).toLocaleString()} of ${pairs.length.toLocaleString()}`;
+  document.getElementById('rawCount').textContent = countLabel;
 
   const hdr = typeof buildRawHeader === 'function' ? buildRawHeader() : '';
-  const rows = typeof buildRawRow === 'function'
-    ? sh.map(({r, fi}, i) => buildRawRow(r, fi, i)).join('')
-    : '';
+  const rows = isStacking && typeof buildStackedRow === 'function'
+    ? sh.map((p, i) => buildStackedRow(p, i)).join('')
+    : (typeof buildRawRow === 'function'
+      ? sh.map(({r, fi}, i) => buildRawRow(r, fi, i)).join('')
+      : '');
 
   document.getElementById('rawTableWrap').innerHTML =
     `<table class="data-table" id="rawDataTable"><thead><tr>${hdr}</tr></thead><tbody>${rows}</tbody></table>`;
