@@ -72,7 +72,7 @@ function _extractAccounts(rows) {
     }
     const ip = p.IpAddress || p.SrcIP || p.RemoteHost;
     if (ip && ip !== '-') e.ips.add(ip);
-    const lt = p.LogonType || p.Type;
+    const lt = p.LogonType || p.LgTp || p.Type;
     if (lt && lt !== '-') e.types.add(lt);
     const dom = p.TargetDomainName;
     if (dom && dom !== '-') e.domains.add(dom);

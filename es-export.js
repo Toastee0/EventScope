@@ -118,7 +118,7 @@ function buildLogonCsv() {
       r.comp,
       p['TargetUserName']             || p['TgtUser']    || p['UserName']   || '',
       p['TargetDomainName']           || '',
-      p['LogonType']                  || p['Type']       || '',
+      p['LogonType']                  || p['LgTp']       || p['Type']       || '',
       p['WorkstationName']            || p['SrcComp']    || '',
       p['IpAddress']                  || p['SrcIP']      || p['RemoteHost'] || '',
       p['IpPort']                     || '',

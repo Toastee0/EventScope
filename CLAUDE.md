@@ -21,13 +21,14 @@ EventScope is a browser-based DFIR (Digital Forensics & Incident Response) event
 - No npm, no bundler, no build step
 - No external dependencies (no CDN, no libraries)
 - Vanilla JavaScript only — no frameworks
-- No network requests of any kind (the only exception: `fetch('es-data/win-security-eids.json')` which is a local file)
+- No network requests of any kind (the only exceptions: `fetch('es-data/win-security-eids.json')` and `fetch('es-data/channel-eids.json')` which are local files)
 - Single deployable unit: index.html + es-*.js + es-data/ — everything must work offline
 - Streaming CSV parser: 4MB chunks, yields to event loop via setTimeout(r, 0) between chunks
 
 ## File structure
 ```
 index.html              Shell, layout, tab skeleton, CSS (no external styles)
+es-case.js              Case folder management (webkitdirectory), case.json load/save, companion file detection
 es-core.js              State object S, constants, low-level utilities, IP anonymisation
 es-parsers.js           CSV ingestion, format detection, row processors
 es-filters.js           Filter logic, filter cache, DOM reads
@@ -38,12 +39,13 @@ es-export.js            Copy-to-clipboard, logon CSV export, column config modal
 es-prefs.js             PLACEHOLDER — Phase 5 (preferences load/save)
 es-data/
   win-security-eids.json    Windows Security Event ID reference data
+  channel-eids.json         Channel-specific EID descriptions (compound key: "channel|eid")
 archive/                Old monolithic v4 backups (do not touch)
 EventScope.html         v4 monolithic predecessor (reference only)
 ```
 
 Script loading order in index.html (end of body):
-es-core.js → es-parsers.js → es-filters.js → es-charts.js → es-views.js → es-dedup.js → es-export.js → es-prefs.js → inline init script
+es-core.js → es-parsers.js → es-filters.js → es-charts.js → es-views.js → es-dedup.js → es-export.js → es-prefs.js → es-srum.js → es-netconfig.js → es-peers.js → es-dashboard.js → es-cypfer.js → es-case.js → inline init script
 
 ## Internal data model
 Every ingested row is normalized to:

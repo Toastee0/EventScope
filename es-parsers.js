@@ -133,8 +133,27 @@ function procRowEvtxECmd(f) {
   if (uid2 && uid2 !== '-') parts.push('UserId: '          + uid2);
   if (ei   && ei   !== '-') parts.push('ExecutableInfo: '  + ei);
 
-  const det = parts.join('\u00a6');
+  // Extract EventData fields from Payload XML so parseDet() finds them
+  // EvtxECmd Payload looks like: <Data Name="Key">Value</Data>
   const ext = col('Payload').trim();
+  const seen = new Set();
+  for (const p of parts) {
+    const ci2 = p.indexOf(':');
+    if (ci2 > 0) seen.add(p.substring(0, ci2).trim());
+  }
+  if (ext) {
+    const re = /<Data\s+Name="([^"]+)"[^>]*>([^<]*)<\/Data>/gi;
+    let m;
+    while ((m = re.exec(ext)) !== null) {
+      const k = m[1], v = m[2].trim();
+      if (v && v !== '-' && !seen.has(k)) {
+        seen.add(k);
+        parts.push(k + ': ' + v);
+      }
+    }
+  }
+
+  const det = parts.join('\u00a6');
   const rid = provider;
 
   // Log unmapped columns (once, for debugging) — only in first 5 rows

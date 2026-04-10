@@ -249,7 +249,7 @@ function _buildPeers() {
     const rh = (dirHint === 'in') ? _getSrcHost(det) : _getDstHost(det);
     if (rh && rh.toLowerCase() !== ip.toLowerCase()) e.remoteHosts.add(rh);
     // Logon mechanics (4624/4625/4648 carry these; harmless if absent)
-    const lt = _firstField(det, ['LogonType','Type']);
+    const lt = _firstField(det, ['LogonType','LgTp','Type']);
     if (lt) e.logonTypes.add(_decodeLogonType(lt));
     const lp = _firstField(det, ['LogonProcessName','LogonProcess']);
     if (lp) e.logonProcs.add(lp);

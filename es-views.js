@@ -732,17 +732,34 @@ function rRW() {
   _rawSelection.clear();
   updateRawSelectionUI();
 
+  // Auto-enable Source column for EvtxECmd
+  if (typeof autoEnableEvtxCols === 'function') autoEnableEvtxCols();
+
   // Apply rule pre-filter if set (e.g. from Rules tab "Raw ↗" button)
   const allFR = getFR();
   const ruleCtx = _rawRuleFilter;
+  let filtered = ruleCtx ? allFR.filter(r => r.rule === ruleCtx) : allFR;
+
+  // Apply per-column filters
+  if (typeof applyColFilters === 'function') filtered = applyColFilters(filtered);
+
+  // Build a row→index lookup for O(1) mapping back to getFR() index
+  const frIdx = new Map();
+  for (let i = 0; i < allFR.length; i++) frIdx.set(allFR[i], i);
+
+  // Sort
+  if (typeof sortRows === 'function') filtered = sortRows(filtered);
+
   // Build pairs {r, fi} preserving original getFR() index for openDP
-  let pairs = allFR.map((r, fi) => ({r, fi}));
-  if (ruleCtx) pairs = pairs.filter(({r}) => r.rule === ruleCtx);
+  const pairs = filtered.map(r => ({r, fi: frIdx.get(r) ?? 0}));
 
   const rawTitle = document.getElementById('rawDataTitle');
   if (rawTitle) {
+    const hasColF = typeof _colFilters !== 'undefined' && Object.keys(_colFilters).length > 0;
     if (ruleCtx) {
       rawTitle.innerHTML = `Filtered Detections &mdash; <span style="color:var(--orange);font-family:var(--mono);font-size:12px">${eH(ruleCtx)}</span> &nbsp;<button class="copy-btn" onclick="_rawRuleFilter=null;rRW()" title="Clear rule filter">&#10005; Clear</button>`;
+    } else if (hasColF) {
+      rawTitle.innerHTML = `Filtered Detections &nbsp;<button class="copy-btn" onclick="clearAllColFilters()" title="Clear all column filters">&#10005; Clear Column Filters</button>`;
     } else {
       rawTitle.textContent = 'Filtered Detections';
     }
@@ -754,27 +771,14 @@ function rRW() {
 
   document.getElementById('rawCount').textContent =
     `Showing ${Math.min(mx, pairs.length).toLocaleString()} of ${pairs.length.toLocaleString()}`;
-  const isEvtx = S.format === 'evtxecmd';
-  const hdr = `<th style="width:28px;padding:6px 8px"><input type="checkbox" id="rawSelectAll" onchange="rawSelectAll(this)" style="accent-color:var(--orange);cursor:pointer"></th><th>Timestamp</th><th>Level</th><th>EID</th><th>${isEvtx?'Description':'Rule Title'}</th><th>Computer</th><th>Channel</th><th>Record</th>${isEvtx?'<th>Source</th>':''}`;
+
+  const hdr = typeof buildRawHeader === 'function' ? buildRawHeader() : '';
+  const rows = typeof buildRawRow === 'function'
+    ? sh.map(({r, fi}, i) => buildRawRow(r, fi, i)).join('')
+    : '';
+
   document.getElementById('rawTableWrap').innerHTML =
-    `<table class="data-table"><thead><tr>${hdr}</tr></thead><tbody>${
-      sh.map(({r, fi}, i) => {
-        const srcCell = isEvtx
-          ? `<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis" title="${eH(r.src||'')}">${eH((r.src||'').split(/[/\\]/).pop())}</td>`
-          : '';
-        return `<tr style="cursor:pointer" data-nav-idx="${fi}" onclick="openDP(${fi},'raw')">
-          <td style="padding:6px 8px" onclick="event.stopPropagation()"><input type="checkbox" class="row-check" data-idx="${i}" style="accent-color:var(--orange);cursor:pointer" onchange="onRawCheck(${i},this,event)" onclick="event.stopPropagation()"></td>
-          <td>${!isNaN(r.ts)?fDTz(r.ts):'N/A'}</td>
-          <td>${lB(r.lvl)}</td>
-          <td>${eL(r.eid)}</td>
-          <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis" title="${eH(r.rule)}">${eH(r.rule)}</td>
-          <td>${r.comp}</td>
-          <td>${r.chan.length>25?r.chan.substring(0,23)+'…':r.chan}</td>
-          <td>${r.rec}</td>
-          ${srcCell}
-        </tr>`;
-      }).join('')
-    }</tbody></table>`;
+    `<table class="data-table" id="rawDataTable"><thead><tr>${hdr}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 // ── PERIODICITY ────────────────────────────────────────────────────────────────
@@ -1465,7 +1469,7 @@ function buildLateralGraph() {
     for (const acct of extractAccounts(r)) {
       if (!accounts.has(acct)) accounts.set(acct,[]);
       const p = parseDet(r.det);
-      const lt    = p['LogonType'] || p['Logon Type'] || '';
+      const lt    = p['LogonType'] || p['LgTp'] || p['Logon Type'] || '';
       const srcIp = p['IpAddress'] || p['SrcIP'] || p['IPAddress'] || p['RemoteHost'] || p['WorkstationName'] || '';
       accounts.get(acct).push({ts:r.ts, comp:r.comp, eid:r.eid, sessionIdx:r.sessionIdx??0, logonType:lt, srcIp, lvl:r.lvl, rule:r.rule});
     }
@@ -1649,7 +1653,7 @@ function rLogons() {
     const r = allFiltered[fi];
     if (!LOGON_EIDS.has(String(r.eid))) continue;
     const p = parseDet(r.det);
-    const lt = p['LogonType'] || p['Type'] || '';
+    const lt = p['LogonType'] || p['LgTp'] || p['Type'] || '';
     if (lt) ltSet.add(lt);
     if (resultF && String(r.eid) !== resultF) continue;
     const usr = (p['TargetUserName'] || p['TgtUser'] || p['UserName'] || '').toLowerCase();
@@ -1681,7 +1685,7 @@ function rLogons() {
                      bv = (b.p['TargetUserName']||b.p['TgtUser']||b.p['UserName']||'').toLowerCase(); break;
       case 'domain': av = (a.p['TargetDomainName']||'').toLowerCase();
                      bv = (b.p['TargetDomainName']||'').toLowerCase(); break;
-      case 'lt':     av = a.p['LogonType']||''; bv = b.p['LogonType']||''; break;
+      case 'lt':     av = a.p['LogonType']||a.p['LgTp']||''; bv = b.p['LogonType']||b.p['LgTp']||''; break;
       case 'ip':     av = a.p['IpAddress']||a.p['SrcIP']||a.p['RemoteHost']||'';
                      bv = b.p['IpAddress']||b.p['SrcIP']||b.p['RemoteHost']||''; break;
       case 'ws':     av = (a.p['WorkstationName']||a.p['SrcComp']||'').toLowerCase();
@@ -1728,7 +1732,7 @@ function rLogons() {
     const ip      = p['IpAddress'] || p['SrcIP'] || p['RemoteHost'] || '';
     const usr     = p['TargetUserName'] || p['TgtUser'] || p['UserName'] || '';
     const dom     = p['TargetDomainName'] || '';
-    const lt      = p['LogonType'] || p['Type'] || '';
+    const lt      = p['LogonType'] || p['LgTp'] || p['Type'] || '';
     const ws      = p['WorkstationName'] || p['SrcComp'] || '';
     const auth    = p['AuthenticationPackageName'] || p['AuthPkg'] || '';
     const success = String(r.eid) === '4624';

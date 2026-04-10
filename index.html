@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EventScope v5.23 — Forensic Event Log Analyzer</title>
+<title>EventScope v5.24 — Forensic Event Log Analyzer</title>
 <style>
   :root {
     /* ── Core palette ─────────────────────────────── */
@@ -425,6 +425,90 @@
   .session-add-btn:hover{background:var(--orange-dim)}
   .session-merge-btn{font-family:var(--mono);transition:all .15s}
   .session-merge-btn:hover{border-color:var(--orange) !important;color:var(--orange) !important}
+  /* ── Case folder ── */
+  .companion-bar{
+    display:none;align-items:center;gap:8px;padding:6px 32px;
+    background:var(--surface);border-bottom:1px solid var(--border);
+    font-family:var(--mono);font-size:11px;color:var(--text-dim);flex-wrap:wrap;
+  }
+  .companion-btn{
+    font-family:var(--mono);font-size:11px;padding:3px 10px;
+    border:1px solid var(--border);border-radius:4px;
+    background:var(--surface2);color:var(--text);cursor:pointer;transition:all .15s;
+  }
+  .companion-btn:hover{border-color:var(--orange);color:var(--orange)}
+  .companion-load-all{border-color:var(--orange);color:var(--orange);font-weight:600}
+  .companion-dismiss{
+    background:none;border:none;color:var(--text-dim);cursor:pointer;
+    font-size:14px;margin-left:auto;padding:2px 6px;
+  }
+  .companion-dismiss:hover{color:var(--orange)}
+  .case-file-row{
+    display:flex;align-items:center;gap:12px;padding:8px 12px;
+    border-bottom:1px solid var(--border);
+  }
+  .case-file-row:hover{background:var(--surface2)}
+  .case-file-check{display:flex;align-items:center;gap:8px;flex:1;cursor:pointer;font-family:var(--mono);font-size:12px;color:var(--text)}
+  .case-file-name{color:var(--text);flex:1}
+  .case-file-size{color:var(--text-dim);font-size:10px;min-width:70px;text-align:right}
+  .case-host-input{
+    font-family:var(--mono);font-size:11px;padding:3px 8px;
+    border:1px solid var(--border);border-radius:4px;
+    background:var(--surface);color:var(--text);width:180px;
+  }
+  .case-host-input::placeholder{color:var(--text-dim);font-style:italic}
+  /* ── Column dropdowns + drag ── */
+  .col-hdr-sort{cursor:pointer;user-select:none}
+  .col-hdr-filter{
+    display:inline-block;margin-left:6px;font-size:9px;cursor:pointer;
+    color:var(--text-dim);opacity:.5;transition:opacity .15s;vertical-align:middle;
+  }
+  .col-hdr-filter:hover{opacity:1;color:var(--orange)}
+  .col-filter-dot{color:var(--orange);font-size:8px;margin-left:3px}
+  .col-dragging{opacity:.4}
+  .col-drag-over{outline:2px solid var(--orange);outline-offset:-2px}
+  .col-dropdown{
+    position:fixed;z-index:2000;
+    background:var(--surface);border:1px solid var(--border-bright);
+    border-radius:6px;box-shadow:0 8px 32px rgba(0,0,0,.5);
+    width:320px;max-height:460px;display:flex;flex-direction:column;
+    font-family:var(--mono);font-size:12px;
+  }
+  .col-dd-search-wrap{padding:8px;border-bottom:1px solid var(--border)}
+  .col-dd-search{
+    width:100%;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);
+    border-radius:4px;color:var(--text);font-family:var(--mono);font-size:12px;
+    box-sizing:border-box;
+  }
+  .col-dd-search::placeholder{color:var(--text-dim)}
+  .col-dd-search:focus{outline:none;border-color:var(--orange)}
+  .col-dd-actions{display:flex;gap:4px;padding:6px 8px;border-bottom:1px solid var(--border)}
+  .col-dd-btn{
+    font-family:var(--mono);font-size:10px;padding:2px 8px;
+    border:1px solid var(--border);border-radius:3px;
+    background:var(--surface2);color:var(--text-dim);cursor:pointer;
+  }
+  .col-dd-btn:hover{border-color:var(--orange);color:var(--orange)}
+  .col-dd-clear{border-color:var(--critical);color:var(--critical)}
+  .col-dd-list{overflow-y:auto;flex:1;max-height:300px;padding:4px 0}
+  .col-dd-item{
+    display:flex;align-items:center;gap:8px;padding:3px 10px;cursor:pointer;
+  }
+  .col-dd-item:hover{background:var(--surface2)}
+  .col-dd-item input{accent-color:var(--orange);flex-shrink:0;cursor:pointer}
+  .col-dd-val{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+  .col-dd-cnt{color:var(--text-dim);font-size:10px;min-width:40px;text-align:right}
+  .col-dd-footer{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:8px;border-top:1px solid var(--border);
+  }
+  .col-dd-count{color:var(--text-dim);font-size:10px}
+  .col-dd-apply{
+    font-family:var(--mono);font-size:11px;padding:4px 16px;
+    border:1px solid var(--orange);border-radius:4px;
+    background:var(--orange-dim);color:var(--orange);cursor:pointer;font-weight:600;
+  }
+  .col-dd-apply:hover{background:var(--orange);color:var(--white)}
   .session-badge{
     display:inline-block;padding:1px 5px;border-radius:3px;
     font-size:9px;font-family:var(--mono);font-weight:700;
@@ -613,7 +697,7 @@
 
 <div class="header">
   <div class="header-left">
-    <div class="logo">EventScope <span>/ v5.23</span></div>
+    <div class="logo">EventScope <span>/ v5.24</span></div>
   </div>
   <div class="header-stats" id="headerStats"></div>
 </div>
@@ -621,7 +705,9 @@
 <div class="session-bar" id="sessionBar" style="display:none">
   <div class="session-chips" id="sessionChips"></div>
   <button class="session-add-btn" id="sessionAddBtn">+ Add Session</button>
+  <button class="session-add-btn" onclick="saveCaseJson()" title="Download case.json manifest for this session">Save Case</button>
 </div>
+<div class="companion-bar" id="companionBar"></div>
 
 <div class="dropzone-overlay" id="dropzoneOverlay">
   <div class="dropzone" id="dropzone">
@@ -637,12 +723,31 @@
     </div>
   </div>
   <div style="display:flex;gap:10px;margin-top:18px;align-items:center">
-    <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">No data yet?</span>
+    <button class="session-add-btn" id="caseFolderBtn" style="border-style:solid" onclick="document.getElementById('caseFolderInput').click()">Open Case Folder &rarr;</button>
+    <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">&bull;</span>
     <button class="session-add-btn" id="splashCypferBtn" style="border-style:solid" onclick="openCypferModal()">Generate collector script &rarr;</button>
   </div>
   <div class="progress-container" id="progressContainer">
     <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
     <div class="progress-text" id="progressText">Preparing...</div>
+  </div>
+</div>
+
+<!-- Case Setup Overlay (shown when folder has no case.json) -->
+<div class="col-cfg-overlay" id="caseSetupOverlay">
+  <div class="col-cfg-modal" style="width:740px;max-width:96vw">
+    <div class="col-cfg-title">Case Folder Setup</div>
+    <div class="col-cfg-sub">No case.json found. Select the CSV files to load and assign hostnames.</div>
+    <div style="padding:12px 20px">
+      <label style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">Case name:
+        <input type="text" id="caseNameInput" class="case-host-input" style="width:300px;margin-left:8px" placeholder="e.g. ACME-IR-2026">
+      </label>
+    </div>
+    <div id="caseSetupBody" style="max-height:50vh;overflow-y:auto;border-top:1px solid var(--border)"></div>
+    <div class="col-cfg-footer">
+      <button class="col-cfg-cancel" onclick="closeCaseSetup()">Cancel</button>
+      <button class="session-add-btn" style="border-style:solid" onclick="applyCaseSetup()">Load Selected &rarr;</button>
+    </div>
   </div>
 </div>
 
@@ -664,6 +769,7 @@
 <input type="file" id="evtxLoadInput" accept=".csv,.tsv,.txt" style="display:none">
 <input type="file" id="srumFileInput" accept=".csv" style="display:none">
 <input type="file" id="netconfigFileInput" accept=".csv" multiple style="display:none">
+<input type="file" id="caseFolderInput" webkitdirectory style="display:none">
 
 <div class="dashboard" id="dashboard">
   <!-- FILTER BAR with collapse toggle and level checkboxes -->
@@ -1195,6 +1301,7 @@
 <script src="es-core.js"></script>
 <script src="es-parsers.js"></script>
 <script src="es-filters.js"></script>
+<script src="es-columns.js"></script>
 <script src="es-charts.js"></script>
 <script src="es-views.js"></script>
 <script src="es-dedup.js"></script>
@@ -1205,6 +1312,7 @@
 <script src="es-peers.js"></script>
 <script src="es-dashboard.js"></script>
 <script src="es-cypfer.js"></script>
+<script src="es-case.js"></script>
 
 <!-- Initialization -->
 <script>
@@ -1249,6 +1357,7 @@ async function loadF(file) {
   S.filters = {};
   invF();
   switchTab('dashboard');
+  if (typeof checkCompanionFiles === 'function') checkCompanionFiles();
 }
 
 // ── DROP ZONE ──────────────────────────────────────────────────────────────────
@@ -1271,6 +1380,13 @@ const sfi = document.getElementById('sessionFileInput');
 document.getElementById('sessionAddBtn').addEventListener('click', () => sfi.click());
 sfi.addEventListener('change', () => {
   if (sfi.files.length) { loadAdditionalSession(sfi.files[0]); sfi.value = ''; }
+});
+
+// ── CASE FOLDER INPUT ─────────────────────────────────────────────────────────
+
+const cfi = document.getElementById('caseFolderInput');
+cfi.addEventListener('change', () => {
+  if (cfi.files.length) { openCaseFolder(cfi.files); cfi.value = ''; }
 });
 
 // ── EVTX-ALL LOAD TAB ──────────────────────────────────────────────────────────
