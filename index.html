@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EventScope v6.0 — Forensic Event Log Analyzer</title>
+<title>EventScope v6.1 — Forensic Event Log Analyzer</title>
 <style>
   :root {
     /* ── Core palette ─────────────────────────────── */
@@ -698,7 +698,7 @@
 
 <div class="header">
   <div class="header-left">
-    <div class="logo">EventScope <span>/ v6.0</span></div>
+    <div class="logo">EventScope <span>/ v6.1</span></div>
   </div>
   <div class="header-stats" id="headerStats"></div>
 </div>
@@ -868,6 +868,7 @@
     <div class="tab" data-tab="logons">Logons</div>
     <div class="tab" data-tab="lateral">Lateral Movement</div>
     <div class="tab" data-tab="rdp">RDP</div>
+    <div class="tab" data-tab="defender">Defender</div>
     <div class="tab" data-tab="peers">Remote Hosts</div>
     <div class="tab" data-tab="cypfer">Collector</div>
     <div class="tab" data-tab="eidfocus" id="tabEidFocus" style="display:none">EID Focus</div>
@@ -1316,6 +1317,11 @@
     <div id="cypferContent"></div>
   </div>
 
+  <!-- WINDOWS DEFENDER -->
+  <div class="panel" id="panel-defender">
+    <div id="defenderContent"></div>
+  </div>
+
   <!-- RDP SESSION RECONSTRUCTION -->
   <div class="panel" id="panel-rdp">
     <div id="rdpContent"></div>
@@ -1376,6 +1382,7 @@
 <script src="es-dashboard.js"></script>
 <script src="es-cypfer.js"></script>
 <script src="es-rdp.js"></script>
+<script src="es-defender.js"></script>
 <script src="es-mplog.js"></script>
 <script src="es-case.js"></script>
 

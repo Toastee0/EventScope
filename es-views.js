@@ -1641,6 +1641,7 @@ function switchTab(t) {
     case 'netconfig': rNetconfig();   break;
     case 'peers':     rPeers();       break;
     case 'rdp':       if (typeof rRDP==='function') rRDP(); break;
+    case 'defender':  if (typeof rDefender==='function') rDefender(); break;
     case 'cypfer':    rCypfer();      break;
     case 'developer': if (typeof rDeveloper==='function') rDeveloper(); break;
   }
