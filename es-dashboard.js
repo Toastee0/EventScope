@@ -27,6 +27,15 @@ function _extractOSLine(rows) {
       }
     }
   }
+  // Fallback: look for OS version in 4688 (process create) NewProcessName paths
+  // or in any event's Payload XML OsVersion / ProductName fields
+  for (const r of rows) {
+    if (!r.extra) continue;
+    const ovMatch = r.extra.match(/<Data\s+Name="(?:OsVersion|ProductName)"[^>]*>([^<]+)<\/Data>/i);
+    if (ovMatch && ovMatch[1].trim()) {
+      return { raw: ovMatch[1].trim(), ts: r.ts };
+    }
+  }
   return null;
 }
 
@@ -224,8 +233,12 @@ function rDashboard() {
   const osLine     = _extractOSLine(rows);
   const boots      = _extractBootEvents(rows);
   const tMin       = S.timeMin, tMax = S.timeMax;
-  const span       = isFinite(tMin) && isFinite(tMax) ? fDelta(tMax - tMin) : '—';
-  const topDomain  = [...net.domains].sort()[0] || '—';
+  const spanFirst  = isFinite(tMin) ? fDTz(tMin) : '—';
+  const spanLast   = isFinite(tMax) ? fDTz(tMax) : '—';
+  const spanDelta  = isFinite(tMin) && isFinite(tMax) ? fDelta(tMax - tMin) : '';
+  // Filter out junk domain entries
+  const realDomains = [...net.domains].filter(d => d && d !== '-' && d !== 'NT AUTHORITY' && d !== 'Window Manager' && d !== 'Font Driver Host' && !d.endsWith('$'));
+  const topDomain  = realDomains.sort()[0] || '—';
 
   // ── Accounts ─────────────────────────────────────────────────────────────
   const users = _extractAccounts(rows);
@@ -274,12 +287,11 @@ function rDashboard() {
     card('Operating System', osLine ? eH(osLine.raw) : '<span style="color:var(--text-dim)">unknown</span>',
          osLine ? 'from EID 6009 / 12' : 'no boot record in logs') +
     card('Domain / Workgroup', eH(topDomain),
-         net.domains.size > 1 ? `${net.domains.size} distinct` : '') +
-    card('Total Span', span, `${chanSpans.length} channel${chanSpans.length===1?'':'s'} &mdash; see breakdown below`, 'var(--orange)') +
+         realDomains.length > 1 ? `${realDomains.length} distinct` : '') +
+    card('Total Span', spanDelta || '—',
+         `${eH(spanFirst)} &rarr; ${eH(spanLast)}`, 'var(--orange)') +
     card('Boots / Shutdowns', `${boots.boots} / ${boots.shutdowns}`,
-         boots.lastBoot ? 'last boot ' + fDTz(boots.lastBoot) : '') +
-    card('Total Events', rows.length.toLocaleString(),
-         `<span class="sev-pip sev-critical"></span>${lc.critical} <span class="sev-pip sev-high"></span>${lc.high} <span class="sev-pip sev-medium"></span>${lc.medium}`);
+         boots.lastBoot ? 'last boot ' + fDTz(boots.lastBoot) : '');
 
   // Accounts table -- show ALL accounts, click jumps to first-seen event
   const userRows = users.map(u => {
@@ -294,7 +306,7 @@ function rDashboard() {
       <td style="text-align:right;font-family:var(--mono);color:var(--success)">${u.successes}</td>
       <td style="text-align:right;font-family:var(--mono);color:${u.failures>0?'var(--high)':'var(--text-dim)'}">${u.failures}</td>
       <td style="text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim)">${u.failures>0?failPct+'%':'—'}</td>
-      <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${[...u.types].slice(0,3).join(', ')}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${[...u.types].slice(0,3).map(t => fmtLT(t)).join(', ')}</td>
       <td style="text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim)">${u.ips.size}</td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--orange)">${isFinite(u.firstTs)?fDTz(u.firstTs):'—'}</td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${isFinite(u.lastTs)?fDTz(u.lastTs):'—'}</td>
@@ -432,9 +444,12 @@ function rDashboard() {
     <div class="chart-box" style="margin-bottom:14px">
       <div class="chart-header">
         <span class="chart-title">Log Span by Channel</span>
-        <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim);margin-left:auto">each channel rolls independently &mdash; the dataset's outermost timestamps lie about Security if Application has older garbage</span>
+        <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim);margin-left:auto">each channel rolls independently</span>
       </div>
-      <div class="data-table-wrap">${chanSpanSection}</div>
+      <div style="display:flex;gap:18px;align-items:flex-start">
+        <div class="data-table-wrap" style="flex:0 1 auto;max-width:fit-content">${chanSpanSection}</div>
+        <div style="flex:1;min-width:200px" id="dashChanExtra"></div>
+      </div>
     </div>
 
     <div class="two-col">

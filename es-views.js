@@ -1673,7 +1673,7 @@ function rLogons() {
     const curLt = ltSel.value;
     const sorted = [...ltSet].sort();
     ltSel.innerHTML = '<option value="">All Logon Types</option>'
-      + sorted.map(lt => `<option value="${eH(lt)}"${lt===curLt?' selected':''}>${eH(lt)}</option>`).join('');
+      + sorted.map(lt => `<option value="${eH(lt)}"${lt===curLt?' selected':''}>${eH(fmtLT(lt))}</option>`).join('');
   }
 
   // Sort
@@ -1741,12 +1741,13 @@ function rLogons() {
       ? `<span style="color:var(--success);font-weight:600">✓ 4624</span>`
       : `<span style="color:var(--high);font-weight:600">✗ 4625</span>`;
     const ipColor = ip && ip !== '-' ? 'var(--orange)' : 'var(--text-dim)';
+    const ltFmt   = fmtLT(lt, r.eid);
     return `<tr style="cursor:pointer" data-nav-idx="${fi}" onclick="openDP(${fi},'logons')">
       <td>${!isNaN(r.ts)?fDTz(r.ts):'N/A'}</td>
       <td>${badge}</td>
       <td style="font-weight:600;color:var(--white)">${eH(usr)}</td>
       <td>${eH(dom)}</td>
-      <td>${eH(lt)}</td>
+      <td>${eH(ltFmt)}</td>
       <td style="color:${ipColor}">${eH(ip)}</td>
       <td>${eH(ws)}</td>
       <td>${eH(r.comp)}</td>

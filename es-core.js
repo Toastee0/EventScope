@@ -5,7 +5,17 @@
 
 const SESSION_COLORS = ['#DC551F','#5ddba8','#f0a830','#4ab8dc','#a78bfa','#f472b6','#e8703f','#ff3a3a'];
 
-const LT_NAMES = {2:'Interactive',3:'Network',4:'Batch',5:'Service',7:'Unlock',8:'NetCleartext',9:'NewCred',10:'RDP',11:'CachedInteract'};
+const LT_NAMES = {0:'System',2:'Interactive',3:'Network',4:'Batch',5:'Service',7:'Unlock',8:'NetCleartext',9:'NewCredentials',10:'RemoteInteractive',11:'CachedInteractive',12:'CachedRemoteInteractive',13:'CachedUnlock'};
+
+// Format logon type: "3 (Network)". For 4625 with empty LT, returns "N/A (Failed)".
+function fmtLT(val, eid) {
+  if (!val || val === '-') return String(eid) === '4625' ? 'N/A (Failed)' : '';
+  const m = String(val).match(/(\d+)/);
+  if (!m) return val;
+  const n = m[1];
+  const name = LT_NAMES[parseInt(n, 10)];
+  return name ? n + ' (' + name + ')' : val;
+}
 
 const LW = {critical:5,high:4,medium:3,low:2,informational:1};
 
