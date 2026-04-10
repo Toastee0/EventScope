@@ -14,22 +14,29 @@ let _caseLoading = false; // true while manifest-driven load is in progress
 
 // ── OPEN CASE FOLDER ──────────────────────────────────────────────────────────
 
-// Fast extension check — Set lookup instead of regex per file
-const _CASE_EXT_SET = new Set(['csv','tsv','txt','json','jsonl','log','xml']);
-// Junk path segments — if any segment matches, skip the file
-const _CASE_SKIP_SEGS = new Set(['winsxs','assembly','servicing','installer','softwaredistribution','$recycle.bin','system volume information','windows.old']);
+// Allowed subdirectories (lowercase) — files in root always allowed
+const _CASE_ALLOWED_DIRS = new Set([
+  'parsed_os', 'parsedoshives', 'parsed_user', 'parseduserhives',
+  'hives', 'srum', 'network', 'defender',
+  'psscriptblocks', 'chainsaw-all',
+  'hayabusa-logon-summary',
+]);
+
+function _isAllowedPath(key) {
+  // Root-level file (no slash) — always allowed
+  const slash = key.indexOf('/');
+  if (slash < 0) return true;
+  // Check first subfolder against whitelist
+  const firstDir = key.substring(0, slash).toLowerCase();
+  return _CASE_ALLOWED_DIRS.has(firstDir);
+}
 
 function _fastExtCheck(name) {
   const dot = name.lastIndexOf('.');
   if (dot < 0) return false;
-  return _CASE_EXT_SET.has(name.substring(dot + 1).toLowerCase());
-}
-
-function _fastSkipCheck(relLower) {
-  for (const seg of _CASE_SKIP_SEGS) {
-    if (relLower.includes(seg)) return true;
-  }
-  return false;
+  const ext = name.substring(dot + 1).toLowerCase();
+  return ext === 'csv' || ext === 'tsv' || ext === 'txt' || ext === 'json'
+      || ext === 'jsonl' || ext === 'log' || ext === 'xml';
 }
 
 async function openCaseFolder(fileList) {
@@ -73,16 +80,11 @@ async function openCaseFolder(fileList) {
         continue;
       }
 
-      // Fast extension check (no regex)
+      // Fast extension check
       if (!_fastExtCheck(fname)) { skipped++; continue; }
 
-      // Fast junk path check (no regex)
-      if (_fastSkipCheck(key.toLowerCase())) { skipped++; continue; }
-
-      // Skip deeply nested (count slashes instead of split)
-      let depth = 0;
-      for (let j = 0; j < key.length; j++) if (key.charCodeAt(j) === 47) depth++;
-      if (depth > 7) { skipped++; continue; }
+      // Only allow root-level files or files in known triage subdirectories
+      if (!_isAllowedPath(key)) { skipped++; continue; }
 
       _caseFiles.set(key, f);
     }
