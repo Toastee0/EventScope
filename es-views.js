@@ -1627,6 +1627,7 @@ function switchTab(t) {
     case 'netconfig': rNetconfig();   break;
     case 'peers':     rPeers();       break;
     case 'cypfer':    rCypfer();      break;
+    case 'developer': if (typeof rDeveloper==='function') rDeveloper(); break;
   }
 }
 

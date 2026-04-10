@@ -242,14 +242,17 @@ function _buildPeers() {
     e.eids.add(String(r.eid));
     if (r.comp) e.comps.add(r.comp);
     const det = parseDet(r.det);
-    const u = _getUser(det);
+    // Try semantic field resolver first, fall back to hardcoded lookups
+    const _mf = typeof getMappedField === 'function' ? getMappedField : () => null;
+    const u = _mf(r, 'destuser') || _mf(r, 'srcuser') || _getUser(det);
     if (u) e.users.add(u);
-    // Capture the remote hostname seen in this event (from WorkstationName,
-    // SrcComp, ClientName, etc.) -- only meaningful for inbound peers
-    const rh = (dirHint === 'in') ? _getSrcHost(det) : _getDstHost(det);
+    // Capture the remote hostname seen in this event
+    const rh = (dirHint === 'in')
+      ? (_mf(r, 'srchost') || _getSrcHost(det))
+      : (_mf(r, 'desthost') || _getDstHost(det));
     if (rh && rh.toLowerCase() !== ip.toLowerCase()) e.remoteHosts.add(rh);
-    // Logon mechanics (4624/4625/4648 carry these; harmless if absent)
-    const lt = _firstField(det, ['LogonType','LgTp','Type']);
+    // Logon mechanics
+    const lt = _mf(r, 'logontype') || _firstField(det, ['LogonType','LgTp','Type']);
     if (lt) e.logonTypes.add(_decodeLogonType(lt));
     const lp = _firstField(det, ['LogonProcessName','LogonProcess']);
     if (lp) e.logonProcs.add(lp);

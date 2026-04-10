@@ -29,7 +29,9 @@ EventScope is a browser-based DFIR (Digital Forensics & Incident Response) event
 ```
 index.html              Shell, layout, tab skeleton, CSS (no external styles)
 es-case.js              Case folder management (webkitdirectory), case.json load/save, companion file detection
+es-columns.js           Column management: reorder, per-column filters, drag headers, persist
 es-core.js              State object S, constants, low-level utilities, IP anonymisation
+es-fieldmap.js          Semantic field mapping: resolver, Developer tab UI, export/import
 es-parsers.js           CSV ingestion, format detection, row processors
 es-filters.js           Filter logic, filter cache, DOM reads
 es-charts.js            Canvas 2D chart drawing (all charts)
@@ -40,12 +42,13 @@ es-prefs.js             PLACEHOLDER — Phase 5 (preferences load/save)
 es-data/
   win-security-eids.json    Windows Security Event ID reference data
   channel-eids.json         Channel-specific EID descriptions (compound key: "channel|eid")
+  default-fieldmap.json     Default semantic field mappings for common Security/Sysmon EIDs
 archive/                Old monolithic v4 backups (do not touch)
 EventScope.html         v4 monolithic predecessor (reference only)
 ```
 
 Script loading order in index.html (end of body):
-es-core.js → es-parsers.js → es-filters.js → es-charts.js → es-views.js → es-dedup.js → es-export.js → es-prefs.js → es-srum.js → es-netconfig.js → es-peers.js → es-dashboard.js → es-cypfer.js → es-case.js → inline init script
+es-core.js → es-parsers.js → es-filters.js → es-columns.js → es-fieldmap.js → es-charts.js → es-views.js → es-dedup.js → es-export.js → es-prefs.js → es-srum.js → es-netconfig.js → es-peers.js → es-dashboard.js → es-cypfer.js → es-case.js → inline init script
 
 ## Internal data model
 Every ingested row is normalized to:

@@ -733,6 +733,56 @@
   </div>
 </div>
 
+<!-- Field Picker Modal (Developer tab) -->
+<div class="col-cfg-overlay" id="fieldPickerOverlay">
+  <div class="col-cfg-modal" style="width:900px;max-width:96vw;max-height:80vh;display:flex;flex-direction:column">
+    <div class="col-cfg-title" id="fieldPickerTitle">Map Fields</div>
+    <div class="col-cfg-sub" id="fieldPickerSub"></div>
+    <div id="fieldPickerBody" style="overflow-y:auto;flex:1;border-top:1px solid var(--border)"></div>
+    <div style="padding:8px 20px">
+      <label style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">Notes:
+        <input type="text" id="fieldPickerNotes" class="case-host-input" style="width:100%;margin-top:4px" placeholder="Optional notes about this mapping">
+      </label>
+    </div>
+    <div class="col-cfg-footer">
+      <button class="col-cfg-cancel" onclick="closeFieldPicker()">Cancel</button>
+      <button class="session-add-btn" style="border-style:solid" onclick="saveFieldPicker()">Save Mapping</button>
+    </div>
+  </div>
+</div>
+
+<!-- Export Preview Modal (Developer tab) -->
+<div class="col-cfg-overlay" id="exportPreviewOverlay">
+  <div class="col-cfg-modal" style="width:800px;max-width:96vw;max-height:80vh;display:flex;flex-direction:column">
+    <div class="col-cfg-title">Export Preview</div>
+    <div class="col-cfg-sub">Review the export JSON below. No evidence data should be present.</div>
+    <div style="padding:8px 20px">
+      <label style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">Analyst initials (optional):
+        <input type="text" id="exportInitials" class="case-host-input" style="width:120px;margin-left:8px" placeholder="e.g. AB">
+      </label>
+    </div>
+    <pre id="exportPreviewJson" style="flex:1;overflow:auto;background:var(--surface2);border:1px solid var(--border);border-radius:4px;margin:0 20px;padding:12px;font-family:var(--mono);font-size:11px;color:var(--text);white-space:pre-wrap"></pre>
+    <div id="exportPreviewWarnings" style="padding:8px 20px"></div>
+    <div class="col-cfg-footer">
+      <button class="col-cfg-cancel" onclick="closeExportPreview()">Cancel</button>
+      <button class="session-add-btn" style="border-style:solid" id="exportConfirmBtn">Confirm &amp; Download</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import Conflict Modal (Developer tab) -->
+<div class="col-cfg-overlay" id="importConflictOverlay">
+  <div class="col-cfg-modal" style="width:800px;max-width:96vw;max-height:80vh;display:flex;flex-direction:column">
+    <div class="col-cfg-title">Import Conflicts</div>
+    <div class="col-cfg-sub">The following mappings differ from your current ones. Choose which to keep.</div>
+    <div id="importConflictBody" style="overflow-y:auto;flex:1;border-top:1px solid var(--border)"></div>
+    <div class="col-cfg-footer">
+      <button class="col-cfg-cancel" onclick="closeImportConflict()">Cancel</button>
+      <button class="session-add-btn" style="border-style:solid" onclick="applyImportResolutions()">Apply</button>
+    </div>
+  </div>
+</div>
+
 <!-- Case Setup Overlay (shown when folder has no case.json) -->
 <div class="col-cfg-overlay" id="caseSetupOverlay">
   <div class="col-cfg-modal" style="width:740px;max-width:96vw">
@@ -821,6 +871,7 @@
     <div class="tab" data-tab="eidfocus" id="tabEidFocus" style="display:none">EID Focus</div>
     <div class="tab" data-tab="srum">SRUM</div>
     <div class="tab" data-tab="netconfig">Network</div>
+    <div class="tab" data-tab="developer">Developer</div>
     <div class="tab" id="tabEvtxLoad" style="display:none;margin-left:auto;color:var(--orange);border-bottom-color:transparent" title="Load EvtxECmd CSV to enable raw-event tabs">+ Load EVTX-All</div>
   </div>
 
@@ -1264,6 +1315,11 @@
     <div id="cypferContent"></div>
   </div>
 
+  <!-- DEVELOPER — field mapping -->
+  <div class="panel" id="panel-developer">
+    <div id="developerContent"></div>
+  </div>
+
 </div><!-- /.dashboard -->
 
 <div class="tooltip" id="tooltip"></div>
@@ -1302,6 +1358,7 @@
 <script src="es-parsers.js"></script>
 <script src="es-filters.js"></script>
 <script src="es-columns.js"></script>
+<script src="es-fieldmap.js"></script>
 <script src="es-charts.js"></script>
 <script src="es-views.js"></script>
 <script src="es-dedup.js"></script>
@@ -1582,6 +1639,7 @@ if (netconfigDZ) {
 
 fetch('es-data/win-security-eids.json').then(r => r.json()).then(d => { S.eidDescs = d; }).catch(() => {});
 fetch('es-data/channel-eids.json').then(r => r.json()).then(d => { Object.assign(S.eidDescs, d); }).catch(() => {});
+if (typeof loadDefaultPack === 'function') loadDefaultPack();
 
 // ── PREFERENCES (theme etc.) ────────────────────────────────────────────────────
 

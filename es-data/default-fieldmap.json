@@ -1,0 +1,317 @@
+{
+  "Security::4624": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "Successful logon",
+    "fields": {
+      "TargetUserName": "destuser",
+      "TgtUser": "destuser",
+      "SubjectUserName": "subjectuser",
+      "SrcUser": "subjectuser",
+      "IpAddress": "srcip",
+      "SrcIP": "srcip",
+      "WorkstationName": "srchost",
+      "SrcComp": "srchost",
+      "LogonType": "logontype",
+      "LgTp": "logontype",
+      "Type": "logontype",
+      "TargetDomainName": "custom:destdomain",
+      "AuthenticationPackageName": "custom:authpkg",
+      "AuthPkg": "custom:authpkg",
+      "LogonProcessName": "custom:logonprocess",
+      "LmPackageName": "custom:lmpackage",
+      "ImpersonationLevel": "custom:implevel",
+      "TargetLogonId": "sessionid",
+      "LID": "sessionid",
+      "IpPort": "srcport"
+    }
+  },
+  "Security::4625": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "Failed logon",
+    "fields": {
+      "TargetUserName": "destuser",
+      "TgtUser": "destuser",
+      "SubjectUserName": "subjectuser",
+      "SrcUser": "subjectuser",
+      "IpAddress": "srcip",
+      "SrcIP": "srcip",
+      "WorkstationName": "srchost",
+      "SrcComp": "srchost",
+      "LogonType": "logontype",
+      "LgTp": "logontype",
+      "Type": "logontype",
+      "TargetDomainName": "custom:destdomain",
+      "AuthenticationPackageName": "custom:authpkg",
+      "AuthPkg": "custom:authpkg",
+      "LogonProcessName": "custom:logonprocess",
+      "FailureReason": "result",
+      "Status": "custom:status",
+      "SubStatus": "custom:substatus"
+    }
+  },
+  "Security::4634": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "Account logoff",
+    "fields": {
+      "TargetUserName": "destuser",
+      "TargetLogonId": "sessionid",
+      "LogonType": "logontype"
+    }
+  },
+  "Security::4647": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "User-initiated logoff",
+    "fields": {
+      "TargetUserName": "destuser",
+      "TargetLogonId": "sessionid"
+    }
+  },
+  "Security::4648": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "Logon with explicit credentials (runas, scheduled task, etc.)",
+    "fields": {
+      "SubjectUserName": "subjectuser",
+      "SrcUser": "subjectuser",
+      "TargetUserName": "destuser",
+      "TgtUser": "destuser",
+      "TargetServerName": "desthost",
+      "IpAddress": "srcip",
+      "SrcIP": "srcip",
+      "LogonType": "logontype",
+      "LgTp": "logontype"
+    }
+  },
+  "Security::4672": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "Special privileges assigned to new logon",
+    "fields": {
+      "SubjectUserName": "subjectuser",
+      "SubjectDomainName": "custom:subjectdomain",
+      "PrivilegeList": "custom:privileges"
+    }
+  },
+  "Security::4688": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "New process created",
+    "fields": {
+      "NewProcessName": "process",
+      "Proc": "process",
+      "ParentProcessName": "parentprocess",
+      "PProc": "parentprocess",
+      "NewProcessId": "processid",
+      "CommandLine": "commandline",
+      "Cmdline": "commandline",
+      "SubjectUserName": "subjectuser",
+      "TargetUserName": "destuser",
+      "TokenElevationType": "custom:tokenelevation"
+    }
+  },
+  "Security::4689": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "Process exited",
+    "fields": {
+      "ProcessName": "process",
+      "ProcessId": "processid",
+      "SubjectUserName": "subjectuser"
+    }
+  },
+  "Security::4697": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "Service installed",
+    "fields": {
+      "ServiceName": "custom:servicename",
+      "ServiceFileName": "filepath",
+      "SubjectUserName": "subjectuser"
+    }
+  },
+  "Security::4698": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "Scheduled task created",
+    "fields": {
+      "TaskName": "custom:taskname",
+      "SubjectUserName": "subjectuser"
+    }
+  },
+  "Security::4720": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "User account created",
+    "fields": {
+      "TargetUserName": "destuser",
+      "SubjectUserName": "subjectuser",
+      "TargetDomainName": "custom:destdomain"
+    }
+  },
+  "Security::4768": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "Kerberos TGT requested",
+    "fields": {
+      "TargetUserName": "destuser",
+      "IpAddress": "srcip",
+      "ClientAddress": "srcip"
+    }
+  },
+  "Security::4769": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "Kerberos service ticket requested",
+    "fields": {
+      "TargetUserName": "destuser",
+      "ServiceName": "custom:servicename",
+      "IpAddress": "srcip",
+      "ClientAddress": "srcip"
+    }
+  },
+  "Security::4771": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "Kerberos pre-auth failed",
+    "fields": {
+      "TargetUserName": "destuser",
+      "IpAddress": "srcip",
+      "ClientAddress": "srcip"
+    }
+  },
+  "Security::4778": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "Session reconnected (RDP)",
+    "fields": {
+      "AccountName": "destuser",
+      "ClientAddress": "srcip",
+      "ClientName": "srchost",
+      "SessionName": "sessionid"
+    }
+  },
+  "Security::4779": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "Session disconnected (RDP)",
+    "fields": {
+      "AccountName": "destuser",
+      "ClientAddress": "srcip",
+      "ClientName": "srchost",
+      "SessionName": "sessionid"
+    }
+  },
+  "Security::5140": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "Network share accessed",
+    "fields": {
+      "SubjectUserName": "subjectuser",
+      "IpAddress": "srcip",
+      "ShareName": "filepath",
+      "TargetServerName": "desthost"
+    }
+  },
+  "Security::5145": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "Network share detail check",
+    "fields": {
+      "SubjectUserName": "subjectuser",
+      "IpAddress": "srcip",
+      "ShareName": "filepath",
+      "RelativeTargetName": "custom:relativetarget"
+    }
+  },
+  "Security::5156": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "WFP permitted connection",
+    "fields": {
+      "SourceAddress": "srcip",
+      "SrcIP": "srcip",
+      "DestAddress": "destip",
+      "TgtIP": "destip",
+      "SourcePort": "srcport",
+      "SrcPort": "srcport",
+      "DestPort": "destport",
+      "DestinationPort": "destport",
+      "Direction": "direction",
+      "Protocol": "protocol",
+      "Application": "process"
+    }
+  },
+  "Security::5157": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "WFP blocked connection",
+    "fields": {
+      "SourceAddress": "srcip",
+      "SrcIP": "srcip",
+      "DestAddress": "destip",
+      "TgtIP": "destip",
+      "SourcePort": "srcport",
+      "SrcPort": "srcport",
+      "DestPort": "destport",
+      "DestinationPort": "destport",
+      "Direction": "direction",
+      "Protocol": "protocol",
+      "Application": "process"
+    }
+  },
+  "Microsoft-Windows-Sysmon/Operational::1": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "Sysmon process creation",
+    "fields": {
+      "Image": "process",
+      "ParentImage": "parentprocess",
+      "CommandLine": "commandline",
+      "User": "destuser",
+      "ProcessId": "processid",
+      "ParentProcessId": "custom:parentpid",
+      "Hashes": "filehash"
+    }
+  },
+  "Microsoft-Windows-Sysmon/Operational::3": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "Sysmon network connection",
+    "fields": {
+      "SourceIp": "srcip",
+      "SrcIP": "srcip",
+      "DestinationIp": "destip",
+      "TgtIP": "destip",
+      "SourcePort": "srcport",
+      "DestinationPort": "destport",
+      "Image": "process",
+      "User": "destuser",
+      "Protocol": "protocol"
+    }
+  },
+  "Microsoft-Windows-Sysmon/Operational::11": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "Sysmon file created",
+    "fields": {
+      "TargetFilename": "filepath",
+      "Image": "process",
+      "User": "destuser"
+    }
+  },
+  "Microsoft-Windows-Sysmon/Operational::22": {
+    "added_utc": "2026-04-10T00:00:00Z",
+    "updated_utc": "2026-04-10T00:00:00Z",
+    "notes": "Sysmon DNS query",
+    "fields": {
+      "QueryName": "desthost",
+      "Image": "process",
+      "User": "destuser",
+      "QueryResults": "destip"
+    }
+  }
+}
