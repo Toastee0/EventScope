@@ -364,20 +364,61 @@ function rPeers() {
     `${inMap.size} inbound peer${inMap.size===1?'':'s'} \u2022 ${outMap.size} outbound peer${outMap.size===1?'':'s'}`;
 }
 
+// Check if two hostnames are plausibly the same machine:
+// NetBIOS short name vs FQDN, or one contains the other.
+// e.g. "DC01" vs "dc01.corp.local", "VM001" vs "vm001-PC"
+function _sameHost(a, b) {
+  const la = a.toLowerCase().replace(/[.\-_]$/,'');
+  const lb = b.toLowerCase().replace(/[.\-_]$/,'');
+  if (la === lb) return true;
+  // One is a prefix of the other (short name vs FQDN)
+  if (la.startsWith(lb) || lb.startsWith(la)) return true;
+  // Short name matches first segment of FQDN: "DC01" vs "dc01.corp.local"
+  const segA = la.split('.')[0];
+  const segB = lb.split('.')[0];
+  if (segA === segB) return true;
+  return false;
+}
+
+// Group hostnames into clusters of "same machine" names.
+// Returns only the clusters that have genuinely different machines.
+function _clusterHostnames(hosts) {
+  const names = [...hosts];
+  const clusters = [];  // each cluster is an array of related names
+  const assigned = new Set();
+  for (let i = 0; i < names.length; i++) {
+    if (assigned.has(i)) continue;
+    const cluster = [names[i]];
+    assigned.add(i);
+    for (let j = i + 1; j < names.length; j++) {
+      if (assigned.has(j)) continue;
+      if (cluster.some(c => _sameHost(c, names[j]))) {
+        cluster.push(names[j]);
+        assigned.add(j);
+      }
+    }
+    clusters.push(cluster);
+  }
+  return clusters;
+}
+
 function _findHostnameConflicts(inMap, outMap) {
   const conflicts = [];
   const check = (map, dir) => {
     for (const [ip, peer] of map) {
-      if (peer.remoteHosts.size > 1) {
-        conflicts.push({
-          ip,
-          hostnames: [...peer.remoteHosts].sort(),
-          direction: dir,
-          count: peer.count,
-          first: peer.first,
-          last: peer.last
-        });
-      }
+      if (peer.remoteHosts.size < 2) continue;
+      // Cluster related names — only flag if there are genuinely distinct machines
+      const clusters = _clusterHostnames(peer.remoteHosts);
+      if (clusters.length < 2) continue; // All names are variants of the same host
+      conflicts.push({
+        ip,
+        hostnames: [...peer.remoteHosts].sort(),
+        clusters,
+        direction: dir,
+        count: peer.count,
+        first: peer.first,
+        last: peer.last
+      });
     }
   };
   check(inMap, 'Inbound');
@@ -436,9 +477,12 @@ function _renderPeerTable(map, direction) {
                    + (p.users.size > 3 ? ` +${p.users.size-3}` : '');
     const hostList = [...p.remoteHosts].slice(0, 2).join(', ')
                    + (p.remoteHosts.size > 2 ? ` +${p.remoteHosts.size-2}` : '');
-    const hostConflict = p.remoteHosts.size > 1
-      ? ' <span style="font-size:9px;background:var(--high-dim, rgba(220,60,30,0.15));color:var(--high);padding:1px 4px;border-radius:2px;font-weight:700" title="Multiple hostnames for same IP">\u26A0 ' + p.remoteHosts.size + ' names</span>'
-      : '';
+    const hostClusters = p.remoteHosts.size > 1 ? _clusterHostnames(p.remoteHosts) : [];
+    const hostConflict = hostClusters.length > 1
+      ? ' <span style="font-size:9px;background:var(--high-dim, rgba(220,60,30,0.15));color:var(--high);padding:1px 4px;border-radius:2px;font-weight:700" title="' + eH(hostClusters.length + ' distinct machines: ' + hostClusters.map(c=>c.join('/')).join(' vs ')) + '">\u26A0 ' + hostClusters.length + ' machines</span>'
+      : (p.remoteHosts.size > 1
+        ? ' <span style="font-size:9px;color:var(--text-dim);padding:1px 4px" title="Same host, different name forms (NetBIOS vs FQDN)">' + p.remoteHosts.size + ' aliases</span>'
+        : '');
     const portsSorted = [...p.ports].sort((a,b) => Number(a) - Number(b));
     const portList    = portsSorted.slice(0, 4).join(', ')
                       + (portsSorted.length > 4 ? ` +${portsSorted.length-4}` : '');
