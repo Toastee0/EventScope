@@ -120,8 +120,15 @@ function procRowEvtxECmd(f) {
 
   const parts = [];
   for (let i = 1; i <= 6; i++) {
-    const v = col('PayloadData' + i).trim();
-    if (v && v !== '-') parts.push(v);
+    let v = col('PayloadData' + i).trim();
+    if (!v || v === '-') continue;
+    // EvtxECmd map outputs sometimes omit the colon — e.g. "LogonType 3"
+    // Normalize to "Key: Value" so parseDet can find them
+    if (!v.includes(':')) {
+      const sp = v.indexOf(' ');
+      if (sp > 0) v = v.substring(0, sp) + ': ' + v.substring(sp + 1);
+    }
+    parts.push(v);
   }
 
   const un   = col('UserName').trim();
