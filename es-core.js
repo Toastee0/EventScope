@@ -34,6 +34,7 @@ const S = {
   prefs: {},              // loaded preferences
   eidDescs: {},           // eid → friendly description
   evtxMaps: {},           // "Channel::EID" → {description, fields[], lookups{}}
+  mitre: null,            // {tactics{}, techniques{}} from mitre-attack.json
   colConfig: [],          // column order/visibility
   hostnameGroups: {},
   // v4 operational fields:
