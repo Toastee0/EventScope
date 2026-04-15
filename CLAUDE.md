@@ -48,7 +48,7 @@ EventScope.html         v4 monolithic predecessor (reference only)
 ```
 
 Script loading order in index.html (end of body):
-es-core.js → es-parsers.js → es-filters.js → es-columns.js → es-fieldmap.js → es-charts.js → es-views.js → es-dedup.js → es-export.js → es-prefs.js → es-srum.js → es-netconfig.js → es-peers.js → es-dashboard.js → es-cypfer.js → es-case.js → inline init script
+es-core.js → es-parsers.js → es-filters.js → es-columns.js → es-fieldmap.js → es-charts.js → es-views.js → es-dedup.js → es-export.js → es-prefs.js → es-srum.js → es-netconfig.js → es-peers.js → es-dashboard.js → es-case.js → [optional private submodule scripts] → inline init script
 
 ## Internal data model
 Every ingested row is normalized to:

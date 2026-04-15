@@ -175,7 +175,7 @@ async function _loadFromManifest() {
 }
 
 // ── ARTIFACT REGISTRY ─────────────────────────────────────────────────────────
-// Known artifact path patterns from Cypfer triage output + standard tool CSVs.
+// Known artifact path patterns from typical DFIR triage outputs (EZ Tools, Hayabusa, etc.).
 // Each entry: regex on relative path → { category, label, parser, priority }
 // Priority: lower = load first. Parser: how to ingest (evtx/hayabusa handled by
 // streamParse; others will be custom parsers or text loaders).

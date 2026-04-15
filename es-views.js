@@ -1674,7 +1674,7 @@ function switchTab(t) {
     case 'dashboard': rDashboard();   break;
     case 'overview':  rOV();          break;
     case 'histograms': rTL();         break;
-    case 'timeline':  if (typeof rCypferTimeline==='function') rCypferTimeline(); break;
+    case 'timeline':  if (typeof rTimeline==='function') rTimeline(); break;
     case 'heatmap':   rHM();          break;
     case 'firstseen': rFirstSeen();   break;
     case 'gaps':      rGaps();        break;
@@ -1691,7 +1691,7 @@ function switchTab(t) {
     case 'peers':     rPeers();       break;
     case 'rdp':       if (typeof rRDP==='function') rRDP(); break;
     case 'defender':  if (typeof rDefender==='function') rDefender(); break;
-    case 'cypfer':    rCypfer();      break;
+    case 'collector': if (typeof rCollector==='function') rCollector(); break;
     case 'developer': if (typeof rDeveloper==='function') rDeveloper(); break;
   }
 }
