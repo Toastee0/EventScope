@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NetMap — Quick Network Visualizer</title>
+<style>
+  :root {
+    --bg: #1a1d23;
+    --panel: #232831;
+    --border: #353b47;
+    --text: #d8dee9;
+    --muted: #7a8290;
+    --accent: #5fb3d4;
+    --accent2: #a3be8c;
+    --warn: #d08770;
+    --danger: #bf616a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column;
+    font-size: 13px;
+  }
+  header {
+    padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--border);
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
+  header h1 { margin: 0 12px 0 0; font-size: 14px; color: var(--accent); font-weight: 600; }
+  button {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    padding: 5px 10px; border-radius: 3px; cursor: pointer; font-family: inherit; font-size: 12px;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+  button.primary:hover { background: #7cc5e0; color: var(--bg); }
+  button.danger:hover { border-color: var(--danger); color: var(--danger); }
+  .main { display: flex; flex: 1; overflow: hidden; }
+  .sidebar {
+    width: 320px; background: var(--panel); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; padding: 8px; position: relative;
+  }
+  .sidebar label { font-size: 11px; color: var(--muted); text-transform: uppercase; margin: 6px 0 4px; }
+  textarea {
+    flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    padding: 8px; font-family: inherit; font-size: 12px; resize: none; border-radius: 3px;
+    min-height: 200px;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); }
+  .stats { font-size: 11px; color: var(--muted); padding: 4px 0; }
+  .canvas-wrap { flex: 1; position: relative; overflow: hidden; background: #14171c; }
+  svg { width: 100%; height: 100%; display: block; cursor: grab; }
+  svg.panning { cursor: grabbing; }
+  .node { cursor: move; }
+  .node:hover .node-bg { stroke: var(--accent); stroke-width: 2; }
+  .node.selected .node-bg { stroke: var(--accent2); stroke-width: 2.5; }
+  .node.line-pick .node-bg { stroke: var(--warn); stroke-width: 2.5; }
+  svg.line-mode { cursor: crosshair; }
+  .rubber-band { fill: var(--accent); fill-opacity: 0.08; stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
+  .node-label { fill: var(--text); font-size: 11px; pointer-events: none; user-select: none; }
+  .node-sub { fill: var(--muted); font-size: 9px; pointer-events: none; user-select: none; }
+  .edge { stroke: #4a5160; stroke-width: 1.5; fill: none; pointer-events: none; }
+  .edge.directed { marker-end: url(#arrow); }
+  .trunk-edge { stroke-width: 3; opacity: 0.55; fill: none; pointer-events: none; }
+  .zone-bg { fill-opacity: 0.06; stroke-opacity: 0.45; stroke-width: 1.5; stroke-dasharray: 6 4; }
+  .zone-label { font-size: 11px; font-weight: 600; opacity: 0.7; pointer-events: none; user-select: none; }
+  .help {
+    position: absolute; bottom: 8px; right: 8px; background: var(--panel);
+    padding: 6px 10px; border-radius: 3px; font-size: 10px; color: var(--muted);
+    border: 1px solid var(--border); pointer-events: none;
+  }
+  .options { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 0; }
+  .options label { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text); text-transform: none; margin: 0; cursor: pointer; }
+  .options input { margin: 0; }
+  .legend { position: absolute; top: 8px; right: 8px; background: var(--panel); padding: 6px 8px; border-radius: 3px; border: 1px solid var(--border); font-size: 10px; max-width: 200px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+  .legend-swatch { width: 10px; height: 10px; border-radius: 2px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>NetMap</h1>
+  <button class="primary" onclick="parseAndRender()">Parse</button>
+  <button id="btnLineMode"   onclick="setLineMode('add')"    title="Click two nodes to add an edge line">Add line</button>
+  <button id="btnLineRemove" onclick="setLineMode('remove')" title="Click two nodes to remove their pairing line from the textbox">Remove line</button>
+  <button onclick="autoLayout()">Re-layout</button>
+  <button onclick="fitView()">Fit view</button>
+  <button onclick="clearAll()">Clear</button>
+  <button onclick="exportSVG()">Export SVG</button>
+  <button onclick="exportJSON()">Export JSON</button>
+  <button onclick="document.getElementById('importFile').click()">Import JSON</button>
+  <input type="file" id="importFile" style="display:none" accept=".json" onchange="importJSON(event)">
+  <span style="flex:1"></span>
+  <span class="stats" id="stats">0 nodes, 0 edges</span>
+</header>
+<div class="main">
+  <div class="sidebar">
+    <label>Paste IP data (netstat, arp, conn pairs, hayabusa src/dst, anything)</label>
+    <textarea id="input" placeholder="Paste messy asset data — parser extracts hostnames + IPs, drops noise.
+
+Anchor: hostname at column 0, then tab/comma/multi-space.
+Continuation: lines with IPs while a block is open (any indentation).
+Comma-paired IPs (10.0.0.5, 203.0.113.5) = same host.
+Edges:  HOST -> HOST   src=A dst=B   netstat lines all work.
+No-IP hosts and description text are silently dropped."></textarea>
+    <div class="options">
+      <label><input type="checkbox" id="optDirected" checked> Directed edges (-&gt;, src/dst)</label>
+      <label><input type="checkbox" id="optColorSubnet" checked> Color by /24</label>
+      <label><input type="checkbox" id="optShowPorts"> Show ports in label</label>
+      <label><input type="checkbox" id="optZones" checked> VLAN zones (group by 3rd octet)</label>
+      <label><input type="checkbox" id="optTrunks" checked> Trunk lines (box → infra)</label>
+      <label><input type="checkbox" id="optMergeHost"> Merge IP+hostname when on same line</label>
+    </div>
+  </div>
+  <div class="canvas-wrap">
+    <svg id="canvas" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#4a5160"/>
+        </marker>
+        <symbol id="pc" viewBox="0 0 40 32">
+          <rect x="2" y="2" width="36" height="22" rx="2" fill="currentColor" opacity="0.25" stroke="currentColor" stroke-width="1.5"/>
+          <rect x="5" y="5" width="30" height="16" rx="1" fill="#14171c" stroke="currentColor" stroke-width="0.5"/>
+          <rect x="14" y="24" width="12" height="3" fill="currentColor" opacity="0.6"/>
+          <rect x="10" y="27" width="20" height="2" rx="0.5" fill="currentColor" opacity="0.5"/>
+        </symbol>
+        <symbol id="server" viewBox="0 0 40 32">
+          <rect x="4" y="3" width="32" height="8" rx="1" fill="currentColor" opacity="0.3" stroke="currentColor" stroke-width="1.2"/>
+          <circle cx="9" cy="7" r="1" fill="#a3be8c"/>
+          <rect x="14" y="6" width="18" height="2" fill="currentColor" opacity="0.5"/>
+          <rect x="4" y="13" width="32" height="8" rx="1" fill="currentColor" opacity="0.3" stroke="currentColor" stroke-width="1.2"/>
+          <circle cx="9" cy="17" r="1" fill="#a3be8c"/>
+          <rect x="14" y="16" width="18" height="2" fill="currentColor" opacity="0.5"/>
+          <rect x="4" y="23" width="32" height="6" rx="1" fill="currentColor" opacity="0.3" stroke="currentColor" stroke-width="1.2"/>
+          <circle cx="9" cy="26" r="1" fill="#a3be8c"/>
+        </symbol>
+        <symbol id="cloud" viewBox="0 0 40 32">
+          <path d="M10 22 Q4 22 4 16 Q4 11 9 10 Q10 5 16 5 Q22 5 24 10 Q30 9 32 14 Q36 15 36 20 Q36 24 30 24 L12 24 Q10 24 10 22 Z"
+                fill="currentColor" opacity="0.25" stroke="currentColor" stroke-width="1.5"/>
+        </symbol>
+      </defs>
+      <g id="zones"></g>
+      <g id="edges"></g>
+      <g id="nodes"></g>
+    </svg>
+    <div class="legend" id="legend" style="display:none"></div>
+    <div class="help">click node = find source • drag = move • shift+click = multi-select • shift+drag canvas = lasso • drag a selected node = move group • dbl-click = rename • right-click = delete • Add/Remove line: click two nodes</div>
+  </div>
+</div>
+
+<script>
+// ---------- state ----------
+let nodes = []; // {id, label, sub, x, y, type, subnet}
+let edges = []; // {from, to, directed}
+let nodeMap = new Map();
+let view = { x: 0, y: 0, scale: 1 };
+let selectedIds = new Set();
+let dragOrigins = null;  // id -> {x,y} snapshot at drag start
+let rbStart = null, rbRect = null; // rubber-band state
+let lineMode = null, linePickA = null; // line tool: null | 'add' | 'remove'
+
+const svg = document.getElementById('canvas');
+const zonesG = document.getElementById('zones');
+const edgesG = document.getElementById('edges');
+const nodesG = document.getElementById('nodes');
+
+// ---------- parsing ----------
+const IPV4 = /\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\b/g;
+const IPV4_PORT = /\b((?:(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d?\d))(?::(\d{1,5}))?\b/g;
+// hostnames: NetBIOS-ish (CAPS-WITH-DASH-OR-DIGITS) or FQDN
+const HOST = /\b([A-Za-z][A-Za-z0-9_-]{1,30}(?:\.[A-Za-z0-9][A-Za-z0-9-]{0,30})*)\b/g;
+const RESERVED_WORDS = new Set([
+  'TCP','UDP','ICMP','ESTABLISHED','LISTEN','LISTENING','LISTENING','TIME_WAIT','CLOSE_WAIT','SYN_SENT','SYN_RECEIVED','FIN_WAIT_1','FIN_WAIT_2','CLOSED',
+  'src','dst','source','destination','from','to','via','->','=>','→','PID','State','Local','Foreign','Address','Proto',
+  'Active','Connections','Internet','Type','Interface','Physical','Dynamic','Static','Invalid','Incomplete','Reachable','Stale','Permanent',
+  'true','false','null','undefined'
+]);
+const RESERVED_LOWER = new Set([...RESERVED_WORDS].map(s => s.toLowerCase()));
+
+function isPrivate(ip) {
+  const o = ip.split('.').map(Number);
+  return (o[0] === 10) ||
+         (o[0] === 172 && o[1] >= 16 && o[1] <= 31) ||
+         (o[0] === 192 && o[1] === 168) ||
+         (o[0] === 127) ||
+         (o[0] === 169 && o[1] === 254);
+}
+
+function subnetOf(ip) {
+  const o = ip.split('.');
+  return `${o[0]}.${o[1]}.${o[2]}.0/24`;
+}
+
+function classifyType(ip, label) {
+  const l = (label || ip || '').toLowerCase();
+  if (!isPrivate(ip)) return 'cloud';
+  if (/dc\d?|server|srv|sql|exch|app|web|fs\d?|nas|dns|dhcp|ad\d?/.test(l)) return 'server';
+  if (l.endsWith('.0') || l.endsWith('.1') || l.endsWith('.254')) return 'server';
+  return 'pc';
+}
+
+// Try to parse a structured asset row:
+// IPv4 regex used everywhere for strict whole-string IP matching
+const IP_STRICT = /^(?:(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d?\d)$/;
+const HOSTNAME_RE = /^[A-Za-z][A-Za-z0-9._-]{0,60}$/;
+
+// Find every IPv4 in the line, regardless of delimiters. Best effort.
+const IP_GLOBAL = /\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\b/g;
+
+// Pull all IPs out of a line. If hasHostname, also extract the leading hostname token.
+// Description text is intentionally ignored — too noisy in real-world data.
+function splitAssetLine(rawLine, hasHostname) {
+  const ips = [];
+  let hostname = null;
+  let scanFrom = 0;
+  if (hasHostname) {
+    const m = rawLine.match(/^([A-Za-z][A-Za-z0-9._-]{0,60})/);
+    if (m) { hostname = m[1]; scanFrom = m[0].length; }
+  }
+  IP_GLOBAL.lastIndex = 0;
+  const text = rawLine.slice(scanFrom);
+  let m;
+  while ((m = IP_GLOBAL.exec(text)) !== null) ips.push(m[0]);
+  return { hostname, ips };
+}
+
+// Walk lines, group into host blocks. Be forgiving: dirty real-world data
+// often has inconsistent indentation, leading IPs without a hostname, or
+// description lines flush-left. The strategy:
+//   - Anchor: line begins with a hostname-shaped token in column 1, AND
+//     the rest of the line looks like asset-row data (has IPs or tabs/commas
+//     followed by description), OR is just the hostname alone.
+//   - Edge/freeform: line contains `->`, `=>`, `→`, or `src=...dst=`.
+//     These break the current block and go to pass 2.
+//   - Blank line: ends the current block.
+//   - Section header: skipped.
+//   - Anything else while a block is open: treated as a continuation.
+function parseHostBlocks(lines) {
+  const blocks = [];
+  const consumed = new Set();
+  let current = null;
+
+  const EDGE_HINT = /(->|=>|→|\bsrc\s*[:=]|\bdst\s*[:=]|\bdestination\s*[:=]|\bsource\s*[:=])/i;
+
+  function isBlank(line) { return /^\s*$/.test(line); }
+
+  function looksLikeEdgeLine(line) {
+    return EDGE_HINT.test(line);
+  }
+
+  // Returns hostname string if this line looks like a NEW host anchor, else null.
+  // Must start at column 0 (no leading whitespace), first token must be hostname-shaped,
+  // and the remainder (if any) must look like asset data — not, say, a sentence.
+  function detectAnchor(rawLine) {
+    if (!rawLine || /^\s/.test(rawLine)) return null;
+    if (looksLikeEdgeLine(rawLine)) return null;
+    // First whitespace/tab/comma-delimited token
+    const m = rawLine.match(/^([A-Za-z][A-Za-z0-9._-]{0,60})(?=$|[\t,\s])/);
+    if (!m) return null;
+    const hostname = m[1];
+    // Reserved words that look like hostnames but aren't
+    if (RESERVED_LOWER && RESERVED_LOWER.has(hostname.toLowerCase())) return null;
+    const rest = rawLine.slice(m[0].length);
+    // Rest is empty or only whitespace? It's a hostname-only anchor.
+    if (/^\s*$/.test(rest)) return hostname;
+    // Rest must start with a tab, OR comma, OR multiple spaces (column separation).
+    // Single-space prose like "DC01 is the primary controller" is NOT an anchor.
+    if (/^\t/.test(rest) || /^\s*,/.test(rest) || /^ {2,}/.test(rest)) return hostname;
+    return null;
+  }
+
+  function endBlock() {
+    if (current && current.hostname) blocks.push(current);
+    current = null;
+  }
+
+  lines.forEach((rawLine, idx) => {
+    if (isBlank(rawLine)) { endBlock(); return; }
+    const trimmed = rawLine.trim();
+    if (trimmed.startsWith('#') || trimmed.startsWith('//')) return;
+
+    // Edge/freeform line: breaks any open block
+    if (looksLikeEdgeLine(rawLine)) { endBlock(); return; }
+
+    const anchorName = detectAnchor(rawLine);
+    if (anchorName) {
+      endBlock();
+      const parsed = splitAssetLine(rawLine, true);
+      current = {
+        hostname: anchorName,
+        ips: [...parsed.ips],
+        sourceLines: [idx],
+      };
+      consumed.add(idx);
+      return;
+    }
+
+    // Otherwise: if a block is open, treat this as a continuation regardless
+    // of leading whitespace. Pull any IPs out, ignore everything else.
+    if (current) {
+      const parsed = splitAssetLine(rawLine, false);
+      if (parsed.ips.length > 0) {
+        for (const ip of parsed.ips) current.ips.push(ip);
+        current.sourceLines.push(idx);
+        consumed.add(idx);
+      }
+      // Lines with no IPs are left alone — not consumed, not used.
+      // They become invisible to the renderer (which is what we want).
+      return;
+    }
+
+    // No open block — leave for freeform pass to try its hand
+  });
+  endBlock();
+
+  return { blocks, consumed };
+}
+
+function isPrivateIP(ip) {
+  const o = ip.split('.').map(Number);
+  return (o[0] === 10) ||
+         (o[0] === 172 && o[1] >= 16 && o[1] <= 31) ||
+         (o[0] === 192 && o[1] === 168) ||
+         (o[0] === 127) ||
+         (o[0] === 169 && o[1] === 254);
+}
+
+// Header detection — skip lines that literally name the columns
+function looksLikeHeader(line) {
+  const l = line.toLowerCase();
+  if (/\bhostname\b/.test(l) && /\b(internal[_ -]?ip|int[_ -]?ip|ip)\b/.test(l)) return true;
+  if (/\b(server\s*name)\b/.test(l) && /\b(ip\s*address)/.test(l)) return true;
+  return false;
+}
+
+function parseInput(text) {
+  const directedFlag = document.getElementById('optDirected').checked;
+  const showPorts = document.getElementById('optShowPorts').checked;
+  const mergeHost = document.getElementById('optMergeHost').checked;
+
+  const newNodes = new Map();
+  const aliasMap = new Map();
+  const newEdges = [];
+  const seenEdges = new Set();
+  const ipToHost = new Map();
+
+  const lines = text.split(/\r?\n/);
+
+  // ---- pass 1: parse host blocks (multi-line and single-line both supported) ----
+  const { blocks, consumed: consumedLines } = parseHostBlocks(lines);
+
+  for (const block of blocks) {
+    // Choose internal/external from the IP list
+    const privateIPs = block.ips.filter(isPrivateIP);
+    const publicIPs = block.ips.filter(ip => !isPrivateIP(ip));
+    const internalIP = privateIPs[0] || (block.ips.length > 0 && publicIPs.length === 0 ? null : null);
+    // If there are no private IPs but there are IPs, take the first as internal anyway (rare)
+    const intIP = internalIP || (block.ips.length > 0 ? block.ips[0] : null);
+    const externalIP = publicIPs[0] || null;
+    const extraIPs = block.ips.filter(ip => ip !== intIP && ip !== externalIP);
+
+    const id = block.hostname;
+    if (!newNodes.has(id)) {
+      let sub = '';
+      if (intIP && externalIP) sub = `${intIP}  ext:${externalIP}`;
+      else if (intIP) sub = intIP;
+      else if (externalIP) sub = `ext:${externalIP}`;
+      newNodes.set(id, {
+        id,
+        label: block.hostname,
+        sub,
+        ip: intIP,
+        internalIP: intIP,
+        externalIP,
+        extraIPs,
+        description: null,
+        subnet: intIP ? subnetOf(intIP) : 'hostname',
+        type: classifyType(intIP || '', block.hostname),
+        ports: new Set(),
+        sourceLines: [...block.sourceLines],
+        x: null, y: null
+      });
+    } else {
+      const n = newNodes.get(id);
+      for (const sl of block.sourceLines) {
+        if (!n.sourceLines.includes(sl)) n.sourceLines.push(sl);
+      }
+    }
+    aliasMap.set(block.hostname, id);
+    aliasMap.set(block.hostname.toLowerCase(), id);
+    if (intIP) aliasMap.set(intIP, id);
+    if (externalIP) aliasMap.set(externalIP, id);
+    for (const ip of extraIPs) aliasMap.set(ip, id);
+  }
+
+  // helper: resolve a token (IP or hostname) to a canonical id, creating a new node if needed.
+  // Records lineIdx as a source line on the resulting node.
+  function resolveOrCreate(token, isIP, port, lineIdx) {
+    const aliasKey = isIP ? token : token.toLowerCase();
+    let id;
+    if (aliasMap.has(aliasKey)) {
+      id = aliasMap.get(aliasKey);
+      if (port && showPorts) newNodes.get(id).ports.add(port);
+    } else if (aliasMap.has(token)) {
+      id = aliasMap.get(token);
+    } else {
+      id = token;
+      if (!newNodes.has(id)) {
+        newNodes.set(id, {
+          id, label: token, sub: '',
+          ip: isIP ? token : null,
+          internalIP: isIP ? token : null,
+          externalIP: null, extraIPs: [], description: null,
+          subnet: isIP ? subnetOf(token) : 'hostname',
+          type: classifyType(isIP ? token : '', token),
+          ports: new Set(),
+          sourceLines: [],
+          x: null, y: null
+        });
+        aliasMap.set(id, id);
+        if (!isIP) aliasMap.set(id.toLowerCase(), id);
+      }
+      if (port && showPorts) newNodes.get(id).ports.add(port);
+    }
+    const n = newNodes.get(id);
+    if (n && lineIdx !== undefined && !n.sourceLines.includes(lineIdx)) {
+      n.sourceLines.push(lineIdx);
+    }
+    return id;
+  }
+
+  // ---- pass 2: freeform lines (edges, netstat, etc.) — skips lines consumed by host blocks ----
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    if (consumedLines.has(lineIdx)) continue;
+    const rawLine = lines[lineIdx];
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (line.startsWith('#') || line.startsWith('//')) continue;
+    if (looksLikeHeader(line)) continue;
+
+    // collect IPs (with optional ports) in order
+    const ipMatches = [];
+    let m;
+    IPV4_PORT.lastIndex = 0;
+    while ((m = IPV4_PORT.exec(line)) !== null) {
+      ipMatches.push({
+        ip: m[1], port: m[2] || null,
+        idx: m.index, end: m.index + m[0].length
+      });
+    }
+    // Detect alias-pairs: adjacent IPs whose between-text is only commas + whitespace
+    // (e.g. `10.0.0.5, 203.0.113.5` — same host's internal+external, NOT an edge).
+    // Mark each alias-paired IP so it gets resolved as a node alias but skipped for edges.
+    for (let i = 1; i < ipMatches.length; i++) {
+      const between = line.substring(ipMatches[i - 1].end, ipMatches[i].idx);
+      if (/^[\s\t]*,[\s\t]*$/.test(between)) {
+        ipMatches[i].aliasPaired = true;
+      }
+    }
+
+    // collect hostname candidates (excluding things that look like IPs and reserved words)
+    const hostMatches = [];
+    HOST.lastIndex = 0;
+    while ((m = HOST.exec(line)) !== null) {
+      const h = m[1];
+      if (IPV4.test(h)) { IPV4.lastIndex = 0; continue; }
+      IPV4.lastIndex = 0;
+      if (RESERVED_LOWER.has(h.toLowerCase())) continue;
+      if (/^\d+$/.test(h)) continue; // pure numbers
+      if (h.length < 3) continue;
+      // heuristic: must contain a letter and either be FQDN (has dot), have a digit/dash, or be all-caps
+      const hasDot = h.includes('.');
+      const hasDigitOrDash = /[\d-]/.test(h);
+      const allCaps = h === h.toUpperCase() && /[A-Z]/.test(h);
+      if (!hasDot && !hasDigitOrDash && !allCaps) continue;
+      hostMatches.push({ host: h, idx: m.index });
+    }
+
+    // detect direction: arrow notation or src/dst keywords
+    const lineLower = line.toLowerCase();
+    const hasArrow = /->|=>|→/.test(line);
+    const hasSrcDst = /\b(src|source|from)\b/.test(lineLower) && /\b(dst|dest|destination|to)\b/.test(lineLower);
+    const directed = directedFlag && (hasArrow || hasSrcDst);
+
+    // create / resolve nodes (all IPs become aliases of their host),
+    // but only NON-alias-paired IPs become edge endpoints
+    const lineNodes = [];
+    for (const ipm of ipMatches) {
+      const id = resolveOrCreate(ipm.ip, true, ipm.port, lineIdx);
+      if (!ipm.aliasPaired) lineNodes.push(id);
+    }
+
+    // host association: if exactly one IP and one+ hosts on same line, attach first plausible host
+    if (mergeHost && ipMatches.length === 1 && hostMatches.length >= 1) {
+      const ip = ipMatches[0].ip;
+      const ipPos = ipMatches[0].idx;
+      let best = hostMatches[0]; let bestDist = Math.abs(best.idx - ipPos);
+      for (const h of hostMatches) {
+        const d = Math.abs(h.idx - ipPos);
+        if (d < bestDist) { best = h; bestDist = d; }
+      }
+      if (!ipToHost.has(ip)) ipToHost.set(ip, best.host);
+    }
+
+    // hostname tokens: resolve to existing canonical (alias) or create
+    if (ipMatches.length === 0 && hostMatches.length > 0) {
+      for (const h of hostMatches) {
+        const id = resolveOrCreate(h.host, false, null, lineIdx);
+        lineNodes.push(id);
+      }
+    }
+
+    // edges: pair up nodes on the same line
+    if (lineNodes.length >= 2) {
+      if (directed) {
+        // first -> rest
+        for (let i = 1; i < lineNodes.length; i++) {
+          addEdge(newEdges, seenEdges, lineNodes[0], lineNodes[i], true);
+        }
+      } else {
+        // pairwise (limit to avoid explosion on long lines)
+        const cap = Math.min(lineNodes.length, 4);
+        for (let i = 0; i < cap; i++) {
+          for (let j = i + 1; j < cap; j++) {
+            addEdge(newEdges, seenEdges, lineNodes[i], lineNodes[j], false);
+          }
+        }
+      }
+    }
+  }
+
+  // apply hostname merges into labels (only for nodes that didn't come from a structured row)
+  if (mergeHost) {
+    for (const [ip, host] of ipToHost.entries()) {
+      const n = newNodes.get(ip);
+      if (n && !n.description && n.id === ip) { // skip nodes already enriched / aliased
+        n.label = host;
+        n.sub = ip;
+        n.type = classifyType(ip, host);
+      }
+    }
+  }
+
+  // finalize ports into sub-text where we don't already have one
+  for (const n of newNodes.values()) {
+    if (!n.sub && n.ports && n.ports.size > 0) {
+      const ps = [...n.ports].slice(0, 4).join(',');
+      n.sub = `:${ps}${n.ports.size > 4 ? '…' : ''}`;
+    }
+    delete n.ports;
+  }
+
+  // No orphans: drop nodes with no IPs at all (per spec — nameless/IP-less hosts are noise).
+  const dropped = new Set();
+  for (const [id, n] of newNodes.entries()) {
+    const hasAnyIP = !!(n.internalIP || n.externalIP || (n.extraIPs && n.extraIPs.length > 0));
+    if (!hasAnyIP) {
+      dropped.add(id);
+      newNodes.delete(id);
+    }
+  }
+  // Drop edges whose endpoints no longer exist
+  const filteredEdges = newEdges.filter(e => !dropped.has(e.from) && !dropped.has(e.to));
+
+  return { nodeList: [...newNodes.values()], edgeList: filteredEdges };
+}
+
+function addEdge(arr, seen, a, b, directed) {
+  if (a === b) return;
+  const key = directed ? `${a}->${b}` : [a,b].sort().join('--');
+  if (seen.has(key)) return;
+  seen.add(key);
+  arr.push({ from: a, to: b, directed });
+}
+
+// ---------- layout ----------
+// Detect infra/perimeter nodes — these get pulled out of VLAN boxes
+// and placed in a row at the top of the diagram.
+function isInfra(n) {
+  const text = ((n.label || '') + ' ' + (n.description || '')).toLowerCase();
+  if (/\b(fw|firewall|gw|gateway|router|edge|perimeter|isp|internet|wan|switch|core)\b/.test(text)) return true;
+  if (n.type === 'cloud') return true;
+  return false;
+}
+
+function autoLayout() {
+  if (nodes.length === 0) return;
+
+  // Layout constants
+  const NODE_CELL_W = 140;  // wider to accommodate long hostnames
+  const NODE_CELL_H = 90;
+  const BOX_PAD = 36;       // padding inside each box around the node grid
+  const BOX_GAP = 90;       // gap between adjacent boxes
+  const INFRA_ROW_Y = 80;   // y-position for infra nodes
+  const INFRA_GAP = 160;    // horizontal gap between infra nodes
+  const TOP_MARGIN = 200;   // space above first row of VLAN boxes (room for infra + trunk lines)
+  const LEFT_MARGIN = 60;
+
+  // Split: infra nodes vs regular nodes
+  const infraNodes = nodes.filter(isInfra);
+  const regularNodes = nodes.filter(n => !isInfra(n));
+
+  // Group regular nodes by 3rd octet (or 'misc' bucket if no IP)
+  const groupMap = new Map();
+  for (const n of regularNodes) {
+    const ip = n.internalIP || n.ip;
+    let key;
+    if (!ip) key = '_misc';
+    else { const o = ip.split('.'); key = `${o[0]}.${o[1]}.${o[2]}`; }
+    if (!groupMap.has(key)) groupMap.set(key, []);
+    groupMap.get(key).push(n);
+  }
+
+  // Sort groups by key (so layout is stable & predictable)
+  const groups = [...groupMap.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
+    .map(([key, members]) => {
+      // Sort members within a group by IP last octet (or label) for stable order
+      members.sort((a, b) => {
+        const ai = a.internalIP || a.ip || '';
+        const bi = b.internalIP || b.ip || '';
+        if (ai && bi) {
+          const ao = parseInt(ai.split('.')[3], 10);
+          const bo = parseInt(bi.split('.')[3], 10);
+          if (ao !== bo) return ao - bo;
+        }
+        return a.label.localeCompare(b.label);
+      });
+      const n = members.length;
+      const cols = Math.max(1, Math.min(n, Math.ceil(Math.sqrt(n))));
+      const rows = Math.ceil(n / cols);
+      const w = cols * NODE_CELL_W + BOX_PAD * 2;
+      const h = rows * NODE_CELL_H + BOX_PAD * 2;
+      return { key, members, cols, rows, w, h };
+    });
+
+  // Pack boxes into a grid of boxes
+  const boxCols = Math.max(1, Math.ceil(Math.sqrt(groups.length)));
+  // Per-column max width and per-row max height for clean alignment
+  const colW = new Array(boxCols).fill(0);
+  const rowH = [];
+  groups.forEach((g, i) => {
+    const c = i % boxCols, r = Math.floor(i / boxCols);
+    if (g.w > colW[c]) colW[c] = g.w;
+    if (rowH[r] === undefined || g.h > rowH[r]) rowH[r] = g.h;
+  });
+  // Cumulative offsets
+  const colX = [LEFT_MARGIN];
+  for (let i = 0; i < boxCols - 1; i++) colX.push(colX[i] + colW[i] + BOX_GAP);
+  const rowY = [TOP_MARGIN];
+  for (let i = 0; i < rowH.length - 1; i++) rowY.push(rowY[i] + rowH[i] + BOX_GAP);
+
+  // Place node grids inside each box
+  groups.forEach((g, i) => {
+    const c = i % boxCols, r = Math.floor(i / boxCols);
+    // center the box within its column slot (in case some columns are wider)
+    const xOffset = (colW[c] - g.w) / 2;
+    g.boxX = colX[c] + xOffset;
+    g.boxY = rowY[r];
+    g.members.forEach((node, idx) => {
+      const col = idx % g.cols;
+      const row = Math.floor(idx / g.cols);
+      node.x = g.boxX + BOX_PAD + col * NODE_CELL_W + NODE_CELL_W / 2;
+      node.y = g.boxY + BOX_PAD + row * NODE_CELL_H + NODE_CELL_H / 2;
+    });
+  });
+
+  // Total layout width (used to center infra row)
+  const totalW = colX[boxCols - 1] + colW[boxCols - 1] - LEFT_MARGIN;
+
+  // Place infra nodes in a row at top, centered above the box grid
+  if (infraNodes.length > 0) {
+    const usedW = (infraNodes.length - 1) * INFRA_GAP;
+    const startX = LEFT_MARGIN + (totalW - usedW) / 2;
+    infraNodes.forEach((n, i) => {
+      n.x = startX + i * INFRA_GAP;
+      n.y = INFRA_ROW_Y;
+    });
+  }
+
+  // Fit viewBox to content
+  fitView();
+  render();
+}
+
+function fitView() {
+  if (nodes.length === 0) return;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const n of nodes) {
+    if (n.x < minX) minX = n.x;
+    if (n.y < minY) minY = n.y;
+    if (n.x > maxX) maxX = n.x;
+    if (n.y > maxY) maxY = n.y;
+  }
+  const margin = 100;
+  const x = minX - margin, y = minY - margin;
+  const w = (maxX - minX) + margin * 2;
+  const h = (maxY - minY) + margin * 2;
+  view.x = x; view.y = y; view.scale = 1200 / Math.max(w, h * 1200/800);
+  svg.setAttribute('viewBox', `${x} ${y} ${w} ${h}`);
+}
+
+// ---------- rendering ----------
+const SUBNET_COLORS = ['#5fb3d4','#a3be8c','#d08770','#b48ead','#ebcb8b','#88c0d0','#bf616a','#8fbcbb','#81a1c1','#e9b97e'];
+function colorForSubnet(subnet) {
+  if (subnet === 'hostname') return '#7a8290';
+  let h = 0;
+  for (const c of subnet) h = ((h << 5) - h + c.charCodeAt(0)) | 0;
+  return SUBNET_COLORS[Math.abs(h) % SUBNET_COLORS.length];
+}
+
+// Compute VLAN box bounds — keyed by 3rd-octet subnet. Excludes infra nodes.
+// Used by both renderZones() and renderTrunks().
+function computeZoneBoxes() {
+  const groups = new Map();
+  for (const n of nodes) {
+    if (isInfra(n)) continue;
+    if (!n.internalIP && !n.ip) continue;
+    const ip = n.internalIP || n.ip;
+    const o = ip.split('.');
+    const key = `${o[0]}.${o[1]}.${o[2]}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(n);
+  }
+  const PAD = 34;
+  const result = new Map();
+  for (const [key, members] of groups.entries()) {
+    if (members.length === 0) continue;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const n of members) {
+      if (n.x < minX) minX = n.x;
+      if (n.y < minY) minY = n.y;
+      if (n.x > maxX) maxX = n.x;
+      if (n.y > maxY) maxY = n.y;
+    }
+    result.set(key, {
+      key,
+      label: key + '.x',
+      x: minX - PAD - 28,
+      y: minY - PAD - 22,
+      w: (maxX - minX) + (PAD * 2) + 56,
+      h: (maxY - minY) + (PAD * 2) + 44,
+      members,
+      color: colorForSubnet(members[0].subnet),
+    });
+  }
+  return result;
+}
+
+function renderZones() {
+  zonesG.innerHTML = '';
+  if (!document.getElementById('optZones').checked) return;
+  const boxes = computeZoneBoxes();
+  for (const b of boxes.values()) {
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('class', 'zone-bg');
+    rect.setAttribute('x', b.x); rect.setAttribute('y', b.y);
+    rect.setAttribute('width', b.w); rect.setAttribute('height', b.h);
+    rect.setAttribute('rx', 8);
+    rect.setAttribute('fill', b.color);
+    rect.setAttribute('stroke', b.color);
+    zonesG.appendChild(rect);
+    const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    txt.setAttribute('class', 'zone-label');
+    txt.setAttribute('x', b.x + 10);
+    txt.setAttribute('y', b.y + 16);
+    txt.setAttribute('fill', b.color);
+    txt.textContent = b.label;
+    zonesG.appendChild(txt);
+  }
+}
+
+// For each (VLAN, infra) pair where any edge exists between them,
+// compute a single trunk line endpoint pair: from box top-center → infra node.
+// Returns { trunks: [{x1,y1,x2,y2,color,directed}], skipEdgeKeys: Set<edgeKey> }
+function computeTrunks(boxes) {
+  const trunks = [];
+  const skip = new Set();
+  if (!document.getElementById('optTrunks').checked) return { trunks, skip };
+  // Map: vlanKey-infraId → {boxKey, infra, anyDirected}
+  const pairs = new Map();
+  edges.forEach((e) => {
+    const a = nodeMap.get(e.from), b = nodeMap.get(e.to);
+    if (!a || !b) return;
+    let infra, regular;
+    if (isInfra(a) && !isInfra(b)) { infra = a; regular = b; }
+    else if (isInfra(b) && !isInfra(a)) { infra = b; regular = a; }
+    else return;
+    const ip = regular.internalIP || regular.ip;
+    if (!ip) return;
+    const o = ip.split('.');
+    const vlanKey = `${o[0]}.${o[1]}.${o[2]}`;
+    const box = boxes.get(vlanKey);
+    if (!box) return;
+    const k = vlanKey + '__' + infra.id;
+    if (!pairs.has(k)) pairs.set(k, { boxKey: vlanKey, box, infra, directed: e.directed });
+    skip.add(`${e.from}|${e.to}`);
+  });
+  for (const p of pairs.values()) {
+    // Attach to nearest edge of the box pointing toward the infra node
+    const cx = p.box.x + p.box.w / 2;
+    // Use top of box if infra is above, bottom if below, side otherwise
+    let x1 = cx, y1;
+    if (p.infra.y < p.box.y) y1 = p.box.y;
+    else if (p.infra.y > p.box.y + p.box.h) y1 = p.box.y + p.box.h;
+    else { y1 = p.box.y + p.box.h / 2; x1 = (p.infra.x < cx) ? p.box.x : p.box.x + p.box.w; }
+    trunks.push({
+      x1, y1, x2: p.infra.x, y2: p.infra.y,
+      color: p.box.color,
+      directed: p.directed,
+    });
+  }
+  return { trunks, skip };
+}
+
+function render() {
+  nodeMap = new Map(nodes.map(n => [n.id, n]));
+  renderZones();
+  const boxes = computeZoneBoxes();
+  const { trunks, skip } = computeTrunks(boxes);
+  // edges
+  edgesG.innerHTML = '';
+  // trunk lines first (drawn under regular edges so the arrows on regular edges still pop)
+  for (const t of trunks) {
+    const ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    ln.setAttribute('x1', t.x1); ln.setAttribute('y1', t.y1);
+    ln.setAttribute('x2', t.x2); ln.setAttribute('y2', t.y2);
+    ln.setAttribute('class', 'trunk-edge');
+    ln.setAttribute('stroke', t.color);
+    edgesG.appendChild(ln);
+  }
+  // regular edges (skipping ones that got consolidated into trunks)
+  for (const e of edges) {
+    const a = nodeMap.get(e.from), b = nodeMap.get(e.to);
+    if (!a || !b) continue;
+    if (skip.has(`${e.from}|${e.to}`)) continue;
+    const ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    ln.setAttribute('x1', a.x); ln.setAttribute('y1', a.y);
+    ln.setAttribute('x2', b.x); ln.setAttribute('y2', b.y);
+    ln.setAttribute('class', 'edge' + (e.directed ? ' directed' : ''));
+    ln.dataset.from = e.from; ln.dataset.to = e.to;
+    edgesG.appendChild(ln);
+  }
+  // nodes
+  nodesG.innerHTML = '';
+  const colorBy = document.getElementById('optColorSubnet').checked;
+  for (const n of nodes) {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('class', 'node');
+    g.setAttribute('transform', `translate(${n.x},${n.y})`);
+    g.dataset.id = n.id;
+    const color = colorBy ? colorForSubnet(n.subnet) : '#88c0d0';
+    g.style.color = color;
+
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('class','node-bg');
+    bg.setAttribute('x', -28); bg.setAttribute('y', -22);
+    bg.setAttribute('width', 56); bg.setAttribute('height', 44);
+    bg.setAttribute('rx', 4);
+    bg.setAttribute('fill', '#1a1d23');
+    bg.setAttribute('stroke', '#353b47');
+    g.appendChild(bg);
+
+    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', '#' + n.type);
+    use.setAttribute('x', -16); use.setAttribute('y', -18);
+    use.setAttribute('width', 32); use.setAttribute('height', 26);
+    g.appendChild(use);
+
+    const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    lbl.setAttribute('class', 'node-label');
+    lbl.setAttribute('text-anchor', 'middle');
+    lbl.setAttribute('y', 32);
+    lbl.textContent = n.label;
+    g.appendChild(lbl);
+
+    // Sub-text: internal IP on first line, external IP on second line if present.
+    // Falls back to legacy n.sub for nodes without structured IPs (e.g. port labels).
+    const subLines = [];
+    if (n.internalIP) subLines.push({ text: n.internalIP, kind: 'int' });
+    if (n.externalIP) subLines.push({ text: n.externalIP, kind: 'ext' });
+    if (subLines.length === 0 && n.sub) subLines.push({ text: n.sub, kind: 'int' });
+    subLines.forEach((sl, i) => {
+      const sub = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      sub.setAttribute('class', 'node-sub');
+      sub.setAttribute('text-anchor', 'middle');
+      sub.setAttribute('y', 44 + i * 11);
+      if (sl.kind === 'ext') sub.setAttribute('opacity', '0.7');
+      sub.textContent = sl.text;
+      g.appendChild(sub);
+    });
+    // hover tooltip — description, plus full IP info
+    const tipParts = [];
+    if (n.internalIP) tipParts.push('internal: ' + n.internalIP);
+    if (n.externalIP) tipParts.push('external: ' + n.externalIP);
+    if (n.extraIPs && n.extraIPs.length) tipParts.push('also: ' + n.extraIPs.join(', '));
+    if (n.description) tipParts.push('', n.description);
+    if (tipParts.length) {
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      title.textContent = tipParts.join('\n');
+      g.appendChild(title);
+    }
+    nodesG.appendChild(g);
+    attachNodeHandlers(g, n);
+  }
+  // drop stale selection entries and restore outline classes
+  for (const id of [...selectedIds]) if (!nodeMap.has(id)) selectedIds.delete(id);
+  applySelectionClasses();
+  updateStats();
+  updateLegend();
+}
+
+function redrawTrunks() {
+  // remove existing trunk lines and re-add them based on current positions
+  edgesG.querySelectorAll('.trunk-edge').forEach(el => el.remove());
+  const boxes = computeZoneBoxes();
+  const { trunks } = computeTrunks(boxes);
+  for (const t of trunks) {
+    const ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    ln.setAttribute('x1', t.x1); ln.setAttribute('y1', t.y1);
+    ln.setAttribute('x2', t.x2); ln.setAttribute('y2', t.y2);
+    ln.setAttribute('class', 'trunk-edge');
+    ln.setAttribute('stroke', t.color);
+    edgesG.insertBefore(ln, edgesG.firstChild);
+  }
+}
+
+function updateStats() {
+  document.getElementById('stats').textContent = `${nodes.length} nodes, ${edges.length} edges`;
+}
+
+function updateLegend() {
+  const colorBy = document.getElementById('optColorSubnet').checked;
+  const legend = document.getElementById('legend');
+  if (!colorBy || nodes.length === 0) { legend.style.display = 'none'; return; }
+  const subnets = [...new Set(nodes.map(n => n.subnet))];
+  legend.innerHTML = subnets.map(s =>
+    `<div class="legend-item"><span class="legend-swatch" style="background:${colorForSubnet(s)}"></span>${s}</div>`
+  ).join('');
+  legend.style.display = 'block';
+}
+
+function highlightSourceForNode(node) {
+  if (!node.sourceLines || node.sourceLines.length === 0) {
+    flashSidebar('No source lines tracked for this node — try re-parsing.');
+    return;
+  }
+  const ta = document.getElementById('input');
+  const currentLines = ta.value.split('\n');
+  // Compute char offsets for current textarea content
+  const offsets = [0];
+  for (let i = 0; i < currentLines.length; i++) {
+    offsets.push(offsets[i] + currentLines[i].length + 1); // +1 for \n
+  }
+  // Pick the first source line index that's still in range and select it
+  const valid = node.sourceLines.filter(i => i < currentLines.length);
+  if (valid.length === 0) {
+    flashSidebar('Source lines out of range — re-parse to refresh.');
+    return;
+  }
+  const primary = valid[0];
+  const start = offsets[primary];
+  const end = start + currentLines[primary].length;
+  ta.focus();
+  ta.setSelectionRange(start, end);
+  // Scroll selection into view (textarea doesn't auto-scroll on programmatic select)
+  const lineHeight = parseFloat(getComputedStyle(ta).lineHeight) || 16;
+  const targetTop = primary * lineHeight - ta.clientHeight / 2;
+  ta.scrollTop = Math.max(0, targetTop);
+  // If multiple source lines, briefly note count
+  if (valid.length > 1) {
+    flashSidebar(`${valid.length} source lines — showing first (line ${primary + 1}). Others: ${valid.slice(1).map(i => i + 1).join(', ')}`);
+  } else {
+    flashSidebar(`Line ${primary + 1}`);
+  }
+}
+
+let flashTimer = null;
+function flashSidebar(msg) {
+  let el = document.getElementById('flash');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'flash';
+    el.style.cssText = 'position:absolute;left:8px;bottom:8px;background:var(--panel);border:1px solid var(--accent);color:var(--text);padding:5px 9px;border-radius:3px;font-size:11px;max-width:300px;pointer-events:none;z-index:10;';
+    document.querySelector('.sidebar').appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.display = 'block';
+  if (flashTimer) clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => { el.style.display = 'none'; }, 3500);
+}
+
+// ---------- selection ----------
+function setNodeSelectedClass(id, on) {
+  for (const el of nodesG.querySelectorAll('.node')) {
+    if (el.dataset.id === id) { el.classList.toggle('selected', on); return; }
+  }
+}
+function applySelectionClasses() {
+  for (const el of nodesG.querySelectorAll('.node')) {
+    el.classList.toggle('selected', selectedIds.has(el.dataset.id));
+  }
+}
+function clearSelection() {
+  selectedIds.forEach(id => setNodeSelectedClass(id, false));
+  selectedIds.clear();
+}
+
+// ---------- line tool (add / remove) ----------
+function _clearLinePick() {
+  if (!linePickA) return;
+  for (const el of nodesG.querySelectorAll('.node')) {
+    if (el.dataset.id === linePickA) { el.classList.remove('line-pick'); break; }
+  }
+  linePickA = null;
+}
+
+function setLineMode(mode) {
+  // Toggle off when the active mode's button is clicked again
+  lineMode = (lineMode === mode) ? null : mode;
+  _clearLinePick();
+  document.getElementById('btnLineMode'  ).classList.toggle('primary', lineMode === 'add');
+  document.getElementById('btnLineRemove').classList.toggle('primary', lineMode === 'remove');
+  svg.classList.toggle('line-mode', !!lineMode);
+  if (lineMode === 'add')    flashSidebar('Add-line mode: click two nodes (Esc to cancel).');
+  if (lineMode === 'remove') flashSidebar('Remove-line mode: click two nodes to remove their pairing line (Esc to cancel).');
+}
+
+function _reEscape(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+// Remove every textarea line that pairs tokA and tokB with an arrow, in
+// either direction. Also handles src=A dst=B / src:A dst:B style.
+// Returns the number of lines removed.
+function removePairLine(tokA, tokB) {
+  const ta = document.getElementById('input');
+  const lines = ta.value.split('\n');
+  const a = _reEscape(tokA), b = _reEscape(tokB);
+  const arrow = '(?:->|=>|→)';
+  const reFwd = new RegExp(`(?:^|\\s)${a}\\s*${arrow}\\s*${b}(?:\\s|$)`);
+  const reBwd = new RegExp(`(?:^|\\s)${b}\\s*${arrow}\\s*${a}(?:\\s|$)`);
+  const reSrcDst = new RegExp(`\\bsrc\\s*[:=]\\s*(?:${a}|${b})\\b.*\\bdst\\s*[:=]\\s*(?:${a}|${b})\\b`, 'i');
+  let removed = 0;
+  const kept = [];
+  for (const line of lines) {
+    if (reFwd.test(line) || reBwd.test(line) || reSrcDst.test(line)) { removed++; continue; }
+    kept.push(line);
+  }
+  if (removed) ta.value = kept.join('\n');
+  return removed;
+}
+
+function handleLinePick(node) {
+  const tokenFor = n => n.internalIP || n.ip || n.label || n.id;
+  if (!linePickA) {
+    linePickA = node.id;
+    for (const el of nodesG.querySelectorAll('.node')) {
+      if (el.dataset.id === node.id) { el.classList.add('line-pick'); break; }
+    }
+    flashSidebar(`First endpoint: ${node.label}. Click second node (Esc to cancel).`);
+    return;
+  }
+  if (linePickA === node.id) {
+    _clearLinePick();
+    flashSidebar('Pick cancelled — click a node to start again.');
+    return;
+  }
+  const a = nodeMap.get(linePickA);
+  if (!a) { linePickA = null; return; }
+  const tokA = tokenFor(a), tokB = tokenFor(node);
+  linePickA = null;
+
+  if (lineMode === 'add') {
+    const ta = document.getElementById('input');
+    const sep = (!ta.value || ta.value.endsWith('\n')) ? '' : '\n';
+    ta.value += `${sep}${tokA} => ${tokB}\n`;
+    parseAndRender();
+    flashSidebar(`Added: ${tokA} => ${tokB}`);
+  } else if (lineMode === 'remove') {
+    const n = removePairLine(tokA, tokB);
+    if (n) {
+      parseAndRender();
+      flashSidebar(`Removed ${n} line${n===1?'':'s'}: ${tokA} ↔ ${tokB}`);
+    } else {
+      flashSidebar(`No pairing line found between ${tokA} and ${tokB}`);
+    }
+  }
+}
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && lineMode) setLineMode(lineMode);
+});
+
+// ---------- interaction ----------
+function attachNodeHandlers(g, node) {
+  let dragging = false, hasMoved = false, startX, startY;
+  const DRAG_THRESHOLD = 3; // px in svg coords before we consider it a drag
+  g.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    // Add-line mode: absorb the click as an endpoint pick, no drag/select
+    if (lineMode) {
+      e.preventDefault();
+      handleLinePick(node);
+      return;
+    }
+    // Shift+click toggles selection — does not start a drag
+    if (e.shiftKey) {
+      if (selectedIds.has(node.id)) { selectedIds.delete(node.id); setNodeSelectedClass(node.id, false); }
+      else { selectedIds.add(node.id); setNodeSelectedClass(node.id, true); }
+      return;
+    }
+    // Plain click on an unselected node: replace selection with just this one.
+    // Plain click on a selected node: keep existing selection (group drag).
+    if (!selectedIds.has(node.id)) {
+      clearSelection();
+      selectedIds.add(node.id);
+      setNodeSelectedClass(node.id, true);
+    }
+    dragging = true;
+    hasMoved = false;
+    const pt = screenToSVG(e.clientX, e.clientY);
+    startX = pt.x; startY = pt.y;
+    dragOrigins = new Map();
+    for (const id of selectedIds) {
+      const nn = nodeMap.get(id);
+      if (nn) dragOrigins.set(id, { x: nn.x, y: nn.y });
+    }
+    g.style.cursor = 'grabbing';
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging || !dragOrigins) return;
+    const pt = screenToSVG(e.clientX, e.clientY);
+    const dx = pt.x - startX, dy = pt.y - startY;
+    if (!hasMoved && Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return;
+    hasMoved = true;
+    // Move every selected node by the same delta
+    for (const [id, origin] of dragOrigins) {
+      const nn = nodeMap.get(id);
+      if (!nn) continue;
+      nn.x = origin.x + dx;
+      nn.y = origin.y + dy;
+      for (const el of nodesG.querySelectorAll('.node')) {
+        if (el.dataset.id === id) { el.setAttribute('transform', `translate(${nn.x},${nn.y})`); break; }
+      }
+      for (const ln of edgesG.querySelectorAll('line:not(.trunk-edge)')) {
+        if (ln.dataset.from === id) { ln.setAttribute('x1', nn.x); ln.setAttribute('y1', nn.y); }
+        if (ln.dataset.to   === id) { ln.setAttribute('x2', nn.x); ln.setAttribute('y2', nn.y); }
+      }
+    }
+    renderZones();
+    redrawTrunks();
+  });
+  window.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    if (!hasMoved) highlightSourceForNode(node);
+    dragging = false;
+    dragOrigins = null;
+    g.style.cursor = 'move';
+  });
+
+  g.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    // If this node is part of a selection, delete the whole selection
+    const toDelete = selectedIds.has(node.id) ? new Set(selectedIds) : new Set([node.id]);
+    nodes = nodes.filter(n => !toDelete.has(n.id));
+    edges = edges.filter(ed => !toDelete.has(ed.from) && !toDelete.has(ed.to));
+    toDelete.forEach(id => selectedIds.delete(id));
+    render();
+  });
+
+  g.addEventListener('dblclick', (e) => {
+    e.stopPropagation();
+    const newLabel = prompt('Label:', node.label);
+    if (newLabel !== null) { node.label = newLabel; render(); }
+  });
+}
+
+// pan & zoom (+ rubber-band selection via shift-drag on empty canvas)
+let panning = false, panStart = null;
+svg.addEventListener('mousedown', (e) => {
+  if (e.target !== svg && e.target.tagName !== 'svg') return;
+  if (e.shiftKey) {
+    // rubber-band: select all nodes whose center falls inside the box
+    rbStart = screenToSVG(e.clientX, e.clientY);
+    rbRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rbRect.setAttribute('class', 'rubber-band');
+    rbRect.setAttribute('x', rbStart.x); rbRect.setAttribute('y', rbStart.y);
+    rbRect.setAttribute('width', 0);     rbRect.setAttribute('height', 0);
+    svg.appendChild(rbRect);
+    return;
+  }
+  // plain click on empty canvas: clear selection and start panning
+  if (selectedIds.size) clearSelection();
+  panning = true; panStart = { x: e.clientX, y: e.clientY, vbX: view.x, vbY: view.y };
+  svg.classList.add('panning');
+});
+window.addEventListener('mousemove', (e) => {
+  if (rbStart && rbRect) {
+    const pt = screenToSVG(e.clientX, e.clientY);
+    const x = Math.min(rbStart.x, pt.x), y = Math.min(rbStart.y, pt.y);
+    const w = Math.abs(pt.x - rbStart.x), h = Math.abs(pt.y - rbStart.y);
+    rbRect.setAttribute('x', x); rbRect.setAttribute('y', y);
+    rbRect.setAttribute('width', w); rbRect.setAttribute('height', h);
+    return;
+  }
+  if (!panning) return;
+  const dx = (e.clientX - panStart.x) / view.scale;
+  const dy = (e.clientY - panStart.y) / view.scale;
+  view.x = panStart.vbX - dx;
+  view.y = panStart.vbY - dy;
+  applyView();
+});
+window.addEventListener('mouseup', () => {
+  if (rbStart && rbRect) {
+    const x1 = +rbRect.getAttribute('x'), y1 = +rbRect.getAttribute('y');
+    const x2 = x1 + (+rbRect.getAttribute('width')), y2 = y1 + (+rbRect.getAttribute('height'));
+    for (const n of nodes) {
+      if (n.x >= x1 && n.x <= x2 && n.y >= y1 && n.y <= y2) {
+        selectedIds.add(n.id); setNodeSelectedClass(n.id, true);
+      }
+    }
+    rbRect.remove(); rbRect = null; rbStart = null;
+  }
+  panning = false; svg.classList.remove('panning');
+});
+
+svg.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.1 : 1/1.1;
+  const pt = screenToSVG(e.clientX, e.clientY);
+  view.scale *= factor;
+  view.scale = Math.max(0.1, Math.min(view.scale, 8));
+  // zoom toward cursor
+  const pt2 = screenToSVG(e.clientX, e.clientY);
+  view.x += pt.x - pt2.x;
+  view.y += pt.y - pt2.y;
+  applyView();
+}, { passive: false });
+
+function applyView() {
+  const W = 1200 / view.scale, H = 800 / view.scale;
+  svg.setAttribute('viewBox', `${view.x} ${view.y} ${W} ${H}`);
+}
+
+function screenToSVG(cx, cy) {
+  const rect = svg.getBoundingClientRect();
+  const vb = svg.viewBox.baseVal;
+  const x = vb.x + ((cx - rect.left) / rect.width) * vb.width;
+  const y = vb.y + ((cy - rect.top) / rect.height) * vb.height;
+  return { x, y };
+}
+
+// ---------- top-level actions ----------
+function parseAndRender() {
+  const text = document.getElementById('input').value;
+  const { nodeList, edgeList } = parseInput(text);
+  // preserve positions for nodes that already exist
+  const oldPos = new Map(nodes.map(n => [n.id, { x: n.x, y: n.y }]));
+  nodes = nodeList;
+  edges = edgeList;
+  for (const n of nodes) {
+    const op = oldPos.get(n.id);
+    if (op) { n.x = op.x; n.y = op.y; }
+  }
+  if (nodes.some(n => n.x === null)) autoLayout();
+  else render();
+}
+
+function clearAll() {
+  nodes = []; edges = [];
+  view = { x: 0, y: 0, scale: 1 };
+  svg.setAttribute('viewBox', '0 0 1200 800');
+  render();
+}
+
+function exportSVG() {
+  const clone = svg.cloneNode(true);
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  // inline minimal styles for portability
+  const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+  style.textContent = `
+    .node-label{fill:#d8dee9;font:11px monospace}
+    .node-sub{fill:#7a8290;font:9px monospace}
+    .edge{stroke:#4a5160;stroke-width:1.5;fill:none}
+    .edge.directed{marker-end:url(#arrow)}
+  `;
+  clone.insertBefore(style, clone.firstChild);
+  // add background
+  const bg = document.createElementNS('http://www.w3.org/2000/svg','rect');
+  const vb = svg.viewBox.baseVal;
+  bg.setAttribute('x', vb.x); bg.setAttribute('y', vb.y);
+  bg.setAttribute('width', vb.width); bg.setAttribute('height', vb.height);
+  bg.setAttribute('fill', '#14171c');
+  clone.insertBefore(bg, clone.firstChild.nextSibling);
+  const blob = new Blob([clone.outerHTML], { type: 'image/svg+xml' });
+  download(blob, 'netmap.svg');
+}
+
+function exportJSON() {
+  const data = { nodes, edges, view };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  download(blob, 'netmap.json');
+}
+
+function importJSON(ev) {
+  const f = ev.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const d = JSON.parse(r.result);
+      nodes = d.nodes || []; edges = d.edges || [];
+      if (d.view) { view = d.view; applyView(); }
+      render();
+    } catch (e) { alert('Bad JSON: ' + e.message); }
+  };
+  r.readAsText(f);
+  ev.target.value = '';
+}
+
+function download(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// option checkbox re-render (immediate — cheap render(), no reparse)
+['optColorSubnet','optShowPorts','optZones','optTrunks'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => { if (nodes.length) render(); });
+});
+
+// Debounced reparse — 500ms after the last textbox change, so typing doesn't
+// thrash the parser. The Parse button remains for an immediate reparse.
+let _reparseTimer = null;
+document.getElementById('input').addEventListener('input', () => {
+  clearTimeout(_reparseTimer);
+  _reparseTimer = setTimeout(parseAndRender, 500);
+});
+
+// initial seed — paste anything, parser extracts hosts + IPs only, drops description noise
+document.getElementById('input').value = `# Just hostnames + IPs. Description text is parsed and ignored.
+# Anchor: hostname at column 0, then tab/comma/multi-space separator.
+# Continuation: any line with IPs while a block is open (any indentation).
+# No-IP nodes are dropped. Comma-paired IPs (10.0.0.5, 203.0.113.5) = same host.
+
+LOGSERVER\t10.0.1.2\tWindows Server 2003 R2
+\t\tcrotchguard System Manager
+\t\tcrotchguard log server, quarantine server, report server, etc…
+
+WEBSERVER1\t10.0.3.197\tWindows Server 2008 R2, with IIS 7
+\t223.36.242.197\tWeb Server running web sites
+\t\t** This server has an IBM maintenance agreement **
+WEBSERVER2\t10.0.3.194\tWindows Server 2003 R2, with IIS 6
+\t223.36.242.194\tWeb Server running v1 sites
+DVDASERVER\t10.0.4.100\tMicrosoft IIS 6, SQL Server
+\t10.0.4.102\tThis server contains the YAMATO DVDA licence checking software
+\t51.63.99.100\tWindows Server 2019 Datacenter
+\t51.63.99.102\tQA Test server
+DC01\t10.1.0.101\tPrimary Domain Controller
+\t\tMicrosoft Active Directory, DNS, DHCP
+DC02\t10.1.0.100\tSecondary Domain Controller
+SQL01\t10.1.0.169\tSQL client
+WORKSTATION-04\t10.0.30.42\tUser workstation
+WORKSTATION-07\t10.0.30.43\tUser workstation
+TacoBellDC01\t\tNo IP — this host gets dropped
+
+# edges break blocks — parser knows -> means freeform
+WORKSTATION-04 -> DC01
+WORKSTATION-04 -> SQL01
+WORKSTATION-07 -> DC01
+WEBSERVER1 -> SQL01
+WEBSERVER2 -> SQL01
+DVDASERVER -> DC01`;
+parseAndRender();
+</script>
+</body>
+</html>

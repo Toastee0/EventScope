@@ -48,7 +48,7 @@ No build step. No dependencies. No internet required.
 | Tab | What it shows |
 |-----|---------------|
 | **Overview** | Summary cards, detection timeline (all events), severity distribution, top Event IDs, top channels |
-| **Timeline** | Filtered detection timeline with log-scale toggle, dynamic canvas height, 3σ burst detection with inline spike context panels |
+| **Histograms** | Filtered detection timeline with log-scale toggle, dynamic canvas height, 3σ burst detection with inline spike context panels |
 | **Heatmap** | Hour × day activity grid — color intensity = event density or severity weight; click a cell to filter to that day |
 | **Arrivals** | First-seen / last-seen per EID, rule, computer, or account — items first seen after the dataset midpoint are highlighted |
 | **Gaps** | Per-host silence detection — flags windows where a host went quiet beyond its statistical baseline (mean + Nσ) |
@@ -100,9 +100,9 @@ Attack tooling (Mimikatz, PsExec, WMI lateral movement) lands in the **Fast** ba
 
 ---
 
-## Timeline Spike Tools
+## Histogram Spike Tools
 
-When the Timeline tab detects a burst (3σ above baseline):
+When the Histograms tab detects a burst (3σ above baseline):
 
 - **Spike context panel** — expand inline (no tab switch): rule breakdown by count + first-40-event sequence with relative timestamps (T+0, T+1m30s…)
 - **Copy Pattern** — exports structured text (rule breakdown + sequence) with IPs anonymised via RFC 5737 documentation addresses; safe to paste to AI for rule writing without exposing raw evidence
@@ -119,6 +119,19 @@ When two or more sessions are loaded:
 - **Account × Session Matrix** — top 30 accounts × sessions, event counts per cell
 
 Accounts extracted from: `TargetUserName`, `SubjectUserName`, `UserName`, `AccountName`, `RemoteUserName`.
+
+---
+
+## NetMap — Network Diagram
+
+Standalone companion tool at `netmap.html` — opens in any browser, no EventScope session required. Paste asset data (netstat, arp, hayabusa src/dst, anything messy) and it builds a clean SVG diagram: nodes grouped by /24 VLAN, infra nodes pulled to the top as trunks, public IPs called out.
+
+- **Add line / Remove line** — click two nodes to insert or strip an `A => B` pairing in the textbox, then auto-reparse
+- **Group drag** — shift+click to multi-select, shift+drag the canvas to lasso, drag any selected node to move the whole group
+- **Auto-reparse** — 500ms after the last textbox edit; the Parse button is still there for immediate
+- **Export** — SVG or JSON
+
+From EventScope's **Remote Hosts** tab, click **Copy for NetMap** to build a seed text from the current peer data (inbound / outbound / netconfig adapters) and paste into netmap's textbox. Clipboard handoff only — no URL passing, no message bus.
 
 ---
 

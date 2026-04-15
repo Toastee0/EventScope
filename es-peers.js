@@ -659,3 +659,149 @@ function downloadPeersCsv() {
   URL.revokeObjectURL(url);
   showToast('Remote hosts CSV downloaded');
 }
+
+// ── NETMAP SEED ───────────────────────────────────────────────────────────────
+// Build text in the format netmap.html's parser expects:
+//   anchor line:  HOSTNAME<tab>IP    (starts a host block)
+//   continuation: <tab>IP            (more IPs for the same host)
+//   edge line:    HOST_A -> HOST_B   (connection)
+// IP-only peers are emitted as edges only; netmap's pass-2 creates IP-labeled
+// nodes for them.
+
+function _netmapSanitize(s) {
+  // netmap anchor regex: [A-Za-z][A-Za-z0-9._-]{0,60}
+  if (!s) return null;
+  const clean = String(s).trim().replace(/[^A-Za-z0-9._-]/g, '-').replace(/^-+|-+$/g, '');
+  if (!clean || !/^[A-Za-z]/.test(clean)) return null;
+  return clean.slice(0, 60);
+}
+
+function buildNetmapSeed() {
+  const { inMap, outMap } = _buildPeers();
+  const lines = [];
+  const stamp = new Date().toISOString().slice(0,16).replace('T',' ');
+
+  // Local hosts from S.computerCounts
+  const locals = Object.keys(S.computerCounts || {})
+    .filter(Boolean)
+    .map(_netmapSanitize)
+    .filter(Boolean);
+  const primaryLocal = locals[0] || 'LOCAL';
+
+  lines.push(`# EventScope NetMap seed — ${stamp}`);
+  lines.push(`# ${inMap.size} inbound peers, ${outMap.size} outbound peers, ${locals.length} local host(s)`);
+  lines.push('# Paste into netmap.html and click Parse.');
+
+  // Local host(s) — pair with netconfig adapter IPs when available (single-host only)
+  if (locals.length) {
+    lines.push('');
+    lines.push('# ─── Local host(s) ───');
+    const adapterIPs = [];
+    if (locals.length === 1 && S.netconfig && Array.isArray(S.netconfig.adapters)) {
+      for (const a of S.netconfig.adapters) {
+        if (a && a.ip && /^\d+\.\d+\.\d+\.\d+$/.test(a.ip)) adapterIPs.push(a.ip);
+      }
+    }
+    for (const comp of locals) {
+      if (comp === primaryLocal && adapterIPs.length) {
+        lines.push(`${comp}\t${adapterIPs[0]}`);
+        for (let i = 1; i < adapterIPs.length; i++) lines.push(`\t${adapterIPs[i]}`);
+      } else {
+        lines.push(comp);
+      }
+    }
+  }
+
+  // Peer anchor blocks (only when hostname is known)
+  const anchored = new Set(); // ip -> true
+  const peerLabel = new Map(); // ip -> label used in edges
+
+  const emitPeerBlocks = (map, label) => {
+    const withHost = [...map.values()].filter(p => p.remoteHosts && p.remoteHosts.size);
+    if (!withHost.length) return;
+    lines.push('');
+    lines.push(`# ─── ${label} ───`);
+    for (const p of withHost) {
+      const host = _netmapSanitize([...p.remoteHosts][0]);
+      if (!host) continue;
+      lines.push(`${host}\t${p.ip}`);
+      anchored.add(p.ip);
+      peerLabel.set(p.ip, host);
+    }
+  };
+  emitPeerBlocks(inMap,  'Inbound peers (they contacted us) — named');
+  emitPeerBlocks(outMap, 'Outbound peers (we contacted them) — named');
+
+  // Edges: direction reflects inbound vs outbound
+  const edgeLines = [];
+  const seen = new Set();
+  const addEdge = (src, dst) => {
+    if (!src || !dst || src === dst) return;
+    const k = src + '→' + dst;
+    if (seen.has(k)) return;
+    seen.add(k);
+    edgeLines.push(`${src} -> ${dst}`);
+  };
+
+  const edgeTargets = (p) => {
+    const comps = p.comps && p.comps.size
+      ? [...p.comps].map(_netmapSanitize).filter(Boolean)
+      : [];
+    return comps.length ? comps : [primaryLocal];
+  };
+
+  for (const p of inMap.values()) {
+    const src = peerLabel.get(p.ip) || p.ip;
+    for (const local of edgeTargets(p)) addEdge(src, local);
+  }
+  for (const p of outMap.values()) {
+    const dst = peerLabel.get(p.ip) || p.ip;
+    for (const local of edgeTargets(p)) addEdge(local, dst);
+  }
+
+  if (edgeLines.length) {
+    lines.push('');
+    lines.push('# ─── Connection edges ───');
+    lines.push(...edgeLines);
+  }
+
+  // Infrastructure from netconfig: gateways + DNS servers
+  if (S.netconfig && Array.isArray(S.netconfig.adapters)) {
+    const gws = new Set(), dns = new Set();
+    for (const a of S.netconfig.adapters) {
+      if (a.gateway && /^\d+\.\d+\.\d+\.\d+$/.test(a.gateway)) gws.add(a.gateway);
+      if (a.dns) {
+        String(a.dns).split(/[,;\s]+/).filter(Boolean).forEach(d => {
+          if (/^\d+\.\d+\.\d+\.\d+$/.test(d)) dns.add(d);
+        });
+      }
+    }
+    if (gws.size || dns.size) {
+      lines.push('');
+      lines.push('# ─── Infrastructure ───');
+      let gi = 0;
+      for (const gw of gws) {
+        const lbl = gws.size > 1 ? `GATEWAY-${++gi}` : 'GATEWAY';
+        lines.push(`${lbl}\t${gw}`);
+      }
+      let di = 0;
+      for (const d of dns) {
+        const lbl = dns.size > 1 ? `DNS-${++di}` : 'DNS';
+        lines.push(`${lbl}\t${d}`);
+      }
+    }
+  }
+
+  return lines.join('\n');
+}
+
+function copyNetmapSeed() {
+  if (typeof _buildPeers !== 'function') { showToast('Peers module not loaded'); return; }
+  const text = buildNetmapSeed();
+  const bodyLines = text.split('\n').filter(l => l && !l.startsWith('#')).length;
+  if (!bodyLines) { showToast('No network data to export'); return; }
+  navigator.clipboard.writeText(text).then(
+    () => showToast(`NetMap seed copied (${bodyLines} lines) — paste into netmap.html`),
+    () => showToast('Clipboard copy failed')
+  );
+}
