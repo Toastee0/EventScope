@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EventScope v6.7 — Forensic Event Log Analyzer</title>
+<title>EventScope v6.8 — Forensic Event Log Analyzer</title>
 <style>
   :root {
     /* ── Core palette ─────────────────────────────── */
@@ -698,7 +698,7 @@
 
 <div class="header">
   <div class="header-left">
-    <div class="logo">EventScope <span>/ v6.7</span></div>
+    <div class="logo">EventScope <span>/ v6.8</span></div>
   </div>
   <div class="header-stats" id="headerStats"></div>
 </div>
@@ -855,7 +855,7 @@
   <div class="tabs">
     <div class="tab active" data-tab="dashboard">Dashboard</div>
     <div class="tab" data-tab="overview">Overview</div>
-    <div class="tab" data-tab="timeline">Timeline</div>
+    <div class="tab" data-tab="histograms">Histograms</div>
     <div class="tab" data-tab="heatmap">Heatmap</div>
     <div class="tab" data-tab="firstseen">First Seen</div>
     <div class="tab" data-tab="gaps">Gaps</div>
@@ -871,6 +871,7 @@
     <div class="tab" data-tab="defender">Defender</div>
     <div class="tab" data-tab="peers">Remote Hosts</div>
     <div class="tab" data-tab="cypfer">Collector</div>
+    <div class="tab" data-tab="timeline" id="tabCypferTimeline" style="display:none">Timeline</div>
     <div class="tab" data-tab="eidfocus" id="tabEidFocus" style="display:none">EID Focus</div>
     <div class="tab" data-tab="srum">SRUM</div>
     <div class="tab" data-tab="netconfig">Network</div>
@@ -996,8 +997,8 @@
     </div>
   </div>
 
-  <!-- TIMELINE -->
-  <div class="panel" id="panel-timeline">
+  <!-- HISTOGRAMS -->
+  <div class="panel" id="panel-histograms">
     <div class="chart-box">
       <div class="chart-header"><span class="chart-title">Filtered Timeline</span>
         <div class="chart-controls">
@@ -1317,6 +1318,9 @@
     <div id="cypferContent"></div>
   </div>
 
+  <!-- TIMELINE (Cypfer private — loaded from cypfer/ subfolder if present) -->
+  <div class="panel" id="panel-timeline"></div>
+
   <!-- WINDOWS DEFENDER -->
   <div class="panel" id="panel-defender">
     <div id="defenderContent"></div>
@@ -1381,6 +1385,7 @@
 <script src="es-peers.js"></script>
 <script src="es-dashboard.js"></script>
 <script src="es-cypfer.js"></script>
+<script src="eventscopecypfer/es-cypfer-timeline.js" onerror="void 0"></script>
 <script src="es-rdp.js"></script>
 <script src="es-defender.js"></script>
 <script src="es-mplog.js"></script>

@@ -1673,7 +1673,8 @@ function switchTab(t) {
   switch (t) {
     case 'dashboard': rDashboard();   break;
     case 'overview':  rOV();          break;
-    case 'timeline':  rTL();          break;
+    case 'histograms': rTL();         break;
+    case 'timeline':  if (typeof rCypferTimeline==='function') rCypferTimeline(); break;
     case 'heatmap':   rHM();          break;
     case 'firstseen': rFirstSeen();   break;
     case 'gaps':      rGaps();        break;

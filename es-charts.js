@@ -245,8 +245,8 @@ function _renderHeatmap() {
     document.getElementById('filterTimeStart').value = dk;
     document.getElementById('filterTimeEnd').value   = dk;
     S.filters.timeStart = dk; S.filters.timeEnd = dk; invF();
-    showToast(`Filtered to ${dk} — switching to Timeline`);
-    switchTab('timeline');
+    showToast(`Filtered to ${dk} — switching to Histograms`);
+    switchTab('histograms');
   };
   cvs.onmousemove = e => {
     const rect = cvs.getBoundingClientRect();
