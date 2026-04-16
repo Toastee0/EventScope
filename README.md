@@ -47,7 +47,7 @@ No build step. No dependencies. No internet required.
 
 | Tab | What it shows |
 |-----|---------------|
-| **Overview** | Summary cards, detection timeline (all events), severity distribution, top Event IDs, top channels |
+| **Dashboard** | Landing view — host identity, OS line, boot events, network summary, header stats (total detections, severity counts, host count) |
 | **Histograms** | Filtered detection timeline with log-scale toggle, dynamic canvas height, 3σ burst detection with inline spike context panels |
 | **Heatmap** | Hour × day activity grid — color intensity = event density or severity weight; click a cell to filter to that day |
 | **Arrivals** | First-seen / last-seen per EID, rule, computer, or account — items first seen after the dataset midpoint are highlighted |

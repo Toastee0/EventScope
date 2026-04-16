@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EventScope v6.12 — Forensic Event Log Analyzer</title>
+<title>EventScope v6.13 — Forensic Event Log Analyzer</title>
 <style>
   :root {
     /* ── Core palette ─────────────────────────────── */
@@ -698,7 +698,7 @@
 
 <div class="header">
   <div class="header-left">
-    <div class="logo">EventScope <span>/ v6.12</span></div>
+    <div class="logo">EventScope <span>/ v6.13</span></div>
   </div>
   <div class="header-stats" id="headerStats"></div>
 </div>
@@ -839,7 +839,6 @@
   <!-- TAB BAR -->
   <div class="tabs">
     <div class="tab active" data-tab="dashboard">Dashboard</div>
-    <div class="tab" data-tab="overview">Overview</div>
     <div class="tab" data-tab="histograms">Histograms</div>
     <div class="tab" data-tab="heatmap">Heatmap</div>
     <div class="tab" data-tab="firstseen">First Seen</div>
@@ -867,37 +866,6 @@
   <!-- DASHBOARD (landing page) -->
   <div class="panel active" id="panel-dashboard">
     <div id="dashboardContent"></div>
-  </div>
-
-  <!-- OVERVIEW -->
-  <div class="panel" id="panel-overview">
-    <div class="card-grid" id="overviewCards"></div>
-    <div class="two-col">
-      <div class="chart-box">
-        <div class="chart-header"><span class="chart-title">Detection Timeline</span>
-          <div class="chart-controls">
-            <button class="chart-btn active" data-bucket="auto" data-target="timelineAll">Auto</button>
-            <button class="chart-btn" data-bucket="hour" data-target="timelineAll">1h</button>
-            <button class="chart-btn" data-bucket="day"  data-target="timelineAll">1d</button>
-          </div>
-        </div>
-        <canvas class="chart-canvas" id="canvasTimelineAll"></canvas>
-      </div>
-      <div class="chart-box">
-        <div class="chart-header"><span class="chart-title">Severity Distribution</span></div>
-        <canvas class="chart-canvas" id="canvasSeverity"></canvas>
-      </div>
-    </div>
-    <div class="two-col">
-      <div class="chart-box">
-        <div class="chart-header"><span class="chart-title">Top 20 Event IDs</span></div>
-        <canvas class="chart-canvas" id="canvasTopEvents"></canvas>
-      </div>
-      <div class="chart-box">
-        <div class="chart-header"><span class="chart-title">Events by Channel</span></div>
-        <canvas class="chart-canvas" id="canvasChannels"></canvas>
-      </div>
-    </div>
   </div>
 
   <!-- PERIODIC -->
@@ -1508,7 +1476,7 @@ document.getElementById('seqEidInput').addEventListener('keydown', e => { if (e.
 document.getElementById('eidFocusClose').addEventListener('click', () => {
   document.getElementById('tabEidFocus').style.display = 'none';
   S.focusEid = null;
-  switchTab('overview');
+  switchTab('dashboard');
 });
 document.getElementById('eidFocusToSeq').addEventListener('click', () => {
   if (!S.focusEid) return;

@@ -222,7 +222,23 @@ function rDashboard() {
   if (!rows.length) {
     document.getElementById('dashboardContent').innerHTML =
       '<div style="padding:40px;text-align:center;color:var(--text-dim);font-family:var(--mono);font-size:12px">No data loaded.</div>';
+    document.getElementById('headerStats').innerHTML = '';
     return;
+  }
+
+  // Header stats bar — always-visible summary across all tabs. Previously
+  // set only by the Overview tab (now retired); Dashboard owns it.
+  {
+    const tot = rows.length;
+    const uC  = new Set(rows.map(r => r.comp)).size;
+    const lc  = {critical:0, high:0, medium:0, low:0, informational:0};
+    rows.forEach(r => { if (lc[r.lvl] != null) lc[r.lvl]++; });
+    document.getElementById('headerStats').innerHTML =
+      `<span class="header-stat"><strong>${tot.toLocaleString()}</strong> det</span>
+       <span class="header-stat"><span class="sev-pip sev-critical"></span><strong>${lc.critical}</strong></span>
+       <span class="header-stat"><span class="sev-pip sev-high"></span><strong>${lc.high}</strong></span>
+       <span class="header-stat"><span class="sev-pip sev-medium"></span><strong>${lc.medium}</strong></span>
+       <span class="header-stat"><strong>${uC}</strong> hosts</span>`;
   }
 
   // ── Identity & OS ────────────────────────────────────────────────────────

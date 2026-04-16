@@ -364,51 +364,6 @@ function openSD(ci, ei) {
 
 // ── TAB RENDER FUNCTIONS ───────────────────────────────────────────────────────
 
-function rOV() {
-  const rows = getFR(), tot = rows.length;
-  const uR = new Set(rows.map(r => r.rule)).size;
-  const uC = new Set(rows.map(r => r.comp)).size;
-  const vt = rows.filter(r => !isNaN(r.ts));
-  const tMin = vt.length ? new Date(tsMin(vt)) : null;
-  const tMax = vt.length ? new Date(tsMax(vt)) : null;
-  const lc = {critical:0,high:0,medium:0,low:0,informational:0};
-  rows.forEach(r => lc[r.lvl]++);
-
-  document.getElementById('overviewCards').innerHTML =
-    `<div class="card"><div class="card-label">Total Detections</div><div class="card-value">${tot.toLocaleString()}</div></div>
-     <div class="card" style="border-left:3px solid var(--critical)"><div class="card-label">Critical / High</div><div class="card-value" style="color:var(--orange)">${(lc.critical+lc.high).toLocaleString()}</div><div class="card-sub"><span class="sev-pip sev-critical"></span>${lc.critical} crit <span class="sev-pip sev-high"></span>${lc.high} high</div></div>
-     <div class="card" style="border-left:3px solid var(--medium)"><div class="card-label">Medium / Low</div><div class="card-value" style="color:var(--warn)">${(lc.medium+lc.low).toLocaleString()}</div><div class="card-sub"><span class="sev-pip sev-medium"></span>${lc.medium} med <span class="sev-pip sev-low"></span>${lc.low} low</div></div>
-     <div class="card"><div class="card-label">Unique Rules</div><div class="card-value">${uR.toLocaleString()}</div></div>
-     <div class="card"><div class="card-label">Computers</div><div class="card-value">${uC.toLocaleString()}</div></div>
-     <div class="card"><div class="card-label">Time Range</div><div class="card-value" style="font-size:14px">${tMin?fDF(tMin):'N/A'}</div><div class="card-sub">${tMax?'to '+fDF(tMax):''}</div></div>`;
-
-  document.getElementById('headerStats').innerHTML =
-    `<span class="header-stat"><strong>${tot.toLocaleString()}</strong> det</span>
-     <span class="header-stat"><span class="sev-pip sev-critical"></span><strong>${lc.critical}</strong></span>
-     <span class="header-stat"><span class="sev-pip sev-high"></span><strong>${lc.high}</strong></span>
-     <span class="header-stat"><span class="sev-pip sev-medium"></span><strong>${lc.medium}</strong></span>
-     <span class="header-stat"><strong>${uC}</strong> hosts</span>`;
-
-  const tsR = rows.filter(r => !isNaN(r.ts));
-  const bMs = gBMs(S.bucketPref['timelineAll'], S.timeMin, S.timeMax);
-  const tl = bTL(tsR, bMs);
-  drawBC(document.getElementById('canvasTimelineAll'), tl.labels, tl.values);
-  aCT(document.getElementById('canvasTimelineAll'));
-
-  const sl = ['critical','high','medium','low','informational'];
-  drawHBC(document.getElementById('canvasSeverity'), sl, sl.map(l => lc[l]||0), sl.map(l => lC(l)));
-
-  const ec = {};
-  rows.forEach(r => ec[r.eid] = (ec[r.eid]||0)+1);
-  const es = Object.entries(ec).sort((a,b) => b[1]-a[1]).slice(0,20);
-  drawHBC(document.getElementById('canvasTopEvents'), es.map(s=>'EID '+s[0]), es.map(s=>s[1]));
-
-  const cc = {};
-  rows.forEach(r => { if (r.chan) cc[r.chan] = (cc[r.chan]||0)+1; });
-  const cs = Object.entries(cc).sort((a,b) => b[1]-a[1]).slice(0,15);
-  drawHBC(document.getElementById('canvasChannels'), cs.map(s=>s[0]), cs.map(s=>s[1]));
-}
-
 function toggleTLLogScale() {
   _tlLogScale = !_tlLogScale;
   const btn = document.getElementById('btnTLLogScale');
@@ -1670,7 +1625,7 @@ function applyFormatTabRestrictions() {
   if (evtxTab) evtxTab.style.display = restricted ? '' : 'none';
   // If active tab just got disabled, redirect to overview
   const activeTab = document.querySelector('.tab.active')?.dataset.tab;
-  if (restricted && EVTXECMD_ONLY_TABS.has(activeTab)) switchTab('overview');
+  if (restricted && EVTXECMD_ONLY_TABS.has(activeTab)) switchTab('dashboard');
 }
 
 function switchTab(t) {
@@ -1689,7 +1644,6 @@ function switchTab(t) {
   _lastExpandedIdx = null; _lastExpandedCtx = null;
   switch (t) {
     case 'dashboard': rDashboard();   break;
-    case 'overview':  rOV();          break;
     case 'histograms': rTL();         break;
     case 'timeline':  if (typeof rTimeline==='function') rTimeline(); break;
     case 'heatmap':   rHM();          break;
