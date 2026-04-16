@@ -63,11 +63,60 @@ function copyRows(rows) {
     .catch(() => showToast('Clipboard write failed'));
 }
 
+// Single-event copy: dump EVERYTHING about the row in human-readable form.
+// Ignores the user's column config — for a single event the analyst wants
+// every available field, not a configurable subset. Includes all parsed
+// det key:value pairs and the full extra payload if present.
 function copyDetailEvent() {
   // Uses the _detailRowIndex set in es-views.js openDP
   if (typeof _detailRowIndex === 'undefined' || _detailRowIndex === null) return;
   const r = getFR()[_detailRowIndex];
-  if (r) copyRows([r]);
+  if (!r) return;
+
+  const lines = [];
+  const push = (label, val) => {
+    if (val == null || val === '') return;
+    lines.push(`${label}: ${val}`);
+  };
+
+  push('Timestamp',  !isNaN(r.ts) ? fDTz(r.ts) : '');
+  push('Level',      r.lvl);
+  push('Event ID',   r.eid);
+  push('Rule',       r.rule);
+  push('Computer',   r.comp);
+  push('Channel',    r.chan);
+  push('Record ID',  r.rec);
+  push('Provider',   r.rid);
+  push('Source',     r.src);
+
+  // Parsed Details — every key:value the parser found
+  if (r.det) {
+    const parsed = (typeof parseDet === 'function') ? parseDet(r.det) : null;
+    if (parsed && Object.keys(parsed).length) {
+      lines.push('');
+      lines.push('--- Details ---');
+      for (const [k, v] of Object.entries(parsed)) {
+        if (v == null || v === '') continue;
+        lines.push(`${k}: ${v}`);
+      }
+    } else {
+      lines.push('');
+      lines.push('--- Details (raw) ---');
+      lines.push(String(r.det));
+    }
+  }
+
+  // Full extra/payload (EvtxECmd JSON or anything else carried on the row)
+  if (r.extra) {
+    lines.push('');
+    lines.push('--- Payload ---');
+    lines.push(String(r.extra));
+  }
+
+  const text = lines.join('\n');
+  navigator.clipboard.writeText(text)
+    .then(() => showToast(`Copied event — ${lines.length} lines`))
+    .catch(() => showToast('Clipboard write failed'));
 }
 
 function copyTableRows(ctx) {
@@ -102,6 +151,9 @@ const LOGON_COLS = [
   'Subject User', 'Subject Domain', 'Logon ID',
   'Failure Reason', 'Status', 'SubStatus',
   'Rule / Description',
+  // Raw fields appended last so nothing from the underlying event is lost —
+  // the 20 named columns above are convenience extracts, not the source of truth.
+  'Raw Details', 'Payload',
 ];
 
 function buildLogonCsv() {
@@ -131,6 +183,8 @@ function buildLogonCsv() {
       p['Status']                     || '',
       p['SubStatus']                  || '',
       r.rule                          || '',
+      r.det                           || '',
+      r.extra                         || '',
     ];
     lines.push(cells.map(v => esc_csv(String(v ?? ''), ',')).join(','));
   }

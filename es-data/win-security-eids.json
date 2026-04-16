@@ -74,5 +74,10 @@
   "5382": "Vault credentials were read",
   "5861": "A new permanent WMI event subscription was created",
   "7045": "A new service was installed in the system",
-  "4616": "The system time was changed"
+  "4616": "The system time was changed",
+  "4697": "A service was installed in the system",
+  "4719": "System audit policy was changed",
+  "4902": "The Per-user audit policy table was created",
+  "4904": "An attempt was made to register a security event source",
+  "4905": "An attempt was made to unregister a security event source"
 }

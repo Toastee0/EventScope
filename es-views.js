@@ -203,6 +203,23 @@ function navMove(delta) {
     if (ri >= 0) openDP(ri, 'eidfocus');
     return true;
   }
+  // Generic fallback: walk DOM siblings of the selected row and click the
+  // next data row that has an openDP(...) onclick. Works for any tab whose
+  // rows follow that pattern — logons, rules, firstseen, rdp, defender,
+  // dashboard, lateral, peers, etc. — without per-tab handler code.
+  const selected = document.querySelector('tr.row-selected');
+  if (selected) {
+    let next = selected;
+    while (true) {
+      next = delta > 0 ? next.nextElementSibling : next.previousElementSibling;
+      if (!next) return true;
+      if (next.tagName !== 'TR') continue;
+      if (next.classList.contains('inline-expansion')) continue;
+      const handler = next.getAttribute('onclick');
+      if (handler && /openDP\(/.test(handler)) { next.click(); return true; }
+      // skip header / separator rows that don't open a detail panel
+    }
+  }
   return false;
 }
 

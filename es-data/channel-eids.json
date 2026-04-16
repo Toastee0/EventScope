@@ -1,5 +1,34 @@
 {
   "Microsoft-WindowsAzure-Status/Plugins|7": "Azure VM extension installed/maintained/removed (CustomScriptExtension or RunCommand — runs as SYSTEM)",
   "windowsAzure-GuestAgent-Metrics/|7": "Azure VM extension installed/maintained/removed (CustomScriptExtension or RunCommand — runs as SYSTEM)",
-  "WindowsAzureGuestAgent|7": "Azure VM extension installed/maintained/removed (CustomScriptExtension or RunCommand — runs as SYSTEM)"
+  "WindowsAzureGuestAgent|7": "Azure VM extension installed/maintained/removed (CustomScriptExtension or RunCommand — runs as SYSTEM)",
+
+  "System|6005": "Event log service was started",
+  "System|6006": "Event log service was stopped (clean shutdown)",
+  "System|6008": "Previous system shutdown was unexpected (dirty shutdown)",
+  "System|6009": "OS version, build, CPU architecture and processor count (logged at every boot)",
+  "System|6013": "System uptime in seconds since last boot",
+  "System|6019": "Microcode update applied (reveals CPU family)",
+  "System|1": "Kernel-General — OS version, build, install date, boot type",
+  "System|12": "Kernel-General — OS start with timezone, locale, hardware clock",
+  "System|13": "Kernel-General — OS shutdown with timezone, locale, hardware clock",
+
+  "System|1074": "Shutdown / restart initiated — includes reason code and initiating process",
+  "System|7036": "Service entered the running / stopped state",
+  "System|7040": "Service start type was changed",
+  "System|7045": "A new service was installed in the system",
+
+  "System|4199": "IP address conflict detected (Tcpip)",
+  "System|10000": "DHCP lease obtained — IP, subnet, gateway, DHCP server, MAC",
+  "System|10001": "DHCP lease released",
+  "System|10400": "Static IP address configured",
+  "Microsoft-Windows-Dhcp-Client/Operational|4": "Full DHCP lease details (hostname, IP, subnet, gateway, MAC)",
+  "Application|1": "Network location changed — domain vs public vs private (NlaSvc)",
+
+  "Microsoft-Windows-DNS-Client/Operational|3006": "DNS query issued — target hostname, resolver used, initiating process",
+  "Microsoft-Windows-DNS-Client/Operational|3008": "DNS query failed",
+  "Microsoft-Windows-DNS-Client/Operational|3010": "DNS query — resolver response",
+
+  "Microsoft-Windows-NetworkProfile/Operational|10000": "Network connected — profile name, category (domain/private/public)",
+  "Microsoft-Windows-NetworkProfile/Operational|10001": "Network disconnected"
 }
