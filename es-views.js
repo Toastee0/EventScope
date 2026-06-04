@@ -34,8 +34,11 @@ function buildDetailHTML(r) {
   const isEvtx = S.format === 'evtxecmd';
   const p = parseDet(r.det);
 
+  // Tab text node between the key and value spans so selecting/copying from
+  // the panel yields "Key\tValue" rather than "KeyValue" — browsers don't
+  // insert whitespace between adjacent inline-block spans.
   const mkField = (k, v) =>
-    `<div class="detail-field"><span class="detail-key">${eH(k)}</span><span class="detail-val">${eH(v)}</span></div>`;
+    `<div class="detail-field"><span class="detail-key">${eH(k)}</span>\t<span class="detail-val">${eH(v)}</span></div>`;
 
   const pl = Object.entries(p).map(([k,v]) => mkField(k,v)).join('')
     || '<span style="color:var(--text-dim);font-size:11px">No parsed details</span>';
@@ -68,8 +71,8 @@ function buildDetailHTML(r) {
     <div class="detail-inline-meta">
       <div class="detail-section"><div class="detail-section-title">Event Metadata</div>
         ${mkField('Timestamp', !isNaN(r.ts)?fDTz(r.ts):'N/A')}
-        <div class="detail-field"><span class="detail-key">Event ID</span>${eL(r.eid)}</div>
-        <div class="detail-field"><span class="detail-key">Level</span>${lB(r.lvl)}</div>
+        <div class="detail-field"><span class="detail-key">Event ID</span>\t${eL(r.eid)}</div>
+        <div class="detail-field"><span class="detail-key">Level</span>\t${lB(r.lvl)}</div>
         ${mkField('Computer', r.comp)}
         ${mkField('Channel',  r.chan)}
         ${mkField('Record ID',r.rec)}

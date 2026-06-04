@@ -181,6 +181,117 @@ function _extractNetwork(rows) {
   return { hosts, srcIps, dstIps, domains };
 }
 
+// Collect every (hostname, ip) pair observable in the loaded data, with rows
+// kept for IPs that never had a hostname attached. Reuses _buildPeers() so
+// inbound/outbound classification and hostname extraction stays consistent
+// with the Remote Hosts tab. Local adapter IPs from netconfig are folded in
+// under the primary host when only one computer is loaded.
+function _extractHostIpPairs() {
+  const out = [];
+  if (typeof _buildPeers !== 'function') return out;
+  const { inMap, outMap } = _buildPeers();
+
+  // Merge inbound + outbound so each IP lists every hostname seen against it
+  const merged = new Map(); // ip -> { hostnames:Set, hitsIn, hitsOut, first, last }
+  const fold = (map, key) => {
+    for (const [ip, p] of map) {
+      if (!merged.has(ip)) merged.set(ip, {
+        hostnames: new Set(), hitsIn: 0, hitsOut: 0,
+        first: Infinity, last: -Infinity
+      });
+      const m = merged.get(ip);
+      p.remoteHosts.forEach(h => m.hostnames.add(h));
+      m[key] += p.count;
+      if (p.first < m.first) m.first = p.first;
+      if (p.last  > m.last)  m.last  = p.last;
+    }
+  };
+  fold(inMap,  'hitsIn');
+  fold(outMap, 'hitsOut');
+
+  for (const [ip, m] of merged) {
+    const hits = m.hitsIn + m.hitsOut;
+    const dir  = m.hitsIn && m.hitsOut ? 'both' : (m.hitsIn ? 'in' : 'out');
+    if (m.hostnames.size === 0) {
+      out.push({ hostname: '', ip, dir, hits, first: m.first, last: m.last });
+    } else {
+      for (const h of [...m.hostnames].sort()) {
+        out.push({ hostname: h, ip, dir, hits, first: m.first, last: m.last });
+      }
+    }
+  }
+
+  // Local host(s) from S.computerCounts, paired with netconfig adapter IPs
+  // when the case contains evidence from a single machine.
+  const locals = Object.keys(S.computerCounts || {}).filter(Boolean);
+  const adapterIPs = [];
+  if (locals.length === 1 && S.netconfig && Array.isArray(S.netconfig.adapters)) {
+    for (const a of S.netconfig.adapters) {
+      if (a && a.ip && /^\d+\.\d+\.\d+\.\d+$/.test(a.ip)) adapterIPs.push(a.ip);
+    }
+  }
+  const localPairs = [];
+  if (locals.length === 1 && adapterIPs.length) {
+    for (const ip of adapterIPs) localPairs.push({
+      hostname: locals[0], ip, dir: 'local', hits: 0, first: Infinity, last: -Infinity
+    });
+  } else if (locals.length) {
+    for (const h of locals) localPairs.push({
+      hostname: h, ip: '', dir: 'local', hits: 0, first: Infinity, last: -Infinity
+    });
+  }
+
+  // Sort peer rows: named first, then by hits desc, then hostname/IP
+  out.sort((a, b) => {
+    const ah = a.hostname ? 0 : 1, bh = b.hostname ? 0 : 1;
+    if (ah !== bh) return ah - bh;
+    if (b.hits !== a.hits) return b.hits - a.hits;
+    if (a.hostname !== b.hostname) return a.hostname.localeCompare(b.hostname);
+    return a.ip.localeCompare(b.ip);
+  });
+
+  return [...localPairs, ...out];
+}
+
+// NTFS EID 142 "Volume attached" events carry VolumeName (drive letter),
+// IsBootVolume, VolumeGuid, and a free-space range sampled at attach time.
+// Aggregate per volume so the Dashboard can show what disks were seen.
+function _extractDisks(rows) {
+  const vols = new Map();
+  for (let fi = 0; fi < rows.length; fi++) {
+    const r = rows[fi];
+    if (String(r.eid) !== '142') continue;
+    if (!/ntfs/i.test(r.chan || '') && !/ntfs/i.test(r.rid || '')) continue;
+    const p  = parseDet(r.det);
+    const pe = (typeof parseEvtxPayload === 'function' ? parseEvtxPayload(r.extra) : null) || {};
+    const name = String(p.VolumeName || pe.VolumeName || '').trim();
+    if (!name) continue;
+    if (!vols.has(name)) vols.set(name, {
+      name, guid: '', boot: false,
+      lowFree: Infinity, highFree: -Infinity,
+      first: Infinity, last: -Infinity,
+      count: 0, firstFi: fi
+    });
+    const v = vols.get(name);
+    v.count++;
+    if (!isNaN(r.ts)) {
+      if (r.ts < v.first) { v.first = r.ts; v.firstFi = fi; }
+      if (r.ts > v.last)  v.last  = r.ts;
+    }
+    const bootRaw = (p.IsBootVolume || pe.IsBootVolume || '').toLowerCase();
+    if (bootRaw === 'true') v.boot = true;
+    const guid = (p.VolumeGuid || pe.VolumeGuid || '').trim();
+    if (guid && !v.guid) v.guid = guid;
+    const lo = Number(p.LowestFreeSpaceInBytes  || pe.LowestFreeSpaceInBytes);
+    const hi = Number(p.HighestFreeSpaceInBytes || pe.HighestFreeSpaceInBytes);
+    if (isFinite(lo) && lo < v.lowFree)  v.lowFree  = lo;
+    if (isFinite(hi) && hi > v.highFree) v.highFree = hi;
+  }
+  return [...vols.values()].sort((a, b) =>
+    (b.boot?1:0) - (a.boot?1:0) || a.name.localeCompare(b.name)
+  );
+}
+
 function _extractUSBDevices(rows) {
   // Look for USB\VID_xxxx&PID_xxxx patterns anywhere in the det or extra field.
   // Also check EID 6416 DeviceId, and Microsoft-Windows-UserPnp events.
@@ -284,6 +395,13 @@ function rDashboard() {
 
   // ── Channel spans (for the Log Span breakdown) ───────────────────────────
   const chanSpans = _extractChannelSpans(rows);
+
+  // ── Host ↔ IP pairs ──────────────────────────────────────────────────────
+  const hostIpPairs = _extractHostIpPairs();
+  const hostIpNoName = hostIpPairs.filter(p => p.ip && !p.hostname).length;
+
+  // ── Disks / NTFS volumes ─────────────────────────────────────────────────
+  const disks = _extractDisks(rows);
 
   // ── Privileged logons (4672) ─────────────────────────────────────────────
   const priv = _extractPrivileged(rows);
@@ -447,6 +565,61 @@ function rDashboard() {
       </tr></thead><tbody>${chanSpanRows}</tbody></table>`
     : '<div style="padding:16px;color:var(--text-dim);font-family:var(--mono);font-size:12px">No channel data.</div>';
 
+  // Host ↔ IP pair table — every observed hostname/IP pairing, plus IPs that
+  // never had a hostname attached. Copy button emits tab-separated text.
+  const _dirTag = d => {
+    if (d === 'local') return '<span style="font-size:9px;background:var(--surface3);color:var(--text);padding:1px 5px;border-radius:2px;font-weight:600">LOCAL</span>';
+    if (d === 'both')  return '<span style="font-size:9px;background:var(--orange-dim);color:var(--orange);padding:1px 5px;border-radius:2px;font-weight:600">IN+OUT</span>';
+    if (d === 'in')    return '<span style="font-size:9px;background:var(--surface3);color:var(--text-dim);padding:1px 5px;border-radius:2px">IN</span>';
+    if (d === 'out')   return '<span style="font-size:9px;background:var(--surface3);color:var(--text-dim);padding:1px 5px;border-radius:2px">OUT</span>';
+    return '';
+  };
+  const hostIpRows = hostIpPairs.map(p => `<tr>
+    <td style="font-family:var(--mono);font-weight:${p.hostname?'600':'400'};color:${p.hostname?'var(--text)':'var(--text-dim)'}">${p.hostname ? eH(p.hostname) : '<span style="font-style:italic">— no hostname —</span>'}</td>
+    <td style="font-family:var(--mono);color:${p.ip?'var(--orange)':'var(--text-dim)'}">${p.ip ? eH(p.ip) : '—'}</td>
+    <td>${_dirTag(p.dir)}</td>
+    <td style="text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim)">${p.hits ? p.hits.toLocaleString() : '—'}</td>
+  </tr>`).join('');
+  const hostIpSection = hostIpPairs.length
+    ? `<table class="data-table"><thead><tr>
+        <th>Hostname</th><th>IP</th><th>Direction</th><th style="text-align:right">Hits</th>
+      </tr></thead><tbody>${hostIpRows}</tbody></table>`
+    : '<div style="padding:16px;color:var(--text-dim);font-family:var(--mono);font-size:12px">No host/IP pairs observed in current filter.</div>';
+
+  // Disk/volume table — one row per distinct volume seen in NTFS EID 142.
+  // Free-space columns show the range observed across attach events, not a
+  // live figure. Click jumps to the first 142 for that volume.
+  const diskRows = disks.map(v => {
+    const nav = isFinite(v.first)
+      ? `style="cursor:pointer" data-nav-idx="${v.firstFi}" onclick="openDP(${v.firstFi},'dashboard')" title="Jump to first EID 142 for ${eH(v.name)}"`
+      : 'style="cursor:default"';
+    const bootCell = v.boot
+      ? '<span style="font-size:9px;background:var(--orange-dim);color:var(--orange);padding:1px 5px;border-radius:2px;font-weight:600">BOOT</span>'
+      : '<span style="color:var(--text-dim)">—</span>';
+    const loStr = isFinite(v.lowFree)  ? fmtBytes(v.lowFree)  : '—';
+    const hiStr = isFinite(v.highFree) ? fmtBytes(v.highFree) : '—';
+    return `<tr ${nav}>
+      <td style="font-family:var(--mono);font-weight:600;color:var(--orange)">${eH(v.name)}</td>
+      <td>${bootCell}</td>
+      <td style="text-align:right;font-family:var(--mono);font-size:11px">${loStr}</td>
+      <td style="text-align:right;font-family:var(--mono);font-size:11px">${hiStr}</td>
+      <td style="font-family:var(--mono);font-size:10px;color:var(--text-dim);word-break:break-all">${eH(v.guid) || '—'}</td>
+      <td style="text-align:right;font-family:var(--mono)">${v.count.toLocaleString()}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--orange);white-space:nowrap">${isFinite(v.first)?fDTz(v.first):'—'}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim);white-space:nowrap">${isFinite(v.last)?fDTz(v.last):'—'}</td>
+    </tr>`;
+  }).join('');
+  const diskSection = disks.length
+    ? `<table class="data-table"><thead><tr>
+        <th>Volume</th><th>Boot</th>
+        <th style="text-align:right">Lowest Free</th>
+        <th style="text-align:right">Highest Free</th>
+        <th>Volume GUID</th>
+        <th style="text-align:right">Attach Events</th>
+        <th>First Seen</th><th>Last Seen</th>
+      </tr></thead><tbody>${diskRows}</tbody></table>`
+    : '<div style="padding:16px;color:var(--text-dim);font-family:var(--mono);font-size:12px">No Microsoft-Windows-Ntfs/Operational EID 142 events in current filter. Enable that channel to capture volume attach metadata.</div>';
+
   document.getElementById('dashboardContent').innerHTML = `
     <div style="margin-bottom:18px;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
       Snapshot of the loaded evidence. Numbers respect the current filter bar.
@@ -497,6 +670,21 @@ function rDashboard() {
     </div>
 
     <div class="chart-box" style="margin-bottom:14px">
+      <div class="chart-header"><span class="chart-title">Host &harr; IP Pairs</span>
+        <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim);margin-left:auto">${hostIpPairs.length.toLocaleString()} pair${hostIpPairs.length===1?'':'s'}${hostIpNoName?` &middot; ${hostIpNoName} IP${hostIpNoName===1?'':'s'} without hostname`:''}</span>
+        <button class="copy-btn" onclick="copyHostIpPairs()" style="margin-left:10px" title="Copy hostname&lt;TAB&gt;ip, one per line — IPs without a hostname copy with a leading tab so the IP column stays aligned">Copy</button>
+      </div>
+      <div class="data-table-wrap">${hostIpSection}</div>
+    </div>
+
+    <div class="chart-box" style="margin-bottom:14px">
+      <div class="chart-header"><span class="chart-title">Disks / NTFS Volumes</span>
+        <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim);margin-left:auto">Microsoft-Windows-Ntfs/Operational EID 142 &mdash; volume attach metadata</span>
+      </div>
+      <div class="data-table-wrap">${diskSection}</div>
+    </div>
+
+    <div class="chart-box" style="margin-bottom:14px">
       <div class="chart-header"><span class="chart-title">USB Devices Observed</span>
         <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim);margin-left:auto">VID/PID patterns from event details &amp; payload</span>
       </div>
@@ -507,4 +695,24 @@ function rDashboard() {
   // Draw histogram
   const cvs = document.getElementById('dashHistCanvas');
   if (cvs && days.length) drawBC(cvs, days, counts);
+}
+
+// Copy all host/IP pairs as tab-separated text. IPs without a hostname keep
+// a leading tab so a clipboard paste into Excel / netmap.html still aligns
+// the IP column. Pairs are deduplicated on (hostname, ip).
+function copyHostIpPairs() {
+  const pairs = _extractHostIpPairs();
+  if (!pairs.length) { showToast('No host/IP pairs to copy'); return; }
+  const seen = new Set();
+  const lines = [];
+  for (const p of pairs) {
+    const key = p.hostname.toLowerCase() + '\t' + p.ip.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    lines.push(`${p.hostname}\t${p.ip}`);
+  }
+  navigator.clipboard.writeText(lines.join('\n')).then(
+    () => showToast(`Copied ${lines.length} host/IP pair${lines.length===1?'':'s'}`),
+    () => showToast('Clipboard copy failed')
+  );
 }
