@@ -7,26 +7,26 @@
 
 const RDP_EIDS = {
   // Destination (target) events
-  '261':  { side: 'dest', phase: 'listener',   chan: /RemoteConnectionManager/i, label: 'Listener: connection received' },
-  '1149': { side: 'dest', phase: 'auth',       chan: /RemoteConnectionManager/i, label: 'User authenticated successfully' },
-  '4624': { side: 'dest', phase: 'logon',      chan: /Security/i,               label: 'Logon success', ltFilter: '10' },
-  '4625': { side: 'dest', phase: 'logon_fail', chan: /Security/i,               label: 'Logon failure', ltFilter: '10' },
-  '4648': { side: 'both', phase: 'explicit',   chan: /Security/i,               label: 'Explicit credential use' },
-  '4672': { side: 'dest', phase: 'privs',      chan: /Security/i,               label: 'Special privileges assigned' },
-  '21':   { side: 'dest', phase: 'session',    chan: /LocalSessionManager/i,    label: 'Session logon succeeded' },
-  '22':   { side: 'dest', phase: 'shell',      chan: /LocalSessionManager/i,    label: 'Shell start notification' },
-  '24':   { side: 'dest', phase: 'disconnect', chan: /LocalSessionManager/i,    label: 'Session disconnected' },
-  '25':   { side: 'dest', phase: 'reconnect',  chan: /LocalSessionManager/i,    label: 'Session reconnected' },
-  '4779': { side: 'dest', phase: 'disconnect', chan: /Security/i,               label: 'Session disconnected' },
-  '4778': { side: 'dest', phase: 'reconnect',  chan: /Security/i,               label: 'Session reconnected' },
-  '131':  { side: 'dest', phase: 'client_ip',  chan: /RdpCoreTS/i,             label: 'Client IP captured' },
-  '5156': { side: 'both', phase: 'network',    chan: /Security/i,               label: 'WFP connection (port 3389)' },
+  '261':  { side: 'dest', phase: 'listener',   chan: /RemoteConnectionManager|^RDS-RCM$/i, label: 'Listener: connection received' },
+  '1149': { side: 'dest', phase: 'auth',       chan: /RemoteConnectionManager|^RDS-RCM$/i, label: 'User authenticated successfully' },
+  '4624': { side: 'dest', phase: 'logon',      chan: /^Sec$|Security/i,               label: 'Logon success', ltFilter: '10' },
+  '4625': { side: 'dest', phase: 'logon_fail', chan: /^Sec$|Security/i,               label: 'Logon failure', ltFilter: '10' },
+  '4648': { side: 'both', phase: 'explicit',   chan: /^Sec$|Security/i,               label: 'Explicit credential use' },
+  '4672': { side: 'dest', phase: 'privs',      chan: /^Sec$|Security/i,               label: 'Special privileges assigned' },
+  '21':   { side: 'dest', phase: 'session',    chan: /LocalSessionManager|^RDS-LSM$/i,    label: 'Session logon succeeded' },
+  '22':   { side: 'dest', phase: 'shell',      chan: /LocalSessionManager|^RDS-LSM$/i,    label: 'Shell start notification' },
+  '24':   { side: 'dest', phase: 'disconnect', chan: /LocalSessionManager|^RDS-LSM$/i,    label: 'Session disconnected' },
+  '25':   { side: 'dest', phase: 'reconnect',  chan: /LocalSessionManager|^RDS-LSM$/i,    label: 'Session reconnected' },
+  '4779': { side: 'dest', phase: 'disconnect', chan: /^Sec$|Security/i,               label: 'Session disconnected' },
+  '4778': { side: 'dest', phase: 'reconnect',  chan: /^Sec$|Security/i,               label: 'Session reconnected' },
+  '131':  { side: 'dest', phase: 'client_ip',  chan: /RdpCoreTS|^RDP-CoreTS$/i, label: 'Client IP captured' },
+  '5156': { side: 'both', phase: 'network',    chan: /^Sec$|Security/i,               label: 'WFP connection (port 3389)' },
   // Source (client) events
-  '1024': { side: 'src',  phase: 'connect',    chan: /RDPClient/i,              label: 'RDP connecting to host' },
-  '1025': { side: 'src',  phase: 'connected',  chan: /RDPClient/i,              label: 'RDP connection established' },
-  '1026': { side: 'src',  phase: 'src_disconnect', chan: /RDPClient/i,          label: 'RDP disconnected' },
-  '1029': { side: 'src',  phase: 'src_auth',   chan: /RDPClient/i,              label: 'User auth (hash)' },
-  '1105': { side: 'src',  phase: 'src_disconnect', chan: /RDPClient/i,          label: 'Multi-transport disconnected' },
+  '1024': { side: 'src',  phase: 'connect',    chan: /RDPClient|^RDP-Cli$/i,              label: 'RDP connecting to host' },
+  '1025': { side: 'src',  phase: 'connected',  chan: /RDPClient|^RDP-Cli$/i,              label: 'RDP connection established' },
+  '1026': { side: 'src',  phase: 'src_disconnect', chan: /RDPClient|^RDP-Cli$/i,          label: 'RDP disconnected' },
+  '1029': { side: 'src',  phase: 'src_auth',   chan: /RDPClient|^RDP-Cli$/i,              label: 'User auth (hash)' },
+  '1105': { side: 'src',  phase: 'src_disconnect', chan: /RDPClient|^RDP-Cli$/i,          label: 'Multi-transport disconnected' },
 };
 
 // Phases that indicate RDP-specific process activity on destination
@@ -43,11 +43,10 @@ function _extractRDPEvents(rows) {
     const def = RDP_EIDS[eid];
 
     if (def) {
-      // Channel filter: must match expected channel pattern
-      if (def.chan && !def.chan.test(r.chan || '')) {
-        // Security channel events don't have a specific channel filter beyond "Security"
-        if (!/Security/i.test(def.chan.source) || !/Security/i.test(r.chan || '')) continue;
-      }
+      // Channel filter: must match expected channel pattern.
+      // Each pattern accepts both the full EvtxECmd channel name and the
+      // Hayabusa abbreviation (e.g. Security→Sec, LocalSessionManager→RDS-LSM).
+      if (def.chan && !def.chan.test(r.chan || '')) continue;
 
       const p = parseDet(r.det);
 
