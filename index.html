@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EventScope v6.15 — Forensic Event Log Analyzer</title>
+<title>EventScope v6.16 — Forensic Event Log Analyzer</title>
 <style>
   :root {
     /* ── Core palette ─────────────────────────────── */
@@ -698,7 +698,7 @@
 
 <div class="header">
   <div class="header-left">
-    <div class="logo">EventScope <span>/ v6.15</span></div>
+    <div class="logo">EventScope <span>/ v6.16</span></div>
   </div>
   <div class="header-stats" id="headerStats"></div>
 </div>
@@ -1609,8 +1609,10 @@ if (netconfigDZ) {
 
 // ── EID DESCRIPTIONS ───────────────────────────────────────────────────────────
 
-fetch('es-data/win-security-eids.json').then(r => r.json()).then(d => { S.eidDescs = d; }).catch(() => {});
-fetch('es-data/channel-eids.json').then(r => r.json()).then(d => { Object.assign(S.eidDescs, d); }).catch(() => {});
+// Comprehensive all-channel EID descriptions (~12k): built by merging the curated
+// Security set + EvtxECmd Maps + Windows provider message templates. Supersedes the
+// Security-only win-security-eids.json / channel-eids.json (kept as merge inputs).
+fetch('es-data/all-events.json').then(r => r.json()).then(d => { S.eidDescs = d; }).catch(() => {});
 if (typeof loadDefaultPack === 'function') loadDefaultPack();
 fetch('es-data/evtx-maps.json').then(r => r.json()).then(d => { S.evtxMaps = d; }).catch(() => {});
 fetch('es-data/mitre-attack.json').then(r => r.json()).then(d => { S.mitre = d; }).catch(() => {});

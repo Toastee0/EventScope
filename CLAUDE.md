@@ -21,7 +21,7 @@ EventScope is a browser-based DFIR (Digital Forensics & Incident Response) event
 - No npm, no bundler, no build step
 - No external dependencies (no CDN, no libraries)
 - Vanilla JavaScript only — no frameworks
-- No network requests of any kind (the only exceptions: `fetch('es-data/win-security-eids.json')` and `fetch('es-data/channel-eids.json')` which are local files)
+- No network requests of any kind (the only exceptions: local `fetch('es-data/*.json')` for reference data — `all-events.json` (comprehensive all-channel EID map, ~12k entries; supersedes the Security-only `win-security-eids.json`/`channel-eids.json`, which remain as merge inputs — see `tools/build-all-events.py`), `default-fieldmap.json`, `evtx-maps.json`)
 - Single deployable unit: index.html + es-*.js + es-data/ — everything must work offline
 - Streaming CSV parser: 4MB chunks, yields to event loop via setTimeout(r, 0) between chunks
 
