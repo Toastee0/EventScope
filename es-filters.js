@@ -28,6 +28,35 @@ function getSelectedLevels() {
   return s;
 }
 
+// ── CATEGORY (CHANNEL) HIDE-SET ────────────────────────────────────────────────
+//
+// The channel dropdown filters TO one category. What an analyst actually needs is
+// the opposite: keep everything and switch the noisy categories OFF — "the entire
+// prefetch category can just be toggled off" — then brush a time window. Unchecked
+// here means hidden; everything is checked by default, so this only ever subtracts
+// from what you already had.
+
+function getHiddenChannels() {
+  const s = new Set();
+  document.querySelectorAll('#channelHide input[type="checkbox"]').forEach(c => {
+    if (!c.checked) s.add(c.value);
+  });
+  return s;
+}
+
+/// Check or uncheck every category at once, then re-filter.
+function setAllChannels(on) {
+  document.querySelectorAll('#channelHide input[type="checkbox"]').forEach(c => {
+    c.checked = on;
+  });
+  readF();
+}
+
+function toggleChannelPanel() {
+  const p = document.getElementById('channelHidePanel');
+  if (p) p.style.display = p.style.display === 'none' ? '' : 'none';
+}
+
 // ── FILTER CACHE ───────────────────────────────────────────────────────────────
 
 function getFR() {
@@ -51,6 +80,9 @@ function getFR() {
   if (f.computer)  r = r.filter(x => x.comp === f.computer);
   if (f.channel)   r = r.filter(x => x.chan === f.channel);
   if (f.source)    r = r.filter(x => x.src === f.source);
+  if (f.hiddenChannels && f.hiddenChannels.size) {
+    r = r.filter(x => !f.hiddenChannels.has(x.chan));
+  }
   if (f.details) {
     const s = f.details.toLowerCase();
     r = r.filter(x => x.det.toLowerCase().includes(s));
@@ -86,6 +118,7 @@ function readF() {
     ruleTitle: document.getElementById('filterRuleTitle').value.trim(),
     computer:  document.getElementById('filterComputer').value,
     channel:   document.getElementById('filterChannel').value,
+    hiddenChannels: getHiddenChannels(),
     source:    document.getElementById('filterSource')?.value || '',
     details:   document.getElementById('filterDetails').value.trim(),
     timeStart: document.getElementById('filterTimeStart').value.trim(),

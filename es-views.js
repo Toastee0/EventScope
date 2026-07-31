@@ -1479,6 +1479,8 @@ async function loadAdditionalSession(file) {
     if (el.tagName === 'SELECT') el.selectedIndex = 0; else el.value = '';
   });
   document.querySelectorAll('#levelFilter input[type="checkbox"]').forEach(c => c.checked = true);
+  // Category hide-set is a filter too — Reset must un-hide everything.
+  document.querySelectorAll('#channelHide input[type="checkbox"]').forEach(c => c.checked = true);
   S.filters = {};
   invF();
   const at = document.querySelector('.tab.active');

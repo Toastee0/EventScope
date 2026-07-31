@@ -203,6 +203,22 @@ function popF() {
     ch.innerHTML += `<option value="${eH(c)}">${c.length > 40 ? c.substring(0,38)+'…' : c} (${n})</option>`;
   });
 
+  // Category hide-list: one checkbox per channel, biggest first, all on. This is
+  // the control that works for EVERY format — the source dropdown below only
+  // appears for evtxecmd, which left Sifter/Hayabusa data with no way to switch a
+  // category off at all.
+  const chWrap = document.getElementById('channelHide');
+  if (chWrap) {
+    chWrap.innerHTML = '';
+    Object.entries(S.channelCounts).sort((a, b) => b[1] - a[1]).forEach(([c, n]) => {
+      const short = c.length > 34 ? c.substring(0, 32) + '\u2026' : c;
+      chWrap.innerHTML +=
+        `<label style="display:block;white-space:nowrap" title="${eH(c)}">` +
+        `<input type="checkbox" value="${eH(c)}" checked onchange="readF()"> ` +
+        `${eH(short)} <span style="opacity:.6">(${n})</span></label>`;
+    });
+  }
+
   const sw = document.getElementById('filterSourceWrap');
   const sf = document.getElementById('filterSource');
   if (S.format === 'evtxecmd') {
